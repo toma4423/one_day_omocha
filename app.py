@@ -5,8 +5,8 @@ import random
 st.set_page_config(page_title="今日のおもちゃ", layout="wide")
 
 # セッション状態の初期化
-if 'dice_results' not in st.session_state:
-    st.session_state.dice_results = []
+if 'dice_total' not in st.session_state:
+    st.session_state.dice_total = 0
 if 'current_pos' not in st.session_state:
     st.session_state.current_pos = 0
 if 'board_data' not in st.session_state:
@@ -33,7 +33,6 @@ elif page == "サイコロ":
 
     if st.button("サイコロを振る！", use_container_width=True):
         results = [random.randint(1, n) for _ in range(x)]
-        st.session_state.dice_results = results
         total = sum(results)
         st.write("---")
         st.markdown(f"<h3 style='text-align: center;'>結果</h3>", unsafe_allow_html=True)
@@ -43,14 +42,26 @@ elif page == "サイコロ":
 elif page == "双六メーカー":
     st.title("🛤️ 双六メーカー")
     
-    # 設定エリア
-    with st.sidebar.expander("盤面の設定", expanded=True):
-        board_type = st.radio("形式を選択", ["スタートからゴール", "循環型（ループ）"])
-        num_tiles = st.slider("マスの数", min_value=3, max_value=50, value=10)
-        if st.button("盤面を初期化"):
-            st.session_state.board_data = {}
-            st.session_state.current_pos = 0
-            st.rerun()
+    # サイドバーに設定とサイコロを配置
+    with st.sidebar:
+        with st.expander("盤面の設定", expanded=False):
+            board_type = st.radio("形式を選択", ["スタートからゴール", "循環型（ループ）"])
+            num_tiles = st.slider("マスの数", min_value=3, max_value=50, value=10)
+            if st.button("盤面を初期化"):
+                st.session_state.board_data = {}
+                st.session_state.current_pos = 0
+                st.session_state.dice_total = 0
+                st.rerun()
+        
+        st.write("---")
+        st.subheader("🎲 サイコロを振る")
+        x_dice = st.number_input("ダイスの数 (x)", min_value=1, max_value=10, value=1, key="sb_x")
+        n_dice = st.number_input("面の数 (n)", min_value=1, max_value=100, value=6, key="sb_n")
+        
+        if st.button("サイコロを振る！", key="sb_roll", use_container_width=True):
+            results = [random.randint(1, n_dice) for _ in range(x_dice)]
+            st.session_state.dice_total = sum(results)
+            st.balloons()
 
     # データの初期化（不足分を補填）
     total_tiles = num_tiles if board_type == "スタートからゴール" else num_tiles + 1
@@ -65,10 +76,17 @@ elif page == "双六メーカー":
                 if i == num_tiles: st.session_state.board_data[key] = "🔄 循環"
                 else: st.session_state.board_data[key] = f"マス {i+1}"
 
+    # 出目の表示エリア
+    if st.session_state.dice_total > 0:
+        st.markdown(f"""
+            <div style="background-color: #E3F2FD; padding: 20px; border-radius: 10px; text-align: center; margin-bottom: 20px; border: 2px solid #2196F3;">
+                <span style="font-size: 20px; color: #1565C0;">🎲 サイコロの出目:</span>
+                <span style="font-size: 48px; font-weight: bold; color: #0D47A1; margin-left: 20px;">{st.session_state.dice_total}</span>
+            </div>
+        """, unsafe_allow_html=True)
+
     # 盤面の表示
     st.subheader("双六盤面")
-    st.info("マスをクリックして「現在地」を選択できます。テキスト入力で内容も書き換えられます。")
-
     cols_per_row = 5
     for i in range(0, total_tiles, cols_per_row):
         cols = st.columns(cols_per_row)
@@ -77,12 +95,10 @@ elif page == "双六メーカー":
             if idx < total_tiles:
                 key = f"tile_{idx}"
                 with col:
-                    # 現在地の判定とスタイル設定
                     is_current = (st.session_state.current_pos == idx)
                     bg_color = "#FFEB3B" if is_current else "#f9f9f9"
                     border_color = "#F44336" if is_current else "#ccc"
                     
-                    # コンテナ風の表示
                     st.markdown(f"""
                         <div style="
                             border: 3px solid {border_color};
@@ -97,7 +113,6 @@ elif page == "双六メーカー":
                         </div>
                     """, unsafe_allow_html=True)
                     
-                    # テキスト編集
                     st.session_state.board_data[key] = st.text_input(
                         f"text_{idx}", 
                         value=st.session_state.board_data[key],
@@ -105,7 +120,6 @@ elif page == "双六メーカー":
                         label_visibility="collapsed"
                     )
                     
-                    # 現在地に設定ボタン
                     if st.button("ここへ移動", key=f"btn_{idx}", use_container_width=True):
                         st.session_state.current_pos = idx
                         st.rerun()
