@@ -2,7 +2,15 @@ import streamlit as st
 import random
 
 # ページの設定
-st.set_page_config(page_title="今日のおもちゃ", layout="centered")
+st.set_page_config(page_title="今日のおもちゃ", layout="wide")
+
+# セッション状態の初期化
+if 'dice_results' not in st.session_state:
+    st.session_state.dice_results = []
+if 'current_pos' not in st.session_state:
+    st.session_state.current_pos = 0
+if 'board_data' not in st.session_state:
+    st.session_state.board_data = {}
 
 # サイドバーの作成
 st.sidebar.title("おもちゃ箱")
@@ -23,80 +31,87 @@ elif page == "サイコロ":
     with col2:
         n = st.number_input("ダイスの目の数 (n)", min_value=1, max_value=1000, value=6)
 
-    st.write(f"現在の設定: **{x}d{n}**")
-
     if st.button("サイコロを振る！", use_container_width=True):
         results = [random.randint(1, n) for _ in range(x)]
+        st.session_state.dice_results = results
         total = sum(results)
         st.write("---")
         st.markdown(f"<h3 style='text-align: center;'>結果</h3>", unsafe_allow_html=True)
         st.markdown(f"<h1 style='text-align: center;'>{total}</h1>", unsafe_allow_html=True)
-        if x > 1:
-            st.write(f"出目の内訳: {', '.join(map(str, results))}")
         st.balloons()
 
 elif page == "双六メーカー":
     st.title("🛤️ 双六メーカー")
-    st.write("オリジナルの双六盤面を作ってみよう！")
-
+    
     # 設定エリア
-    with st.expander("盤面の設定", expanded=True):
-        st.session_state.board_type = st.radio("形式を選択", ["スタートからゴール", "循環型（ループ）"])
-        st.session_state.num_tiles = st.slider("マスの数", min_value=3, max_value=50, value=10)
+    with st.sidebar.expander("盤面の設定", expanded=True):
+        board_type = st.radio("形式を選択", ["スタートからゴール", "循環型（ループ）"])
+        num_tiles = st.slider("マスの数", min_value=3, max_value=50, value=10)
+        if st.button("盤面を初期化"):
+            st.session_state.board_data = {}
+            st.session_state.current_pos = 0
+            st.rerun()
 
-    # 盤面の生成と表示
-    st.write("---")
-    st.subheader("生成された盤面")
-
-    tiles = []
-    num = st.session_state.num_tiles
-
-    if st.session_state.board_type == "スタートからゴール":
-        for i in range(num):
-            if i == 0:
-                tiles.append("🚩 START")
-            elif i == num - 1:
-                tiles.append("🏆 GOAL")
+    # データの初期化（不足分を補填）
+    total_tiles = num_tiles if board_type == "スタートからゴール" else num_tiles + 1
+    for i in range(total_tiles):
+        key = f"tile_{i}"
+        if key not in st.session_state.board_data:
+            if board_type == "スタートからゴール":
+                if i == 0: st.session_state.board_data[key] = "🚩 START"
+                elif i == num_tiles - 1: st.session_state.board_data[key] = "🏆 GOAL"
+                else: st.session_state.board_data[key] = f"マス {i}"
             else:
-                tiles.append(f"マス {i}")
-    else:
-        for i in range(num):
-            tiles.append(f"マス {i+1}")
-        tiles.append("🔄 循環")
+                if i == num_tiles: st.session_state.board_data[key] = "🔄 循環"
+                else: st.session_state.board_data[key] = f"マス {i+1}"
 
-    # 盤面をグリッドで表示（1行に5マスずつ）
+    # 盤面の表示
+    st.subheader("双六盤面")
+    st.info("マスをクリックして「現在地」を選択できます。テキスト入力で内容も書き換えられます。")
+
     cols_per_row = 5
-    for i in range(0, len(tiles), cols_per_row):
+    for i in range(0, total_tiles, cols_per_row):
         cols = st.columns(cols_per_row)
         for j, col in enumerate(cols):
-            if i + j < len(tiles):
+            idx = i + j
+            if idx < total_tiles:
+                key = f"tile_{idx}"
                 with col:
-                    st.markdown(
-                        f"""
+                    # 現在地の判定とスタイル設定
+                    is_current = (st.session_state.current_pos == idx)
+                    bg_color = "#FFEB3B" if is_current else "#f9f9f9"
+                    border_color = "#F44336" if is_current else "#ccc"
+                    
+                    # コンテナ風の表示
+                    st.markdown(f"""
                         <div style="
-                            border: 2px solid #ccc;
+                            border: 3px solid {border_color};
                             border-radius: 10px;
-                            padding: 15px;
+                            padding: 5px;
                             text-align: center;
-                            background-color: #f9f9f9;
-                            margin-bottom: 10px;
-                            min-height: 80px;
-                            display: flex;
-                            align-items: center;
-                            justify-content: center;
-                            font-weight: bold;
+                            background-color: {bg_color};
+                            margin-bottom: 5px;
+                            color: black;
                         ">
-                            {tiles[i+j]}
+                            <small>{"📍 現在地" if is_current else f"No. {idx+1}"}</small>
                         </div>
-                        """,
-                        unsafe_allow_html=True
+                    """, unsafe_allow_html=True)
+                    
+                    # テキスト編集
+                    st.session_state.board_data[key] = st.text_input(
+                        f"text_{idx}", 
+                        value=st.session_state.board_data[key],
+                        key=f"input_{idx}",
+                        label_visibility="collapsed"
                     )
-                    # マス間の矢印（最後以外）
-                    if i + j < len(tiles) - 1:
-                        if (j + 1) % cols_per_row != 0:
-                            st.markdown("<div style='text-align: center; font-size: 20px;'>👉</div>", unsafe_allow_html=True)
-                        else:
-                            st.markdown("<div style='text-align: center; font-size: 20px;'>👇</div>", unsafe_allow_html=True)
+                    
+                    # 現在地に設定ボタン
+                    if st.button("ここへ移動", key=f"btn_{idx}", use_container_width=True):
+                        st.session_state.current_pos = idx
+                        st.rerun()
+                        
+                    if idx < total_tiles - 1:
+                        st.markdown("<div style='text-align: center;'>👇</div>" if (j+1)%cols_per_row==0 else "<div style='text-align: center;'>👉</div>", unsafe_allow_html=True)
 
     st.write("---")
-    st.info("この盤面を見ながら、サイコロページで振って遊んでね！")
+    st.write(f"現在の位置: **No. {st.session_state.current_pos + 1} ({st.session_state.board_data[f'tile_{st.session_state.current_pos}']})**")
