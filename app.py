@@ -6,11 +6,17 @@ import numpy as np
 st.set_page_config(page_title="今日のおもちゃ", layout="wide")
 
 # セッション状態の初期化
-for key in ['dice_total', 'current_pos', 'cs_x', 'cs_y', 'cs_z', 'cs_weight_x', 'cs_weight_y', 'cs_weight_z']:
-    if key not in st.session_state: 
-        if 'weight' in key: st.session_state[key] = 1.0 # 倍率はデフォルト1.0
-        else: st.session_state[key] = 0
+# カウント用
+if 'cs_x' not in st.session_state: st.session_state.cs_x = 0
+if 'cs_y' not in st.session_state: st.session_state.cs_y = 0
+if 'cs_z' not in st.session_state: st.session_state.cs_z = 0
+# 倍率用
+if 'cs_weight_x' not in st.session_state: st.session_state.cs_weight_x = 1.0
+if 'cs_weight_y' not in st.session_state: st.session_state.cs_weight_y = 1.0
+if 'cs_weight_z' not in st.session_state: st.session_state.cs_weight_z = 1.0
 
+if 'dice_total' not in st.session_state: st.session_state.dice_total = 0
+if 'current_pos' not in st.session_state: st.session_state.current_pos = 0
 if 'board_data' not in st.session_state: st.session_state.board_data = {}
 if 'kurohige_status' not in st.session_state: st.session_state.kurohige_status = "ready"
 if 'ms_status' not in st.session_state: st.session_state.ms_status = "ready"
@@ -18,23 +24,16 @@ if 'ms_status' not in st.session_state: st.session_state.ms_status = "ready"
 # カウントサポート用UI
 def weighted_counter_ui(label, key_val, key_weight):
     st.markdown(f"#### {label}")
-    col_ctrl, col_w = st.columns([3, 1])
-    with col_ctrl:
-        c1, c2, c3 = st.columns([1, 2, 1])
-        with c1:
-            if st.button("ー", key=f"m_{key_val}", use_container_width=True):
-                st.session_state[key_val] -= 1
-                st.rerun()
-        with c2:
-            st.session_state[key_val] = st.number_input(f"{label}数", value=st.session_state[key_val], key=f"in_{key_val}", label_visibility="collapsed")
-        with c3:
-            if st.button("＋", key=f"p_{key_val}", use_container_width=True):
-                st.session_state[key_val] += 1
-                st.rerun()
+    col_val, col_w = st.columns([2, 1])
+    with col_val:
+        # 入力欄のみ表示
+        val = st.number_input(f"{label}の数", value=st.session_state[key_val], key=f"input_{key_val}")
+        st.session_state[key_val] = val
     with col_w:
-        st.session_state[key_weight] = st.number_input("倍率", value=st.session_state[key_weight], key=f"in_{key_weight}", step=0.1)
+        weight = st.number_input(f"{label}の倍率", value=st.session_state[key_weight], key=f"input_{key_weight}", step=0.1)
+        st.session_state[key_weight] = weight
     
-    current_weighted = st.session_state[key_val] * st.session_state[key_weight]
+    current_weighted = val * weight
     st.caption(f"現在の{label}値: {current_weighted:.1f}")
     return current_weighted
 
@@ -174,7 +173,7 @@ elif page == "マインスイーパー":
                     st.rerun()
 
 elif page == "カウントサポート":
-    st.title("🔢 カウントサポート (倍率機能付き)")
+    st.title("🔢 カウントサポート")
     
     col_main1, col_space, col_main2 = st.columns([2, 0.5, 2])
     
@@ -198,6 +197,11 @@ elif page == "カウントサポート":
         st.markdown(f"<div style='background-color:#E8F5E9;padding:20px;border-radius:10px;text-align:center;font-size:64px;font-weight:bold;color:#2E7D32;border:2px solid #2E7D32;'>{final_result:.1f}</div>", unsafe_allow_html=True)
 
     if st.sidebar.button("全ての数値をリセット"):
-        for k in ["cs_x", "cs_y", "cs_z"]: st.session_state[k] = 0
-        for k in ["cs_weight_x", "cs_weight_y", "cs_weight_z"]: st.session_state[k] = 1.0
+        # 論理的な値と、number_inputの内部状態（key）の両方をリセット
+        for k in ["cs_x", "cs_y", "cs_z"]: 
+            st.session_state[k] = 0
+            if f"input_{k}" in st.session_state: st.session_state[f"input_{k}"] = 0
+        for k in ["cs_weight_x", "cs_weight_y", "cs_weight_z"]: 
+            st.session_state[k] = 1.0
+            if f"input_{k}" in st.session_state: st.session_state[f"input_{k}"] = 1.0
         st.rerun()
