@@ -6,14 +6,15 @@ import numpy as np
 st.set_page_config(page_title="今日のおもちゃ", layout="wide")
 
 # セッション状態の初期化
-# カウント用
-if 'cs_x' not in st.session_state: st.session_state.cs_x = 0
-if 'cs_y' not in st.session_state: st.session_state.cs_y = 0
-if 'cs_z' not in st.session_state: st.session_state.cs_z = 0
-# 倍率用
-if 'cs_weight_x' not in st.session_state: st.session_state.cs_weight_x = 1.0
-if 'cs_weight_y' not in st.session_state: st.session_state.cs_weight_y = 1.0
-if 'cs_weight_z' not in st.session_state: st.session_state.cs_weight_z = 1.0
+def init_cs_state():
+    if 'cs_x' not in st.session_state: st.session_state.cs_x = 0
+    if 'cs_y' not in st.session_state: st.session_state.cs_y = 0
+    if 'cs_z' not in st.session_state: st.session_state.cs_z = 0
+    if 'cs_weight_x' not in st.session_state: st.session_state.cs_weight_x = 1.0
+    if 'cs_weight_y' not in st.session_state: st.session_state.cs_weight_y = 1.0
+    if 'cs_weight_z' not in st.session_state: st.session_state.cs_weight_z = 1.0
+
+init_cs_state()
 
 if 'dice_total' not in st.session_state: st.session_state.dice_total = 0
 if 'current_pos' not in st.session_state: st.session_state.current_pos = 0
@@ -26,14 +27,21 @@ def weighted_counter_ui(label, key_val, key_weight):
     st.markdown(f"#### {label}")
     col_val, col_w = st.columns([2, 1])
     with col_val:
-        # 入力欄のみ表示
-        val = st.number_input(f"{label}の数", value=st.session_state[key_val], key=f"input_{key_val}")
-        st.session_state[key_val] = val
+        # number_inputの値を直接session_state変数に同期
+        st.session_state[key_val] = st.number_input(
+            f"{label}の数", 
+            value=st.session_state[key_val], 
+            key=f"widget_{key_val}"
+        )
     with col_w:
-        weight = st.number_input(f"{label}の倍率", value=st.session_state[key_weight], key=f"input_{key_weight}", step=0.1)
-        st.session_state[key_weight] = weight
+        st.session_state[key_weight] = st.number_input(
+            f"{label}の倍率", 
+            value=st.session_state[key_weight], 
+            key=f"widget_{key_weight}", 
+            step=0.1
+        )
     
-    current_weighted = val * weight
+    current_weighted = st.session_state[key_val] * st.session_state[key_weight]
     st.caption(f"現在の{label}値: {current_weighted:.1f}")
     return current_weighted
 
@@ -197,11 +205,18 @@ elif page == "カウントサポート":
         st.markdown(f"<div style='background-color:#E8F5E9;padding:20px;border-radius:10px;text-align:center;font-size:64px;font-weight:bold;color:#2E7D32;border:2px solid #2E7D32;'>{final_result:.1f}</div>", unsafe_allow_html=True)
 
     if st.sidebar.button("全ての数値をリセット"):
-        # 論理的な値と、number_inputの内部状態（key）の両方をリセット
-        for k in ["cs_x", "cs_y", "cs_z"]: 
-            st.session_state[k] = 0
-            if f"input_{k}" in st.session_state: st.session_state[f"input_{k}"] = 0
-        for k in ["cs_weight_x", "cs_weight_y", "cs_weight_z"]: 
-            st.session_state[k] = 1.0
-            if f"input_{k}" in st.session_state: st.session_state[f"input_{k}"] = 1.0
+        # セッション状態の値を初期化
+        st.session_state.cs_x = 0
+        st.session_state.cs_y = 0
+        st.session_state.cs_z = 0
+        st.session_state.cs_weight_x = 1.0
+        st.session_state.cs_weight_y = 1.0
+        st.session_state.cs_weight_z = 1.0
+        
+        # ウィジェットに紐付いた内部キーを削除することで、ウィジェットを初期値で再生成させる
+        for k in ["cs_x", "cs_y", "cs_z", "cs_weight_x", "cs_weight_y", "cs_weight_z"]:
+            widget_key = f"widget_{k}"
+            if widget_key in st.session_state:
+                del st.session_state[widget_key]
+        
         st.rerun()
