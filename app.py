@@ -6,32 +6,41 @@ import numpy as np
 st.set_page_config(page_title="今日のおもちゃ", layout="wide")
 
 # セッション状態の初期化
-for key in ['dice_total', 'current_pos', 'cs_x', 'cs_y', 'cs_z']:
-    if key not in st.session_state: st.session_state[key] = 0
-if 'board_data' not in st.session_state: st.session_state.board_data = {}
+for key in ['dice_total', 'current_pos', 'cs_x', 'cs_y', 'cs_z', 'cs_weight_x', 'cs_weight_y', 'cs_weight_z']:
+    if key not in st.session_state: 
+        if 'weight' in key: st.session_state[key] = 1.0 # 倍率はデフォルト1.0
+        else: st.session_state[key] = 0
 
-# 他のゲームの状態初期化
+if 'board_data' not in st.session_state: st.session_state.board_data = {}
 if 'kurohige_status' not in st.session_state: st.session_state.kurohige_status = "ready"
 if 'ms_status' not in st.session_state: st.session_state.ms_status = "ready"
+
+# カウントサポート用UI
+def weighted_counter_ui(label, key_val, key_weight):
+    st.markdown(f"#### {label}")
+    col_ctrl, col_w = st.columns([3, 1])
+    with col_ctrl:
+        c1, c2, c3 = st.columns([1, 2, 1])
+        with c1:
+            if st.button("ー", key=f"m_{key_val}", use_container_width=True):
+                st.session_state[key_val] -= 1
+                st.rerun()
+        with c2:
+            st.session_state[key_val] = st.number_input(f"{label}数", value=st.session_state[key_val], key=f"in_{key_val}", label_visibility="collapsed")
+        with c3:
+            if st.button("＋", key=f"p_{key_val}", use_container_width=True):
+                st.session_state[key_val] += 1
+                st.rerun()
+    with col_w:
+        st.session_state[key_weight] = st.number_input("倍率", value=st.session_state[key_weight], key=f"in_{key_weight}", step=0.1)
+    
+    current_weighted = st.session_state[key_val] * st.session_state[key_weight]
+    st.caption(f"現在の{label}値: {current_weighted:.1f}")
+    return current_weighted
 
 # サイドバーの作成
 st.sidebar.title("おもちゃ箱")
 page = st.sidebar.selectbox("おもちゃを選んでね", ["ホーム", "サイコロ", "双六メーカー", "黒ひげ危機一発", "マインスイーパー", "カウントサポート"])
-
-# 汎用カウンター関数
-def counter_ui(label, key_name):
-    st.markdown(f"#### {label}")
-    c1, c2, c3 = st.columns([1, 2, 1])
-    with c1:
-        if st.button("ー", key=f"minus_{key_name}", use_container_width=True):
-            st.session_state[key_name] -= 1
-            st.rerun()
-    with c2:
-        st.session_state[key_name] = st.number_input(label, value=st.session_state[key_name], key=f"input_{key_name}", label_visibility="collapsed")
-    with c3:
-        if st.button("＋", key=f"plus_{key_name}", use_container_width=True):
-            st.session_state[key_name] += 1
-            st.rerun()
 
 if page == "ホーム":
     st.markdown("<h1 style='text-align: center; margin-top: 10vh;'>今日のおもちゃ</h1>", unsafe_allow_html=True)
@@ -65,7 +74,6 @@ elif page == "双六メーカー":
         if st.button("サイコロを振る！", use_container_width=True):
             st.session_state.dice_total = sum([random.randint(1, n_dice) for _ in range(x_dice)])
             st.balloons()
-
     total_tiles = num_tiles if board_type == "スタートからゴール" else num_tiles + 1
     for i in range(total_tiles):
         key = f"tile_{i}"
@@ -76,10 +84,8 @@ elif page == "双六メーカー":
                 else: st.session_state.board_data[key] = f"マス {i}"
             else:
                 st.session_state.board_data[key] = "🔄 循環" if i == num_tiles else f"マス {i+1}"
-
     if st.session_state.dice_total > 0:
         st.markdown(f"<div style='background-color:#E3F2FD;padding:20px;border-radius:10px;text-align:center;margin-bottom:20px;border:2px solid #2196F3;'><span style='font-size:20px;color:#1565C0;'>🎲 出目:</span><span style='font-size:48px;font-weight:bold;color:#0D47A1;margin-left:20px;'>{st.session_state.dice_total}</span></div>", unsafe_allow_html=True)
-
     st.subheader("双六盤面")
     cols_per_row = 5
     for i in range(0, total_tiles, cols_per_row):
@@ -121,8 +127,6 @@ elif page == "黒ひげ危機一発":
                             if idx == st.session_state.kurohige_target: st.session_state.kurohige_status = "boom"
                             else: st.session_state.kurohige_clicked.append(idx)
                             st.rerun()
-    if st.session_state.kurohige_status == "boom" and st.button("もう一度遊ぶ", use_container_width=True):
-        st.session_state.kurohige_status = "ready"; st.rerun()
 
 elif page == "マインスイーパー":
     st.title("💣 マインスイーパー")
@@ -149,10 +153,6 @@ elif page == "マインスイーパー":
         if st.session_state.ms_board[r, c] == 0:
             for dr in [-1, 0, 1]:
                 for dc in [-1, 0, 1]: reveal(r+dr, c+dc)
-    if st.session_state.ms_status == "playing" and np.sum(st.session_state.ms_revealed) == (ms_w * ms_h) - ms_mines:
-        st.session_state.ms_status = "won"
-    if st.session_state.ms_status == "won": st.success("🎉 クリア！"); st.balloons()
-    elif st.session_state.ms_status == "lost": st.error("💥 ゲームオーバー")
     for r in range(ms_h):
         cols = st.columns(ms_w)
         for c in range(ms_w):
@@ -174,30 +174,30 @@ elif page == "マインスイーパー":
                     st.rerun()
 
 elif page == "カウントサポート":
-    st.title("🔢 カウントサポート")
+    st.title("🔢 カウントサポート (倍率機能付き)")
     
-    # 左右の余白を抑えたカラム構成
-    col_main1, col_space, col_main2 = st.columns([2, 1, 2])
+    col_main1, col_space, col_main2 = st.columns([2, 0.5, 2])
     
     with col_main1:
         st.subheader("基本カウント")
-        counter_ui("X", "cs_x")
-        counter_ui("Y", "cs_y")
+        val_x = weighted_counter_ui("X", "cs_x", "cs_weight_x")
+        val_y = weighted_counter_ui("Y", "cs_y", "cs_weight_y")
         
         st.write("---")
-        diff_xy = st.session_state.cs_x - st.session_state.cs_y
-        st.markdown(f"### X - Y")
-        st.markdown(f"<div style='background-color:#2196F3;padding:20px;border-radius:10px;text-align:center;font-size:48px;font-weight:bold;color:white;border:2px solid #0D47A1;'>{diff_xy}</div>", unsafe_allow_html=True)
+        diff_xy = val_x - val_y
+        st.markdown(f"### X - Y (算出値)")
+        st.markdown(f"<div style='background-color:#2196F3;padding:20px;border-radius:10px;text-align:center;font-size:48px;font-weight:bold;color:white;border:2px solid #0D47A1;'>{diff_xy:.1f}</div>", unsafe_allow_html=True)
 
     with col_main2:
         st.subheader("追加カウント")
-        counter_ui("Z", "cs_z")
+        val_z = weighted_counter_ui("Z", "cs_z", "cs_weight_z")
         
         st.write("---")
-        final_result = diff_xy - st.session_state.cs_z
+        final_result = diff_xy - val_z
         st.markdown(f"### (X - Y) - Z")
-        st.markdown(f"<div style='background-color:#E8F5E9;padding:20px;border-radius:10px;text-align:center;font-size:64px;font-weight:bold;color:#2E7D32;border:2px solid #2E7D32;'>{final_result}</div>", unsafe_allow_html=True)
+        st.markdown(f"<div style='background-color:#E8F5E9;padding:20px;border-radius:10px;text-align:center;font-size:64px;font-weight:bold;color:#2E7D32;border:2px solid #2E7D32;'>{final_result:.1f}</div>", unsafe_allow_html=True)
 
     if st.sidebar.button("全ての数値をリセット"):
-        st.session_state.cs_x, st.session_state.cs_y, st.session_state.cs_z = 0, 0, 0
+        for k in ["cs_x", "cs_y", "cs_z"]: st.session_state[k] = 0
+        for k in ["cs_weight_x", "cs_weight_y", "cs_weight_z"]: st.session_state[k] = 1.0
         st.rerun()
