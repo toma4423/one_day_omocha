@@ -187,7 +187,7 @@ elif page == "カウントサポート":
         st.write("---")
         diff_xy = st.session_state.cs_x - st.session_state.cs_y
         st.markdown(f"### X - Y")
-        st.markdown(f"<div style='background-color:#F0F2F6;padding:20px;border-radius:10px;text-align:center;font-size:48px;font-weight:bold;border:2px solid #ccc;'>{diff_xy}</div>", unsafe_allow_html=True)
+        st.markdown(f"<div style='background-color:#2196F3;padding:20px;border-radius:10px;text-align:center;font-size:48px;font-weight:bold;color:white;border:2px solid #0D47A1;'>{diff_xy}</div>", unsafe_allow_html=True)
 
     with col_main2:
         st.subheader("追加カウント")
