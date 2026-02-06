@@ -6,6 +6,9 @@ import numpy as np
 st.set_page_config(page_title="今日のおもちゃ", layout="wide")
 
 # セッション状態の初期化
+if 'cs_reset_counter' not in st.session_state:
+    st.session_state.cs_reset_counter = 0
+
 def init_cs_state():
     if 'cs_x' not in st.session_state: st.session_state.cs_x = 0
     if 'cs_y' not in st.session_state: st.session_state.cs_y = 0
@@ -26,18 +29,21 @@ if 'ms_status' not in st.session_state: st.session_state.ms_status = "ready"
 def weighted_counter_ui(label, key_val, key_weight):
     st.markdown(f"#### {label}")
     col_val, col_w = st.columns([2, 1])
+    
+    # リセットカウンターをキーに含めることで、リセット時にウィジェットを強制再生成させる
+    reset_id = st.session_state.cs_reset_counter
+    
     with col_val:
-        # number_inputの値を直接session_state変数に同期
         st.session_state[key_val] = st.number_input(
             f"{label}の数", 
             value=st.session_state[key_val], 
-            key=f"widget_{key_val}"
+            key=f"w_{key_val}_{reset_id}"
         )
     with col_w:
         st.session_state[key_weight] = st.number_input(
             f"{label}の倍率", 
             value=st.session_state[key_weight], 
-            key=f"widget_{key_weight}", 
+            key=f"w_{key_weight}_{reset_id}", 
             step=0.1
         )
     
@@ -213,10 +219,6 @@ elif page == "カウントサポート":
         st.session_state.cs_weight_y = 1.0
         st.session_state.cs_weight_z = 1.0
         
-        # ウィジェットに紐付いた内部キーを削除することで、ウィジェットを初期値で再生成させる
-        for k in ["cs_x", "cs_y", "cs_z", "cs_weight_x", "cs_weight_y", "cs_weight_z"]:
-            widget_key = f"widget_{k}"
-            if widget_key in st.session_state:
-                del st.session_state[widget_key]
-        
+        # キーをリセットすることでウィジェットを再生成させる
+        st.session_state.cs_reset_counter += 1
         st.rerun()
