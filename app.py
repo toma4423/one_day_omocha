@@ -6,22 +6,32 @@ import numpy as np
 st.set_page_config(page_title="今日のおもちゃ", layout="wide")
 
 # セッション状態の初期化
-for key in ['dice_total', 'current_pos']:
+for key in ['dice_total', 'current_pos', 'cs_x', 'cs_y', 'cs_z']:
     if key not in st.session_state: st.session_state[key] = 0
 if 'board_data' not in st.session_state: st.session_state.board_data = {}
 
-# 黒ひげの状態初期化
+# 他のゲームの状態初期化
 if 'kurohige_status' not in st.session_state: st.session_state.kurohige_status = "ready"
-
-# マインスイーパーのセッション状態
 if 'ms_status' not in st.session_state: st.session_state.ms_status = "ready"
-if 'ms_board' not in st.session_state: st.session_state.ms_board = None
-if 'ms_revealed' not in st.session_state: st.session_state.ms_revealed = None
-if 'ms_flags' not in st.session_state: st.session_state.ms_flags = None
 
 # サイドバーの作成
 st.sidebar.title("おもちゃ箱")
-page = st.sidebar.selectbox("おもちゃを選んでね", ["ホーム", "サイコロ", "双六メーカー", "黒ひげ危機一発", "マインスイーパー"])
+page = st.sidebar.selectbox("おもちゃを選んでね", ["ホーム", "サイコロ", "双六メーカー", "黒ひげ危機一発", "マインスイーパー", "カウントサポート"])
+
+# 汎用カウンター関数
+def counter_ui(label, key_name):
+    st.markdown(f"#### {label}")
+    c1, c2, c3 = st.columns([1, 2, 1])
+    with c1:
+        if st.button("ー", key=f"minus_{key_name}", use_container_width=True):
+            st.session_state[key_name] -= 1
+            st.rerun()
+    with c2:
+        st.session_state[key_name] = st.number_input(label, value=st.session_state[key_name], key=f"input_{key_name}", label_visibility="collapsed")
+    with c3:
+        if st.button("＋", key=f"plus_{key_name}", use_container_width=True):
+            st.session_state[key_name] += 1
+            st.rerun()
 
 if page == "ホーム":
     st.markdown("<h1 style='text-align: center; margin-top: 10vh;'>今日のおもちゃ</h1>", unsafe_allow_html=True)
@@ -116,18 +126,13 @@ elif page == "黒ひげ危機一発":
 
 elif page == "マインスイーパー":
     st.title("💣 マインスイーパー")
-    
     with st.sidebar:
-        st.header("カスタム設定")
-        ms_w = st.number_input("幅", 4, 15, 8)
-        ms_h = st.number_input("高さ", 4, 15, 8)
+        ms_w, ms_h = st.number_input("幅", 4, 15, 8), st.number_input("高さ", 4, 15, 8)
         ms_mines = st.number_input("爆弾の数", 1, (ms_w * ms_h) - 1, 10)
         ms_mode = st.radio("操作モード", ["オープン", "フラグ 🚩"])
         if st.button("ゲームをリセット"):
             st.session_state.ms_status = "ready"
             st.rerun()
-
-    # 初期化
     if st.session_state.ms_status == "ready":
         board = np.zeros((ms_h, ms_w), dtype=int)
         mines_pos = random.sample(range(ms_w * ms_h), ms_mines)
@@ -135,61 +140,64 @@ elif page == "マインスイーパー":
         for r in range(ms_h):
             for c in range(ms_w):
                 if board[r, c] == -1: continue
-                count = 0
-                for dr in [-1, 0, 1]:
-                    for dc in [-1, 0, 1]:
-                        if 0 <= r+dr < ms_h and 0 <= c+dc < ms_w and board[r+dr, c+dc] == -1: count += 1
+                count = sum([1 for dr in [-1,0,1] for dc in [-1,0,1] if 0<=r+dr<ms_h and 0<=c+dc<ms_w and board[r+dr, c+dc]==-1])
                 board[r, c] = count
-        st.session_state.ms_board = board
-        st.session_state.ms_revealed = np.zeros((ms_h, ms_w), dtype=bool)
-        st.session_state.ms_flags = np.zeros((ms_h, ms_w), dtype=bool)
-        st.session_state.ms_status = "playing"
-
+        st.session_state.ms_board, st.session_state.ms_revealed, st.session_state.ms_flags, st.session_state.ms_status = board, np.zeros((ms_h, ms_w), dtype=bool), np.zeros((ms_h, ms_w), dtype=bool), "playing"
     def reveal(r, c):
         if not (0 <= r < ms_h and 0 <= c < ms_w) or st.session_state.ms_revealed[r, c] or st.session_state.ms_flags[r, c]: return
         st.session_state.ms_revealed[r, c] = True
         if st.session_state.ms_board[r, c] == 0:
             for dr in [-1, 0, 1]:
                 for dc in [-1, 0, 1]: reveal(r+dr, c+dc)
-
-    # 勝敗判定
-    if st.session_state.ms_status == "playing":
-        revealed_count = np.sum(st.session_state.ms_revealed)
-        if revealed_count == (ms_w * ms_h) - ms_mines:
-            st.session_state.ms_status = "won"
-
-    if st.session_state.ms_status == "won":
-        st.success("🎉 クリア！おめでとうございます！")
-        st.balloons()
-    elif st.session_state.ms_status == "lost":
-        st.error("💥 ドカン！爆弾を踏みました。ゲームオーバー")
-
-    # 盤面描画
+    if st.session_state.ms_status == "playing" and np.sum(st.session_state.ms_revealed) == (ms_w * ms_h) - ms_mines:
+        st.session_state.ms_status = "won"
+    if st.session_state.ms_status == "won": st.success("🎉 クリア！"); st.balloons()
+    elif st.session_state.ms_status == "lost": st.error("💥 ゲームオーバー")
     for r in range(ms_h):
         cols = st.columns(ms_w)
         for c in range(ms_w):
             with cols[c]:
-                label = ""
-                disabled = False
-                key = f"ms_{r}_{c}"
-                
+                label, disabled, key = "", False, f"ms_{r}_{c}"
                 if st.session_state.ms_revealed[r, c]:
                     val = st.session_state.ms_board[r, c]
                     label = "💣" if val == -1 else (str(val) if val > 0 else "")
                     disabled = True
-                elif st.session_state.ms_flags[r, c]:
-                    label = "🚩"
-                
+                elif st.session_state.ms_flags[r, c]: label = "🚩"
                 if st.session_state.ms_status in ["won", "lost"]:
                     if st.session_state.ms_board[r, c] == -1: label = "💣"
                     disabled = True
-
                 if st.button(label if label else "　", key=key, disabled=disabled, use_container_width=True):
                     if ms_mode == "オープン":
-                        if st.session_state.ms_board[r, c] == -1:
-                            st.session_state.ms_status = "lost"
-                        else:
-                            reveal(r, c)
-                    else: # フラグモード
-                        st.session_state.ms_flags[r, c] = not st.session_state.ms_flags[r, c]
+                        if st.session_state.ms_board[r, c] == -1: st.session_state.ms_status = "lost"
+                        else: reveal(r, c)
+                    else: st.session_state.ms_flags[r, c] = not st.session_state.ms_flags[r, c]
                     st.rerun()
+
+elif page == "カウントサポート":
+    st.title("🔢 カウントサポート")
+    
+    # 左右の余白を抑えたカラム構成
+    col_main1, col_space, col_main2 = st.columns([2, 1, 2])
+    
+    with col_main1:
+        st.subheader("基本カウント")
+        counter_ui("X", "cs_x")
+        counter_ui("Y", "cs_y")
+        
+        st.write("---")
+        diff_xy = st.session_state.cs_x - st.session_state.cs_y
+        st.markdown(f"### X - Y")
+        st.markdown(f"<div style='background-color:#F0F2F6;padding:20px;border-radius:10px;text-align:center;font-size:48px;font-weight:bold;border:2px solid #ccc;'>{diff_xy}</div>", unsafe_allow_html=True)
+
+    with col_main2:
+        st.subheader("追加カウント")
+        counter_ui("Z", "cs_z")
+        
+        st.write("---")
+        final_result = diff_xy - st.session_state.cs_z
+        st.markdown(f"### (X - Y) - Z")
+        st.markdown(f"<div style='background-color:#E8F5E9;padding:20px;border-radius:10px;text-align:center;font-size:64px;font-weight:bold;color:#2E7D32;border:2px solid #2E7D32;'>{final_result}</div>", unsafe_allow_html=True)
+
+    if st.sidebar.button("全ての数値をリセット"):
+        st.session_state.cs_x, st.session_state.cs_y, st.session_state.cs_z = 0, 0, 0
+        st.rerun()
