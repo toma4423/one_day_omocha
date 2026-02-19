@@ -71,7 +71,7 @@ for r in range(rows):
             )
             
             # 操作ボタン
-            btn_col1, btn_col2 = st.columns(2)
+            _, btn_col1, btn_col2, _ = st.columns([0.2, 1, 1, 0.2])
             with btn_col1:
                 if st.button("＋", key=f"plus_{r}_{c}", use_container_width=True):
                     st.session_state[count_key] += 1
