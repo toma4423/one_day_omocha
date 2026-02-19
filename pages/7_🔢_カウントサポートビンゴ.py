@@ -56,12 +56,6 @@ for r in range(rows):
                 bg_color = "#ffebee"
                 text_color = "#d32f2f"
             
-            st.markdown(f"""
-                <div style='background-color:{bg_color}; padding:10px; border-radius:5px; border:1px solid #ddd; margin-bottom:5px;'>
-                    <div style='text-align:center; font-size:24px; font-weight:bold; color:{text_color};'>{st.session_state[count_key]}</div>
-                </div>
-            """, unsafe_allow_html=True)
-            
             # ラベル入力
             st.session_state[label_key] = st.text_input(
                 f"L_{r}_{c}", 
@@ -69,14 +63,31 @@ for r in range(rows):
                 key=f"input_{r}_{c}",
                 label_visibility="collapsed"
             )
-            
-            # 操作ボタン
-            _, btn_col1, btn_col2, _ = st.columns([0.2, 1, 1, 0.2])
-            with btn_col1:
-                if st.button("＋", key=f"plus_{r}_{c}", use_container_width=True):
-                    st.session_state[count_key] += 1
-                    st.rerun()
-            with btn_col2:
+
+            # カウンター操作（横並び）
+            # 背景色などのスタイル計算
+            bg_color = "#f0f2f6"
+            text_color = "#1f77b4"
+            if st.session_state[count_key] > 0:
+                bg_color = "#e1f5fe"
+                text_color = "#0288d1"
+            elif st.session_state[count_key] < 0:
+                bg_color = "#ffebee"
+                text_color = "#d32f2f"
+
+            # ボタンと数字を横に並べる
+            col_m, col_v, col_p = st.columns([1, 1.5, 1])
+            with col_m:
                 if st.button("－", key=f"minus_{r}_{c}", use_container_width=True):
                     st.session_state[count_key] -= 1
+                    st.rerun()
+            with col_v:
+                st.markdown(f"""
+                    <div style='background-color:{bg_color}; padding:5px; border-radius:5px; border:1px solid #ddd; text-align:center;'>
+                        <div style='font-size:20px; font-weight:bold; color:{text_color};'>{st.session_state[count_key]}</div>
+                    </div>
+                """, unsafe_allow_html=True)
+            with col_p:
+                if st.button("＋", key=f"plus_{r}_{c}", use_container_width=True):
+                    st.session_state[count_key] += 1
                     st.rerun()
