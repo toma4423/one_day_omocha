@@ -28,16 +28,6 @@ def init_state(r, c):
     if count_key not in st.session_state:
         st.session_state[count_key] = 0
 
-# 全体のカウント計算
-total_count = 0
-for r in range(rows):
-    for c in range(cols_num):
-        init_state(r, c)
-        total_count += st.session_state[f"csb_count_{r}_{c}"]
-
-# 合計表示
-st.markdown(f"### 合計: {total_count}")
-
 # ビンゴグリッドの表示
 for r in range(rows):
     cols = st.columns(cols_num)
