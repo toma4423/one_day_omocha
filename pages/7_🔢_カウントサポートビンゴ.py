@@ -32,6 +32,7 @@ def init_state(r, c):
 for r in range(rows):
     cols = st.columns(cols_num)
     for c in range(cols_num):
+        init_state(r, c)
         with cols[c]:
             label_key = f"csb_label_{r}_{c}"
             count_key = f"csb_count_{r}_{c}"
