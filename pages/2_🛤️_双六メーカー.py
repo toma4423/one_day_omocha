@@ -1,12 +1,8 @@
 import streamlit as st
 from src.utils.dice import roll_dice
-from src.utils.styles import render_styled_number, render_donation_box
+from src.utils.styles import render_styled_number
 
 st.set_page_config(page_title="双六メーカー", page_icon="🛤️")
-
-# 募金箱設置
-PAYPAY_URL = "https://qr.paypay.ne.jp/p2p01_jsHjvMAenqfvI10s"
-render_donation_box(PAYPAY_URL)
 
 # セッション状態の初期化
 if 'dice_total' not in st.session_state:

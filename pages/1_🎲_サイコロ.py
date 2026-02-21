@@ -1,12 +1,8 @@
 import streamlit as st
 from src.utils.dice import roll_dice
-from src.utils.styles import render_result_box, render_donation_box
+from src.utils.styles import render_result_box
 
 st.set_page_config(page_title="サイコロ", page_icon="🎲")
-
-# 募金箱設置
-PAYPAY_URL = "https://qr.paypay.ne.jp/p2p01_jsHjvMAenqfvI10s"
-render_donation_box(PAYPAY_URL)
 
 st.title("🎲 サイコロ")
 col1, col2 = st.columns(2)

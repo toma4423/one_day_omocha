@@ -1,11 +1,7 @@
 import streamlit as st
-from src.utils.styles import render_result_box, render_donation_box
+from src.utils.styles import render_result_box
 
 st.set_page_config(page_title="カウントサポート", page_icon="🔢")
-
-# 募金箱設置
-PAYPAY_URL = "https://qr.paypay.ne.jp/p2p01_jsHjvMAenqfvI10s"
-render_donation_box(PAYPAY_URL)
 
 # セッション状態の初期化
 if 'cs_reset_counter' not in st.session_state:

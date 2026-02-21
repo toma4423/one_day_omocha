@@ -1,12 +1,7 @@
 import streamlit as st
 import pandas as pd
-from src.utils.styles import render_donation_box
 
 st.set_page_config(page_title="カウントサポートビンゴ", page_icon="🔢", layout="wide")
-
-# 募金箱設置
-PAYPAY_URL = "https://qr.paypay.ne.jp/p2p01_jsHjvMAenqfvI10s"
-render_donation_box(PAYPAY_URL)
 
 st.title("🔢 カウントサポートビンゴ")
 

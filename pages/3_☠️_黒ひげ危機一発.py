@@ -1,12 +1,7 @@
 import streamlit as st
 import random
-from src.utils.styles import render_donation_box
 
 st.set_page_config(page_title="黒ひげ危機一発", page_icon="☠️")
-
-# 募金箱設置
-PAYPAY_URL = "https://qr.paypay.ne.jp/p2p01_jsHjvMAenqfvI10s"
-render_donation_box(PAYPAY_URL)
 
 # セッション状態の初期化
 if 'kurohige_status' not in st.session_state:

@@ -4,13 +4,8 @@ from src.utils.dice import (
     HAND_RANK, roll_dice, evaluate_hand, 
     display_dice_html, render_dice_animation
 )
-from src.utils.styles import render_donation_box
 
 st.set_page_config(page_title="チンチロ", page_icon="🎲")
-
-# 募金箱設置
-PAYPAY_URL = "https://qr.paypay.ne.jp/p2p01_jsHjvMAenqfvI10s"
-render_donation_box(PAYPAY_URL)
 
 # --- セッション状態の初期化 ---
 if 'cc_dice' not in st.session_state:
