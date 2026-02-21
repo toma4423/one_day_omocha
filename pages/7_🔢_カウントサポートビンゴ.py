@@ -37,13 +37,21 @@ st.markdown("""
 
 st.title("🔢 カウントサポートビンゴ")
 
-# SafeStorage の初期化（ページ読み込みごとに確実にインスタンス化）
-# コンポーネント自体の戻り値を SafeStorage でラップします
+# SafeStorage の初期化
 storage = SafeStorage(LocalStorage())
 
 # 初期状態のロードを一度だけ行うためのフラグ
 if 'just_reset' not in st.session_state:
     st.session_state.just_reset = False
+
+# 行数・列数の初期化（LocalStorage から復元）
+if 'csb_rows' not in st.session_state:
+    saved_rows = storage.get_item('csb_rows')
+    st.session_state.csb_rows = int(saved_rows) if saved_rows is not None else 5
+
+if 'csb_cols' not in st.session_state:
+    saved_cols = storage.get_item('csb_cols')
+    st.session_state.csb_cols = int(saved_cols) if saved_cols is not None else 5
 
 # セッション状態の初期化
 def init_cell_state(r, c):
@@ -66,11 +74,28 @@ def init_cell_state(r, c):
             
     return label_key, count_key
 
+# コールバック関数
+def on_val_change(key):
+    storage.set_item(key, st.session_state[key])
+
+def on_plus(key):
+    st.session_state[key] += 1
+    on_val_change(key)
+
+def on_minus(key):
+    st.session_state[key] -= 1
+    on_val_change(key)
+
+def on_grid_change():
+    storage.set_item('csb_rows', st.session_state.csb_rows)
+    storage.set_item('csb_cols', st.session_state.csb_cols)
+
 # サイドバーの設定項目
 with st.sidebar:
     st.header("設定")
-    rows = st.number_input("行数", min_value=1, max_value=15, value=5)
-    cols_num = st.number_input("列数", min_value=1, max_value=15, value=5)
+    # key を指定してセッション状態と同期させる
+    rows = st.number_input("行数", min_value=1, max_value=15, key="csb_rows", on_change=on_grid_change)
+    cols_num = st.number_input("列数", min_value=1, max_value=15, key="csb_cols", on_change=on_grid_change)
     
     st.write("---")
     st.subheader("💾 セーブ & ロード")
@@ -99,6 +124,13 @@ with st.sidebar:
         if st.button("復元する", use_container_width=True):
             try:
                 df_load = pd.read_csv(uploaded_file)
+                # ファイル内の最大行・列に合わせてグリッドサイズを更新
+                max_r = int(df_load['row'].max()) + 1
+                max_c = int(df_load['col'].max()) + 1
+                st.session_state.csb_rows = max_r
+                st.session_state.csb_cols = max_c
+                on_grid_change()
+
                 for _, row_data in df_load.iterrows():
                     r, c = int(row_data['row']), int(row_data['col'])
                     lk, ck = f"csb_label_{r}_{c}", f"csb_count_{r}_{c}"
@@ -112,26 +144,18 @@ with st.sidebar:
                 st.error("ロードに失敗しました")
 
     st.write("---")
-    # リセットボタン（AttributeError を防ぐために SafeStorage インスタンスを確実に呼び出す）
+    # リセットボタン
     if st.button("全てをリセット", use_container_width=True):
         st.session_state.just_reset = True
         storage.clear_all_with_prefix("csb_")
+        # 行・列もデフォルトに戻す
+        st.session_state.csb_rows = 5
+        st.session_state.csb_cols = 5
+        on_grid_change()
         st.success("リセット完了")
         st.rerun()
 
     st.info("自動保存：ブラウザ（LocalStorage）")
-
-# コールバック関数
-def on_val_change(key):
-    storage.set_item(key, st.session_state[key])
-
-def on_plus(key):
-    st.session_state[key] += 1
-    on_val_change(key)
-
-def on_minus(key):
-    st.session_state[key] -= 1
-    on_val_change(key)
 
 # リセットフラグを戻す
 if st.session_state.just_reset:
