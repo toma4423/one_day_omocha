@@ -41,3 +41,27 @@ def test_safe_storage_set_item_calls_storage():
     safe_storage = SafeStorage(mock_storage)
     safe_storage.set_item("test_key", "test_value")
     mock_storage.setItem.assert_called_once_with("test_key", "test_value")
+
+def test_safe_storage_json_serialization():
+    import json
+    mock_storage = MagicMock()
+    safe_storage = SafeStorage(mock_storage)
+    
+    complex_data = {"a": 1, "b": [1, 2, 3]}
+    safe_storage.set_item("json_key", complex_data)
+    
+    # 内部で json.dumps が呼ばれているか確認
+    # mock_storage.setItem.call_args[0][1] が JSON 文字列であることを確認
+    called_val = mock_storage.setItem.call_args[0][1]
+    assert json.loads(called_val) == complex_data
+
+def test_safe_storage_json_deserialization():
+    import json
+    mock_storage = MagicMock()
+    complex_data = {"rows": 5, "cells": {"0_0": "test"}}
+    mock_storage.getItem.return_value = json.dumps(complex_data)
+    
+    safe_storage = SafeStorage(mock_storage)
+    loaded_data = safe_storage.get_item("json_key", is_json=True)
+    
+    assert loaded_data == complex_data

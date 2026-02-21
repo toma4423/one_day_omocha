@@ -90,6 +90,8 @@ for i in range(total_tiles):
             else:
                 st.session_state.board_data[key] = f"マス {i+1}"
 
+from src.utils.sugoroku import calculate_new_position
+
 # --- メインエリア：サイコロ操作 ---
 st.subheader("🎲 サイコロを振って進む")
 c1, c2, c3 = st.columns([1, 1, 2])
@@ -104,17 +106,17 @@ with c3:
         dice_sum = sum(results)
         st.session_state.dice_last_result = dice_sum
         
-        # 自動移動ロジック
-        new_pos = st.session_state.current_pos + dice_sum
+        # 移動ロジックをユーティリティ関数に委譲
+        is_loop = (st.session_state.sg_board_type == "循環型（ループ）")
+        new_pos = calculate_new_position(
+            st.session_state.current_pos, 
+            dice_sum, 
+            total_tiles, 
+            is_loop
+        )
         
-        if st.session_state.sg_board_type == "循環型（ループ）":
-            # 循環：マスの数で割った余り（10の次は1に戻る）
-            new_pos = new_pos % total_tiles
-        else:
-            # ゴールあり：最大値で止まる
-            if new_pos >= total_tiles:
-                new_pos = total_tiles - 1
-                st.success("ゴール！おめでとう！")
+        if not is_loop and new_pos == total_tiles - 1 and st.session_state.current_pos != total_tiles - 1:
+            st.success("ゴール！おめでとう！")
         
         st.session_state.current_pos = new_pos
         storage.set_item('current_pos', new_pos)
