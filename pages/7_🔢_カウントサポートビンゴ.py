@@ -10,14 +10,12 @@ st.set_page_config(page_title="カウントサポートビンゴ", page_icon="�
 # スマホ対応用のカスタムCSS
 st.markdown("""
     <style>
-    /* ボタンを大きく押しやすくする */
     .stButton > button {
         height: 60px !important;
         font-size: 24px !important;
         border-radius: 12px !important;
         margin-bottom: 10px !important;
     }
-    /* 入力欄のフォントを大きく、中央揃えにする */
     .stNumberInput input {
         font-size: 20px !important;
         text-align: center !important;
@@ -27,8 +25,7 @@ st.markdown("""
         font-size: 16px !important;
         text-align: center !important;
     }
-    /* 狭い画面での余白調整 */
-    @media (max_value: 600px) {
+    @media (max_width: 600px) {
         .block-container {
             padding-left: 0.5rem !important;
             padding-right: 0.5rem !important;
@@ -39,10 +36,9 @@ st.markdown("""
 
 st.title("🔢 カウントサポートビンゴ")
 
-# SafeStorage の初期化
-if 'safe_storage' not in st.session_state:
-    st.session_state.safe_storage = SafeStorage(LocalStorage())
-storage = st.session_state.safe_storage
+# SafeStorage の初期化（ページ読み込みごとに確実にインスタンス化）
+# コンポーネント自体の戻り値を SafeStorage でラップします
+storage = SafeStorage(LocalStorage())
 
 # 初期状態のロードを一度だけ行うためのフラグ
 if 'just_reset' not in st.session_state:
@@ -55,10 +51,12 @@ def init_cell_state(r, c):
     
     # リセット直後、または初めての場合のみデフォルト値を設定
     if st.session_state.just_reset or label_key not in st.session_state:
+        # storage から取得（リセット直後でない場合のみ）
         saved_label = storage.get_item(label_key) if not st.session_state.just_reset else None
         st.session_state[label_key] = saved_label if saved_label is not None else f"項目 {r+1}-{c+1}"
     
     if st.session_state.just_reset or count_key not in st.session_state:
+        # storage から取得（リセット直後でない場合のみ）
         saved_count = storage.get_item(count_key) if not st.session_state.just_reset else None
         try:
             st.session_state[count_key] = int(saved_count) if saved_count is not None else 0
@@ -76,7 +74,7 @@ with st.sidebar:
     st.write("---")
     st.subheader("💾 セーブ & ロード")
     
-    # CSVダウンロード用のデータ準備（表示されている分だけ）
+    # ダウンロードデータの準備
     save_data = []
     for r in range(rows):
         for c in range(cols_num):
@@ -113,7 +111,7 @@ with st.sidebar:
                 st.error("ロードに失敗しました")
 
     st.write("---")
-    # リセットボタンのロジック
+    # リセットボタン（AttributeError を防ぐために SafeStorage インスタンスを確実に呼び出す）
     if st.button("全てをリセット", use_container_width=True):
         st.session_state.just_reset = True
         storage.clear_all_with_prefix("csb_")
@@ -134,7 +132,7 @@ def on_minus(key):
     st.session_state[key] -= 1
     on_val_change(key)
 
-# リセットフラグを戻す（全てのセルの初期化が終わるタイミングで1回だけ）
+# リセットフラグを戻す
 if st.session_state.just_reset:
     st.session_state.just_reset = False
 
@@ -144,14 +142,12 @@ for r in range(rows):
     for c in range(cols_num):
         label_key, count_key = init_cell_state(r, c)
         with cols[c]:
-            # ラベル入力
             st.text_input(f"L_{r}_{c}", key=label_key, label_visibility="collapsed", on_change=on_val_change, args=(label_key,))
             
-            # 操作部
-            col_m, col_v, col_p = st.columns([1, 1.5, 1])
-            with col_m:
+            c_m, c_v, c_p = st.columns([1, 1.5, 1])
+            with c_m:
                 st.button("－", key=f"btn_m_{r}_{c}", use_container_width=True, on_click=on_minus, args=(count_key,))
-            with col_v:
+            with c_v:
                 st.number_input(f"N_{r}_{c}", key=count_key, label_visibility="collapsed", step=1, on_change=on_val_change, args=(count_key,))
-            with col_p:
+            with c_p:
                 st.button("＋", key=f"btn_p_{r}_{c}", use_container_width=True, on_click=on_plus, args=(count_key,))

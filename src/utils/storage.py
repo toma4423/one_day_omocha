@@ -27,8 +27,11 @@ class SafeStorage:
             pass
 
     def clear_all_with_prefix(self, prefix: str):
-        """指定したプレフィックスを持つアイテムをセッションから削除"""
-        for key in list(st.session_state.keys()):
-            if key.startswith(prefix):
+        """指定したプレフィックスを持つアイテムをセッションとLocalStorageから削除"""
+        # セッション状態から削除
+        keys_to_delete = [k for k in st.session_state.keys() if k.startswith(prefix)]
+        for key in keys_to_delete:
+            if key in st.session_state:
                 del st.session_state[key]
-                self.delete_item(key)
+            # LocalStorage からも削除
+            self.delete_item(key)
