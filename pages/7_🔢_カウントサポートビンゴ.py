@@ -1,5 +1,5 @@
 import streamlit as st
-import pandas as pd
+import json
 from datetime import datetime
 from src.utils.time import get_jst_now
 from streamlit_local_storage import LocalStorage
@@ -41,11 +41,10 @@ st.title("🔢 カウントサポートビンゴ")
 storage = SafeStorage(LocalStorage())
 
 # --- データ構造の定義 ---
-# グリッド全体を一つの JSON として管理するためのキー
 GRID_DATA_KEY = "csb_grid_data"
 
-def save_grid_to_storage():
-    """現在のグリッド状態を一つの JSON として保存します。"""
+def get_current_grid_data():
+    """現在のグリッド状態を辞書として取得します。"""
     data = {
         "rows": st.session_state.csb_rows,
         "cols": st.session_state.csb_cols,
@@ -58,6 +57,11 @@ def save_grid_to_storage():
                 "label": st.session_state.get(lk, f"項目 {r+1}-{c+1}"),
                 "count": st.session_state.get(ck, 0)
             }
+    return data
+
+def save_grid_to_storage():
+    """現在のグリッド状態を LocalStorage に保存します。"""
+    data = get_current_grid_data()
     storage.set_item(GRID_DATA_KEY, data)
 
 def load_grid_from_storage():
@@ -78,14 +82,11 @@ def load_grid_from_storage():
 
 # --- 初期化 ---
 if GRID_DATA_KEY not in st.session_state:
-    # ページ読み込み時に一度だけロードを試みる
     if not load_grid_from_storage():
-        # データがなければデフォルト
         st.session_state.csb_rows = 5
         st.session_state.csb_cols = 5
-    st.session_state[GRID_DATA_KEY] = True # ロード完了フラグ
+    st.session_state[GRID_DATA_KEY] = True
 
-# セッション状態の初期化（各セル用）
 def init_cell_state(r, c):
     lk, ck = f"csb_label_{r}_{c}", f"csb_count_{r}_{c}"
     if lk not in st.session_state:
@@ -94,7 +95,6 @@ def init_cell_state(r, c):
         st.session_state[ck] = 0
     return lk, ck
 
-# コールバック関数
 def on_val_change():
     save_grid_to_storage()
 
@@ -115,61 +115,54 @@ with st.sidebar:
     st.write("---")
     st.subheader("💾 セーブ & ロード")
     
-    # CSVダウンロード
-    save_data_list = []
-    for r in range(rows):
-        for c in range(cols_num):
-            lk, ck = init_cell_state(r, c)
-            save_data_list.append({"row": r, "col": c, "label": st.session_state[lk], "count": st.session_state[ck]})
-    
-    df_save = pd.DataFrame(save_data_list)
-    csv_data = df_save.to_csv(index=False).encode('utf-8')
+    # JSONセーブ
+    current_data = get_current_grid_data()
+    json_str = json.dumps(current_data, indent=2, ensure_ascii=False)
     timestamp = get_jst_now().strftime("%Y%m%d_%H%M")
     st.download_button(
-        label="CSVをダウンロード",
-        data=csv_data,
-        file_name=f"bingo_save_{timestamp}.csv",
-        mime="text/csv",
+        label="JSONをダウンロード",
+        data=json_str,
+        file_name=f"bingo_save_{timestamp}.json",
+        mime="application/json",
         use_container_width=True
     )
 
-    # CSVロード
-    uploaded_file = st.file_uploader("CSVをアップロード", type="csv")
+    # JSONロード
+    uploaded_file = st.file_uploader("JSONをアップロード", type="json")
     if uploaded_file is not None:
         if st.button("復元する", use_container_width=True):
             try:
-                df_load = pd.read_csv(uploaded_file)
-                st.session_state.csb_rows = int(df_load['row'].max()) + 1
-                st.session_state.csb_cols = int(df_load['col'].max()) + 1
-                for _, row_data in df_load.iterrows():
-                    r, c = int(row_data['row']), int(row_data['col'])
-                    st.session_state[f"csb_label_{r}_{c}"] = str(row_data['label'])
-                    st.session_state[f"csb_count_{r}_{c}"] = int(row_data['count'])
-                save_grid_to_storage() # JSON に保存
+                data_load = json.load(uploaded_file)
+                st.session_state.csb_rows = data_load.get("rows", 5)
+                st.session_state.csb_cols = data_load.get("cols", 5)
+                cells = data_load.get("cells", {})
+                
+                # 一旦古いセッション情報をクリア（プレフィックス一致分のみ）
+                for key in list(st.session_state.keys()):
+                    if key.startswith("csb_label_") or key.startswith("csb_count_"):
+                        del st.session_state[key]
+
+                for pos, cell_data in cells.items():
+                    r, c = pos.split("_")
+                    st.session_state[f"csb_label_{r}_{c}"] = str(cell_data.get("label", ""))
+                    st.session_state[f"csb_count_{r}_{c}"] = int(cell_data.get("count", 0))
+                
+                save_grid_to_storage()
                 st.success("復元しました！")
                 st.rerun()
             except Exception:
-                st.error("ロードに失敗しました")
+                st.error("JSONの読み込みに失敗しました")
 
     st.write("---")
-    # リセットボタン（確実に 5x5 の初期状態に戻す）
     if st.button("全てをリセット", use_container_width=True):
-        # 1. LocalStorage のデータを削除
         storage.delete_item(GRID_DATA_KEY)
         storage.clear_all_with_prefix("csb_")
-        
-        # 2. セッション状態をデフォルト値で強制上書き
         st.session_state.csb_rows = 5
         st.session_state.csb_cols = 5
-        
-        # 3. 各セルの状態もセッションから消去（初期化関数で再生成させるため）
         for key in list(st.session_state.keys()):
             if key.startswith("csb_label_") or key.startswith("csb_count_"):
                 del st.session_state[key]
-        
-        # 4. ロード済みフラグを立てて、リロード時にストレージを見に行かないようにする
         st.session_state[GRID_DATA_KEY] = True
-        
         st.success("リセットしました！ (5x5)")
         st.rerun()
 
