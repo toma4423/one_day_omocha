@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+from datetime import datetime
 
 st.set_page_config(page_title="カウントサポートビンゴ", page_icon="🔢", layout="wide")
 
@@ -42,10 +43,15 @@ with st.sidebar:
     if save_data:
         df_save = pd.DataFrame(save_data)
         csv_data = df_save.to_csv(index=False).encode('utf-8')
+        
+        # 保存時の日時を取得してファイル名を作成
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M")
+        default_filename = f"bingo_save_{timestamp}.csv"
+        
         st.download_button(
             label="現在の状態を保存 (CSV)",
             data=csv_data,
-            file_name="bingo_save.csv",
+            file_name=default_filename,
             mime="text/csv",
             use_container_width=True
         )
