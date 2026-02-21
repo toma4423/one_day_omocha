@@ -40,11 +40,25 @@ st.title("🔢 カウントサポートビンゴ")
 # SafeStorage の初期化
 storage = SafeStorage(LocalStorage())
 
-# --- データ構造の定義 ---
-GRID_DATA_KEY = "csb_grid_data"
+# --- バージョン管理とキーの定義 ---
+# ストレージの競合を防ぐためのバージョンキー
+VERSION_KEY = "csb_storage_ver"
 
-def get_current_grid_data():
-    """現在のグリッド状態を辞書として取得します。"""
+def get_storage_version():
+    """現在のストレージバージョンを取得します。"""
+    v = storage.get_item(VERSION_KEY)
+    try:
+        return int(v) if v is not None else 1
+    except (ValueError, TypeError):
+        return 1
+
+def get_grid_data_key():
+    """バージョンを含めたデータキーを返します。"""
+    v = get_storage_version()
+    return f"csb_grid_data_v{v}"
+
+def save_grid_to_storage():
+    """現在のグリッド状態を、現在のバージョンキーで保存します。"""
     data = {
         "rows": st.session_state.csb_rows,
         "cols": st.session_state.csb_cols,
@@ -57,16 +71,12 @@ def get_current_grid_data():
                 "label": st.session_state.get(lk, f"項目 {r+1}-{c+1}"),
                 "count": st.session_state.get(ck, 0)
             }
-    return data
-
-def save_grid_to_storage():
-    """現在のグリッド状態を LocalStorage に保存します。"""
-    data = get_current_grid_data()
-    storage.set_item(GRID_DATA_KEY, data)
+    storage.set_item(get_grid_data_key(), data)
 
 def load_grid_from_storage():
-    """LocalStorage からグリッド全体を復元します。"""
-    data = storage.get_item(GRID_DATA_KEY, is_json=True)
+    """現在のバージョンのデータを LocalStorage から復元します。"""
+    key = get_grid_data_key()
+    data = storage.get_item(key, is_json=True)
     if not data:
         return False
     
@@ -76,16 +86,16 @@ def load_grid_from_storage():
     
     for pos, cell_data in cells.items():
         r, c = pos.split("_")
-        st.session_state[f"csb_label_{r}_{c}"] = cell_data.get("label", f"項目 {int(r)+1}-{int(c)+1}")
-        st.session_state[f"csb_count_{r}_{c}"] = cell_data.get("count", 0)
+        st.session_state[f"csb_label_{r}_{c}"] = str(cell_data.get("label", ""))
+        st.session_state[f"csb_count_{r}_{c}"] = int(cell_data.get("count", 0))
     return True
 
 # --- 初期化 ---
-if GRID_DATA_KEY not in st.session_state:
+if "csb_initialized" not in st.session_state:
     if not load_grid_from_storage():
         st.session_state.csb_rows = 5
         st.session_state.csb_cols = 5
-    st.session_state[GRID_DATA_KEY] = True
+    st.session_state.csb_initialized = True
 
 def init_cell_state(r, c):
     lk, ck = f"csb_label_{r}_{c}", f"csb_count_{r}_{c}"
@@ -116,8 +126,17 @@ with st.sidebar:
     st.subheader("💾 セーブ & ロード")
     
     # JSONセーブ
-    current_data = get_current_grid_data()
-    json_str = json.dumps(current_data, indent=2, ensure_ascii=False)
+    save_data = {
+        "rows": st.session_state.csb_rows,
+        "cols": st.session_state.csb_cols,
+        "cells": {}
+    }
+    for r in range(rows):
+        for c in range(cols_num):
+            lk, ck = init_cell_state(r, c)
+            save_data["cells"][f"{r}_{c}"] = {"label": st.session_state[lk], "count": st.session_state[ck]}
+    
+    json_str = json.dumps(save_data, indent=2, ensure_ascii=False)
     timestamp = get_jst_now().strftime("%Y%m%d_%H%M")
     st.download_button(
         label="JSONをダウンロード",
@@ -135,13 +154,13 @@ with st.sidebar:
                 data_load = json.load(uploaded_file)
                 st.session_state.csb_rows = data_load.get("rows", 5)
                 st.session_state.csb_cols = data_load.get("cols", 5)
-                cells = data_load.get("cells", {})
                 
-                # 一旦古いセッション情報をクリア（プレフィックス一致分のみ）
+                # 古いセルの状態をクリア
                 for key in list(st.session_state.keys()):
                     if key.startswith("csb_label_") or key.startswith("csb_count_"):
                         del st.session_state[key]
 
+                cells = data_load.get("cells", {})
                 for pos, cell_data in cells.items():
                     r, c = pos.split("_")
                     st.session_state[f"csb_label_{r}_{c}"] = str(cell_data.get("label", ""))
@@ -154,16 +173,21 @@ with st.sidebar:
                 st.error("JSONの読み込みに失敗しました")
 
     st.write("---")
+    # リセットボタン（バージョンを上げることで確実かつ一瞬で初期化する）
     if st.button("全てをリセット", use_container_width=True):
-        storage.delete_item(GRID_DATA_KEY)
-        storage.clear_all_with_prefix("csb_")
-        st.session_state.csb_rows = 5
-        st.session_state.csb_cols = 5
+        # 1. 現在のデータキーを削除（ゴミ掃除）
+        storage.delete_item(get_grid_data_key())
+        
+        # 2. バージョンを上げる（これにより古いデータは一切読み込まれなくなる）
+        new_ver = get_storage_version() + 1
+        storage.set_item(VERSION_KEY, new_ver)
+        
+        # 3. セッション状態をクリア
         for key in list(st.session_state.keys()):
-            if key.startswith("csb_label_") or key.startswith("csb_count_"):
+            if key.startswith("csb_"):
                 del st.session_state[key]
-        st.session_state[GRID_DATA_KEY] = True
-        st.success("リセットしました！ (5x5)")
+        
+        st.success(f"リセット完了 (Ver.{new_ver})")
         st.rerun()
 
     st.info("自動保存：ブラウザ（LocalStorage）")

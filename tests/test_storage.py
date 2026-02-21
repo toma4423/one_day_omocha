@@ -1,6 +1,7 @@
 import pytest
 from unittest.mock import MagicMock
 import streamlit as st
+import json
 from src.utils.storage import SafeStorage
 
 def test_safe_storage_delete_item_handles_keyerror():
@@ -16,52 +17,47 @@ def test_safe_storage_clear_all_with_prefix():
     mock_storage = MagicMock()
     safe_storage = SafeStorage(mock_storage)
     
-    # セッション状態をセット
+    # Initialize session state
     st.session_state["csb_test_1"] = 10
-    st.session_state["other_test"] = 20
+    st.session_state["csb_test_2"] = 20
+    st.session_state["other_test"] = 30
     
-    # 実行
+    # Execute clear
     safe_storage.clear_all_with_prefix("csb_")
     
-    # csb_ で始まるキーが消えていることを確認
+    # Verify session state removal
     assert "csb_test_1" not in st.session_state
+    assert "csb_test_2" not in st.session_state
     assert "other_test" in st.session_state
     
-    # deleteItem が呼ばれたことを確認
-    mock_storage.deleteItem.assert_called_with("csb_test_1")
-
-def test_safe_storage_get_item_handles_exception():
-    mock_storage = MagicMock()
-    mock_storage.getItem.side_effect = Exception("Storage Failed")
-    safe_storage = SafeStorage(mock_storage)
-    assert safe_storage.get_item("any_key") is None
-
-def test_safe_storage_set_item_calls_storage():
-    mock_storage = MagicMock()
-    safe_storage = SafeStorage(mock_storage)
-    safe_storage.set_item("test_key", "test_value")
-    mock_storage.setItem.assert_called_once_with("test_key", "test_value")
+    # Verify storage deletion calls
+    calls = [call.args[0] for call in mock_storage.deleteItem.call_args_list]
+    assert "csb_test_1" in calls
+    assert "csb_test_2" in calls
 
 def test_safe_storage_json_serialization():
-    import json
     mock_storage = MagicMock()
     safe_storage = SafeStorage(mock_storage)
     
-    complex_data = {"a": 1, "b": [1, 2, 3]}
+    complex_data = {"rows": 5, "cells": {"0_0": {"count": 1}}}
     safe_storage.set_item("json_key", complex_data)
     
-    # 内部で json.dumps が呼ばれているか確認
-    # mock_storage.setItem.call_args[0][1] が JSON 文字列であることを確認
-    called_val = mock_storage.setItem.call_args[0][1]
-    assert json.loads(called_val) == complex_data
+    # Verify that it was serialized to JSON string
+    called_args = mock_storage.setItem.call_args[0]
+    assert called_args[0] == "json_key"
+    assert json.loads(called_args[1]) == complex_data
 
-def test_safe_storage_json_deserialization():
-    import json
+def test_safe_storage_get_item_with_json():
     mock_storage = MagicMock()
-    complex_data = {"rows": 5, "cells": {"0_0": "test"}}
+    complex_data = {"val": 123}
     mock_storage.getItem.return_value = json.dumps(complex_data)
     
     safe_storage = SafeStorage(mock_storage)
-    loaded_data = safe_storage.get_item("json_key", is_json=True)
-    
-    assert loaded_data == complex_data
+    result = safe_storage.get_item("json_key", is_json=True)
+    assert result == complex_data
+
+def test_safe_storage_get_item_returns_none_on_failure():
+    mock_storage = MagicMock()
+    mock_storage.getItem.side_effect = Exception("Fail")
+    safe_storage = SafeStorage(mock_storage)
+    assert safe_storage.get_item("any") is None
