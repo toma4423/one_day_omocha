@@ -3,3 +3,8 @@ __pycache__/
 *$py.class
 .vscode/
 .DS_Store
+
+# Virtual environment
+.venv/
+.pytest_cache/
+.python-version

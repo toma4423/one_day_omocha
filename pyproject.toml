@@ -1,0 +1,19 @@
+[project]
+name = "one-day-omocha"
+version = "0.1.0"
+description = "A collection of small games and tools using Streamlit."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "numpy>=2.4.2",
+    "streamlit>=1.54.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.2",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
