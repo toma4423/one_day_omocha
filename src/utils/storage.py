@@ -1,27 +1,45 @@
 import streamlit as st
-from streamlit_local_storage import LocalStorage
+from typing import Any, Optional, List
 
-def get_storage():
+class SafeStorage:
     """
-    LocalStorage のインスタンスを返します。
+    Streamlit の LocalStorage 操作を安全に行うためのクラスです。
     """
-    return LocalStorage()
+    def __init__(self, storage_instance):
+        self.storage = storage_instance
 
-def sync_state_to_storage(prefix: str, keys: list[str]):
-    """
-    セッション状態にある指定されたキーを LocalStorage に保存します。
-    """
-    storage = get_storage()
-    for key in keys:
-        if key in st.session_state:
-            val = st.session_state[key]
-            storage.setItem(f"{prefix}_{key}", val)
+    def set_item(self, key: str, value: Any):
+        """
+        値を保存します。
+        """
+        try:
+            self.storage.setItem(key, value)
+        except Exception as e:
+            st.error(f"LocalStorage 保存エラー ({key}): {e}")
 
-def load_state_from_storage(prefix: str, keys: list[str]):
+    def get_item(self, key: str) -> Optional[Any]:
+        """
+        値を取得します。
+        """
+        try:
+            return self.storage.getItem(key)
+        except Exception:
+            return None
+
+    def delete_item(self, key: str):
+        """
+        値を削除します。存在しない場合の KeyError を吸収します。
+        """
+        try:
+            # streamlit-local-storage の仕様に合わせて安全に削除
+            self.storage.deleteItem(key)
+        except (KeyError, AttributeError, Exception):
+            pass
+
+def sync_all_to_storage(storage: SafeStorage, prefix: str):
     """
-    LocalStorage から指定されたキーの値を読み込み、セッション状態にセットします。
+    現在のセッション状態から指定したプレフィックスのデータをすべて LocalStorage に同期します。
     """
-    storage = get_cell_storage() # 既存のLocal Storageから値を取得
-    # streamlit_local_storage は非同期的な動作をすることがあるため、
-    # 実際の実装ではコンポーネントの返り値を監視する必要があります。
-    pass
+    for key in st.session_state.keys():
+        if key.startswith(prefix):
+            storage.set_item(key, st.session_state[key])
