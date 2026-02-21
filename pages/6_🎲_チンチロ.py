@@ -2,6 +2,7 @@ import streamlit as st
 import random
 import pandas as pd
 from datetime import datetime
+from src.utils.time import get_jst_now
 from src.utils.dice import (
     HAND_RANK, roll_dice, evaluate_hand, 
     display_dice_html, render_dice_animation, DICE_EMOJI
@@ -80,7 +81,7 @@ with col_roll:
         hand_info = HAND_RANK[hand_key]
         dice_str = " ".join([DICE_EMOJI[d] for d in final_dice])
         new_record = {
-            "time": datetime.now().strftime("%H:%M:%S"),
+            "time": get_jst_now().strftime("%H:%M:%S"),
             "dice": dice_str,
             "hand": hand_info['name']
         }

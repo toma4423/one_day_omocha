@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime
+from src.utils.time import get_jst_now
 from src.utils.dice import roll_dice
 from src.utils.styles import render_result_box
 from streamlit_local_storage import LocalStorage
@@ -48,7 +49,7 @@ if st.button("サイコロを振る！", use_container_width=True):
     
     # 履歴に追加
     new_record = {
-        "時刻": datetime.now().strftime("%H:%M:%S"),
+        "時刻": get_jst_now().strftime("%H:%M:%S"),
         "設定": f"{x}d{n}",
         "出目合計": total
     }

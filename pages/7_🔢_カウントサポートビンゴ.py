@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime
+from src.utils.time import get_jst_now
 from streamlit_local_storage import LocalStorage
 from src.utils.storage import SafeStorage
 
@@ -83,7 +84,7 @@ with st.sidebar:
     
     df_save = pd.DataFrame(save_data)
     csv_data = df_save.to_csv(index=False).encode('utf-8')
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M")
+    timestamp = get_jst_now().strftime("%Y%m%d_%H%M")
     st.download_button(
         label="CSVをダウンロード",
         data=csv_data,
