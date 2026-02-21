@@ -85,6 +85,13 @@ def get_cell_style(count):
         return "#ffebee", "#d32f2f"
     return "#f0f2f6", "#1f77b4"
 
+# コールバック関数の定義
+def increment_counter(key):
+    st.session_state[key] += 1
+
+def decrement_counter(key):
+    st.session_state[key] -= 1
+
 # ビンゴグリッドの表示
 for r in range(rows):
     cols = st.columns(cols_num)
@@ -106,24 +113,26 @@ for r in range(rows):
             # カウンター操作（横並び）
             col_m, col_v, col_p = st.columns([1, 1.5, 1])
             with col_m:
-                if st.button("－", key=f"minus_{r}_{c}", use_container_width=True):
-                    st.session_state[count_key] -= 1
-                    st.rerun()
-            with col_v:
-                # 直接入力を可能にするため st.number_input を使用
-                # st.session_state[count_key] を直接変更できるように、widgetのkeyは別にする
-                new_val = st.number_input(
-                    f"N_{r}_{c}",
-                    value=st.session_state[count_key],
-                    label_visibility="collapsed",
-                    step=1,
-                    key=f"num_in_{r}_{c}"
+                st.button(
+                    "－", 
+                    key=f"minus_{r}_{c}", 
+                    use_container_width=True,
+                    on_click=decrement_counter,
+                    args=(count_key,)
                 )
-                # 入力値が変わった場合はセッション状態を更新
-                if new_val != st.session_state[count_key]:
-                    st.session_state[count_key] = new_val
-                    st.rerun()
+            with col_v:
+                # key に直接 count_key を指定し、コールバックで操作することで同期させる
+                st.number_input(
+                    f"N_{r}_{c}",
+                    key=count_key,
+                    label_visibility="collapsed",
+                    step=1
+                )
             with col_p:
-                if st.button("＋", key=f"plus_{r}_{c}", use_container_width=True):
-                    st.session_state[count_key] += 1
-                    st.rerun()
+                st.button(
+                    "＋", 
+                    key=f"plus_{r}_{c}", 
+                    use_container_width=True,
+                    on_click=increment_counter,
+                    args=(count_key,)
+                )
