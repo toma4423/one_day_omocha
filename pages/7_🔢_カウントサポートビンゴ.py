@@ -152,13 +152,25 @@ with st.sidebar:
                 st.error("ロードに失敗しました")
 
     st.write("---")
-    # リセットボタン（JSONキーを消すだけなので確実かつゴミが出ない）
+    # リセットボタン（確実に 5x5 の初期状態に戻す）
     if st.button("全てをリセット", use_container_width=True):
-        # セッションの csb_ キーをすべて削除
-        storage.clear_all_with_prefix("csb_")
-        # JSON オブジェクトを削除
+        # 1. LocalStorage のデータを削除
         storage.delete_item(GRID_DATA_KEY)
-        st.success("リセット完了")
+        storage.clear_all_with_prefix("csb_")
+        
+        # 2. セッション状態をデフォルト値で強制上書き
+        st.session_state.csb_rows = 5
+        st.session_state.csb_cols = 5
+        
+        # 3. 各セルの状態もセッションから消去（初期化関数で再生成させるため）
+        for key in list(st.session_state.keys()):
+            if key.startswith("csb_label_") or key.startswith("csb_count_"):
+                del st.session_state[key]
+        
+        # 4. ロード済みフラグを立てて、リロード時にストレージを見に行かないようにする
+        st.session_state[GRID_DATA_KEY] = True
+        
+        st.success("リセットしました！ (5x5)")
         st.rerun()
 
     st.info("自動保存：ブラウザ（LocalStorage）")
