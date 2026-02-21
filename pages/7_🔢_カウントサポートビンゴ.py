@@ -111,13 +111,18 @@ for r in range(rows):
                     st.rerun()
             with col_v:
                 # 直接入力を可能にするため st.number_input を使用
-                # keyに count_key を指定することでセッション状態と自動同期
-                st.number_input(
+                # st.session_state[count_key] を直接変更できるように、widgetのkeyは別にする
+                new_val = st.number_input(
                     f"N_{r}_{c}",
-                    key=count_key,
+                    value=st.session_state[count_key],
                     label_visibility="collapsed",
-                    step=1
+                    step=1,
+                    key=f"num_in_{r}_{c}"
                 )
+                # 入力値が変わった場合はセッション状態を更新
+                if new_val != st.session_state[count_key]:
+                    st.session_state[count_key] = new_val
+                    st.rerun()
             with col_p:
                 if st.button("＋", key=f"plus_{r}_{c}", use_container_width=True):
                     st.session_state[count_key] += 1
