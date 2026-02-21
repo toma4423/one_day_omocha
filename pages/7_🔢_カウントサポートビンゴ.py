@@ -59,9 +59,8 @@ def load_from_storage():
         return True
     except Exception: return False
 
-# --- 初期化と「古いゴミ」の掃除 ---
+# --- 初期化 ---
 if "csb_ready" not in st.session_state:
-    # 読み込み
     if not load_from_storage():
         st.session_state.csb_rows, st.session_state.csb_cols = 5, 5
     st.session_state.csb_ready = True
@@ -81,7 +80,6 @@ with st.sidebar:
     st.write("---")
     st.subheader("💾 セーブ & ロード")
     
-    # セーブ
     current_state = {"rows": st.session_state.csb_rows, "cols": st.session_state.csb_cols, "cells": {f"{r}_{c}": {"label": st.session_state.get(f"csb_label_{r}_{c}"), "count": st.session_state.get(f"csb_count_{r}_{c}")} for r in range(rows) for c in range(cols)}}
     json_str = json.dumps(current_state, indent=2, ensure_ascii=False)
     st.download_button(label="JSONを保存", data=json_str, file_name=f"bingo_{get_jst_now().strftime('%Y%m%d_%H%M')}.json", mime="application/json", use_container_width=True)
@@ -102,24 +100,27 @@ with st.sidebar:
         except Exception: st.error("不正な形式です")
 
     st.write("---")
-    # 🚨 進化したリセットボタン（古いデータを掃除してから次に進む）
     if st.button("🚨 全てをリセット", use_container_width=True):
-        # 1. 現在のバージョンのデータを物理削除（掃除）
+        # 1. 現在のバージョンのデータを物理削除
         storage.delete_item(get_data_key())
         
-        # 2. バージョン番号を更新
-        new_v = str(int(get_current_version()) + 1)
-        # もしバージョンが100を超えたら1に戻す（無限増加の防止）
-        if int(new_v) > 100: new_v = "1"
+        # 2. バージョン番号を決定
+        current_v = int(get_current_version())
+        new_v = 1 if current_v >= 100 else current_v + 1
         
-        st.query_params["v"] = new_v
-        storage.set_item("csb_ver", new_v)
+        # 3. 【重要】移行先のバージョン1（または次のバージョン）の古いデータが残っていればそれも掃除
+        # これにより、100回後の周回遅れ不整合を完全に防ぐ
+        storage.delete_item(get_data_key(version=new_v))
         
-        # 3. セッションクリア
+        # 4. バージョン更新
+        st.query_params["v"] = str(new_v)
+        storage.set_item("csb_ver", str(new_v))
+        
+        # 5. セッションクリア
         for k in list(st.session_state.keys()):
             if k.startswith("csb_"): del st.session_state[k]
         
-        st.success("掃除とリセットが完了しました。")
+        st.success(f"リセット完了 (次: Ver.{new_v})")
         st.rerun()
 
     st.info("自動保存：ブラウザ（LocalStorage）")
