@@ -1,22 +1,32 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime
+from streamlit_local_storage import LocalStorage
 
 st.set_page_config(page_title="カウントサポートビンゴ", page_icon="🔢", layout="wide")
 
 st.title("🔢 カウントサポートビンゴ")
 
+# LocalStorage の初期化
+storage = LocalStorage()
+
 # セッション状態の初期化
 def init_cell_state(r, c):
     """
-    セルの初期状態をセットアップします。
+    セルの初期状態をセットアップし、LocalStorage からの復元を試みます。
     """
     label_key = f"csb_label_{r}_{c}"
     count_key = f"csb_count_{r}_{c}"
+    
+    # セッション状態にない場合、LocalStorage からの取得を試みる
     if label_key not in st.session_state:
-        st.session_state[label_key] = f"項目 {r+1}-{c+1}"
+        saved_label = storage.getItem(label_key)
+        st.session_state[label_key] = saved_label if saved_label is not None else f"項目 {r+1}-{c+1}"
+    
     if count_key not in st.session_state:
-        st.session_state[count_key] = 0
+        saved_count = storage.getItem(count_key)
+        st.session_state[count_key] = int(saved_count) if saved_count is not None else 0
+        
     return label_key, count_key
 
 # サイドバーで設定
@@ -64,8 +74,12 @@ with st.sidebar:
             if st.button("データを復元する", use_container_width=True):
                 for _, row_data in df_load.iterrows():
                     r, c = int(row_data['row']), int(row_data['col'])
-                    st.session_state[f"csb_label_{r}_{c}"] = row_data['label']
-                    st.session_state[f"csb_count_{r}_{c}"] = row_data['count']
+                    l_k, c_k = f"csb_label_{r}_{c}", f"csb_count_{r}_{c}"
+                    st.session_state[l_k] = row_data['label']
+                    st.session_state[c_k] = row_data['count']
+                    # LocalStorage も更新
+                    storage.setItem(l_k, row_data['label'])
+                    storage.setItem(c_k, row_data['count'])
                 st.success("復元しました！")
                 st.rerun()
         except Exception as e:
@@ -76,10 +90,11 @@ with st.sidebar:
         for key in list(st.session_state.keys()):
             if key.startswith("csb_"):
                 del st.session_state[key]
+                storage.deleteItem(key) # LocalStorage も削除
         st.rerun()
     
     st.write("---")
-    st.info("ビンゴのようにマス目を作り、各マスのカウントを記録できます。")
+    st.info("ブラウザの LocalStorage に自動保存されます。リロードしてもデータは保持されます。")
 
 def get_cell_style(count):
     """
@@ -94,9 +109,14 @@ def get_cell_style(count):
 # コールバック関数の定義
 def increment_counter(key):
     st.session_state[key] += 1
+    storage.setItem(key, st.session_state[key]) # LocalStorage を更新
 
 def decrement_counter(key):
     st.session_state[key] -= 1
+    storage.setItem(key, st.session_state[key]) # LocalStorage を更新
+
+def on_label_change(key):
+    storage.setItem(key, st.session_state[key]) # LocalStorage を更新
 
 # ビンゴグリッドの表示
 for r in range(rows):
@@ -106,11 +126,12 @@ for r in range(rows):
         
         with cols[c]:
             # ラベル入力
-            st.session_state[label_key] = st.text_input(
+            st.text_input(
                 f"L_{r}_{c}", 
-                value=st.session_state[label_key], 
-                key=f"input_{r}_{c}",
-                label_visibility="collapsed"
+                key=label_key,
+                label_visibility="collapsed",
+                on_change=on_label_change,
+                args=(label_key,)
             )
 
             # スタイル取得
@@ -132,7 +153,9 @@ for r in range(rows):
                     f"N_{r}_{c}",
                     key=count_key,
                     label_visibility="collapsed",
-                    step=1
+                    step=1,
+                    on_change=on_label_change,
+                    args=(count_key,)
                 )
             with col_p:
                 st.button(

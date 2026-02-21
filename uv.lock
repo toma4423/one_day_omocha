@@ -353,6 +353,7 @@ source = { virtual = "." }
 dependencies = [
     { name = "numpy" },
     { name = "streamlit" },
+    { name = "streamlit-local-storage" },
 ]
 
 [package.dev-dependencies]
@@ -364,6 +365,7 @@ dev = [
 requires-dist = [
     { name = "numpy", specifier = ">=2.4.2" },
     { name = "streamlit", specifier = ">=1.54.0" },
+    { name = "streamlit-local-storage", specifier = ">=0.0.25" },
 ]
 
 [package.metadata.requires-dev]
@@ -775,6 +777,18 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/be/66/d887ee80ea85f035baee607c60af024994e17ae9b921277fca9675e76ecf/streamlit-1.54.0.tar.gz", hash = "sha256:09965e6ae7eb0357091725de1ce2a3f7e4be155c2464c505c40a3da77ab69dd8", size = 8662292, upload-time = "2026-02-04T16:37:54.734Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/48/1d/40de1819374b4f0507411a60f4d2de0d620a9b10c817de5925799132b6c9/streamlit-1.54.0-py3-none-any.whl", hash = "sha256:a7b67d6293a9f5f6b4d4c7acdbc4980d7d9f049e78e404125022ecb1712f79fc", size = 9119730, upload-time = "2026-02-04T16:37:52.199Z" },
+]
+
+[[package]]
+name = "streamlit-local-storage"
+version = "0.0.25"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "streamlit" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/d1/ad/5e92a9355c2f32c162f0e2a2262b90697385edf0fe64bc66a27eb652ac95/streamlit_local_storage-0.0.25.tar.gz", hash = "sha256:9b7c3e8ae7c14a68b47c980b167306181292213736dfa71850c8d3204dc2a9cd", size = 538392, upload-time = "2024-11-18T16:22:09.432Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/7b/a6/502b00b6db10c3d467ec57d822d6647a35f0328ef03668aa5b6dd160f966/streamlit_local_storage-0.0.25-py3-none-any.whl", hash = "sha256:0ef85618ed8c44f347b7acffb2d104da5b6915e6a4e24612f12a4d2cc355b951", size = 543746, upload-time = "2024-11-18T16:22:07.305Z" },
 ]
 
 [[package]]
