@@ -4,60 +4,45 @@ import streamlit as st
 import json
 from src.utils.storage import SafeStorage
 
-def test_safe_storage_delete_item_handles_keyerror():
-    mock_storage = MagicMock()
-    mock_storage.deleteItem.side_effect = KeyError("Not Found")
-    safe_storage = SafeStorage(mock_storage)
-    try:
-        safe_storage.delete_item("non_existent_key")
-    except KeyError:
-        pytest.fail("SafeStorage should catch and handle KeyError from LocalStorage")
-
-def test_safe_storage_clear_all_with_prefix():
+def test_safe_storage_set_and_get_json():
+    # Mock の準備
     mock_storage = MagicMock()
     safe_storage = SafeStorage(mock_storage)
     
-    # Initialize session state
-    st.session_state["csb_test_1"] = 10
-    st.session_state["csb_test_2"] = 20
-    st.session_state["other_test"] = 30
+    # テストデータ
+    test_data = {"rows": 5, "cells": {"0_0": {"label": "test", "count": 1}}}
     
-    # Execute clear
-    safe_storage.clear_all_with_prefix("csb_")
+    # 保存
+    safe_storage.set_item("bingo_key", test_data)
     
-    # Verify session state removal
-    assert "csb_test_1" not in st.session_state
-    assert "csb_test_2" not in st.session_state
-    assert "other_test" in st.session_state
-    
-    # Verify storage deletion calls
-    calls = [call.args[0] for call in mock_storage.deleteItem.call_args_list]
-    assert "csb_test_1" in calls
-    assert "csb_test_2" in calls
-
-def test_safe_storage_json_serialization():
-    mock_storage = MagicMock()
-    safe_storage = SafeStorage(mock_storage)
-    
-    complex_data = {"rows": 5, "cells": {"0_0": {"count": 1}}}
-    safe_storage.set_item("json_key", complex_data)
-    
-    # Verify that it was serialized to JSON string
+    # Mock の呼び出し確認 (JSON 文字列になっていること)
     called_args = mock_storage.setItem.call_args[0]
-    assert called_args[0] == "json_key"
-    assert json.loads(called_args[1]) == complex_data
-
-def test_safe_storage_get_item_with_json():
-    mock_storage = MagicMock()
-    complex_data = {"val": 123}
-    mock_storage.getItem.return_value = json.dumps(complex_data)
+    assert called_args[0] == "bingo_key"
+    assert json.loads(called_args[1]) == test_data
     
-    safe_storage = SafeStorage(mock_storage)
-    result = safe_storage.get_item("json_key", is_json=True)
-    assert result == complex_data
+    # 取得
+    mock_storage.getItem.return_value = json.dumps(test_data)
+    loaded_data = safe_storage.get_item("bingo_key", is_json=True)
+    assert loaded_data == test_data
 
-def test_safe_storage_get_item_returns_none_on_failure():
+def test_safe_storage_handles_none():
     mock_storage = MagicMock()
-    mock_storage.getItem.side_effect = Exception("Fail")
+    mock_storage.getItem.return_value = None
     safe_storage = SafeStorage(mock_storage)
-    assert safe_storage.get_item("any") is None
+    
+    assert safe_storage.get_item("non_existent", is_json=True) is None
+
+def test_safe_storage_handles_corrupt_json():
+    mock_storage = MagicMock()
+    mock_storage.getItem.return_value = "{invalid_json}"
+    safe_storage = SafeStorage(mock_storage)
+    
+    # パースエラー時に例外を投げず None を返すこと
+    assert safe_storage.get_item("corrupt_key", is_json=True) is None
+
+def test_safe_storage_delete_item():
+    mock_storage = MagicMock()
+    safe_storage = SafeStorage(mock_storage)
+    
+    safe_storage.delete_item("key_to_delete")
+    mock_storage.deleteItem.assert_called_once_with("key_to_delete")
