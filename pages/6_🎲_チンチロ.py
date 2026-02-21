@@ -90,8 +90,8 @@ with col_roll:
         
         dice_place.empty()
 
-    # 現在のサイコロ表示
-    html = f"<div style='text-align: center; background-color: #f0f2f6; padding: 20px; border-radius: 15px;'>{display_dice_html(st.session_state.cc_dice)}</div>"
+    # 現在のサイコロ表示 (背景を少し暗く透過させて、白いサイコロを見やすくする)
+    html = f"<div style='text-align: center; background-color: rgba(0, 0, 0, 0.1); padding: 20px; border-radius: 15px; border: 1px solid #ddd;'>{display_dice_html(st.session_state.cc_dice)}</div>"
     st.markdown(html, unsafe_allow_html=True)
 
 with col_res:
