@@ -1,4 +1,5 @@
 import streamlit as st
+import pandas as pd
 from src.utils.styles import render_donation_box
 
 st.set_page_config(page_title="カウントサポートビンゴ", page_icon="🔢", layout="wide")
@@ -9,21 +10,7 @@ render_donation_box(PAYPAY_URL)
 
 st.title("🔢 カウントサポートビンゴ")
 
-# サイドバーで設定
-with st.sidebar:
-    st.header("設定")
-    rows = st.number_input("行数", min_value=1, max_value=10, value=5)
-    cols_num = st.number_input("列数", min_value=1, max_value=10, value=5)
-    
-    if st.button("全てをリセット", use_container_width=True):
-        for key in list(st.session_state.keys()):
-            if key.startswith("csb_"):
-                del st.session_state[key]
-        st.rerun()
-    
-    st.write("---")
-    st.info("ビンゴのようにマス目を作り、各マスのカウントを記録できます。")
-
+# セッション状態の初期化
 def init_cell_state(r, c):
     """
     セルの初期状態をセットアップします。
@@ -35,6 +22,63 @@ def init_cell_state(r, c):
     if count_key not in st.session_state:
         st.session_state[count_key] = 0
     return label_key, count_key
+
+# サイドバーで設定
+with st.sidebar:
+    st.header("設定")
+    rows = st.number_input("行数", min_value=1, max_value=10, value=5)
+    cols_num = st.number_input("列数", min_value=1, max_value=10, value=5)
+    
+    st.write("---")
+    st.subheader("💾 セーブ & ロード")
+    
+    # セーブ（CSVダウンロード）
+    save_data = []
+    for r in range(rows):
+        for c in range(cols_num):
+            l_key, c_key = init_cell_state(r, c)
+            save_data.append({
+                "row": r,
+                "col": c,
+                "label": st.session_state[l_key],
+                "count": st.session_state[c_key]
+            })
+    
+    if save_data:
+        df_save = pd.DataFrame(save_data)
+        csv_data = df_save.to_csv(index=False).encode('utf-8')
+        st.download_button(
+            label="現在の状態を保存 (CSV)",
+            data=csv_data,
+            file_name="bingo_save.csv",
+            mime="text/csv",
+            use_container_width=True
+        )
+
+    # ロード（CSVアップロード）
+    uploaded_file = st.file_uploader("保存したCSVを読み込む", type="csv")
+    if uploaded_file is not None:
+        try:
+            df_load = pd.read_csv(uploaded_file)
+            if st.button("データを復元する", use_container_width=True):
+                for _, row_data in df_load.iterrows():
+                    r, c = int(row_data['row']), int(row_data['col'])
+                    st.session_state[f"csb_label_{r}_{c}"] = row_data['label']
+                    st.session_state[f"csb_count_{r}_{c}"] = row_data['count']
+                st.success("復元しました！")
+                st.rerun()
+        except Exception as e:
+            st.error(f"エラー: ファイル形式が正しくありません。")
+
+    st.write("---")
+    if st.button("全てをリセット", use_container_width=True):
+        for key in list(st.session_state.keys()):
+            if key.startswith("csb_"):
+                del st.session_state[key]
+        st.rerun()
+    
+    st.write("---")
+    st.info("ビンゴのようにマス目を作り、各マスのカウントを記録できます。")
 
 def get_cell_style(count):
     """
@@ -71,11 +115,14 @@ for r in range(rows):
                     st.session_state[count_key] -= 1
                     st.rerun()
             with col_v:
-                st.markdown(f"""
-                    <div style='background-color:{bg_color}; padding:5px; border-radius:5px; border:1px solid #ddd; text-align:center;'>
-                        <div style='font-size:20px; font-weight:bold; color:{text_color};'>{st.session_state[count_key]}</div>
-                    </div>
-                """, unsafe_allow_html=True)
+                # 直接入力を可能にするため st.number_input を使用
+                # keyに count_key を指定することでセッション状態と自動同期
+                st.number_input(
+                    f"N_{r}_{c}",
+                    key=count_key,
+                    label_visibility="collapsed",
+                    step=1
+                )
             with col_p:
                 if st.button("＋", key=f"plus_{r}_{c}", use_container_width=True):
                     st.session_state[count_key] += 1
