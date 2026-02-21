@@ -1,5 +1,6 @@
 import streamlit as st
-from typing import Any, Optional
+import json
+from typing import Any, Optional, Dict
 
 class SafeStorage:
     """
@@ -10,13 +11,22 @@ class SafeStorage:
 
     def set_item(self, key: str, value: Any):
         try:
-            self.storage.setItem(key, value)
+            # 万が一のために文字列化して保存
+            if isinstance(value, (dict, list)):
+                self.storage.setItem(key, json.dumps(value))
+            else:
+                self.storage.setItem(key, value)
         except Exception:
             pass
 
-    def get_item(self, key: str) -> Optional[Any]:
+    def get_item(self, key: str, is_json: bool = False) -> Optional[Any]:
         try:
-            return self.storage.getItem(key)
+            val = self.storage.getItem(key)
+            if val is None:
+                return None
+            if is_json:
+                return json.loads(val)
+            return val
         except Exception:
             return None
 
@@ -28,10 +38,8 @@ class SafeStorage:
 
     def clear_all_with_prefix(self, prefix: str):
         """指定したプレフィックスを持つアイテムをセッションとLocalStorageから削除"""
-        # セッション状態から削除
         keys_to_delete = [k for k in st.session_state.keys() if k.startswith(prefix)]
         for key in keys_to_delete:
             if key in st.session_state:
                 del st.session_state[key]
-            # LocalStorage からも削除
             self.delete_item(key)
