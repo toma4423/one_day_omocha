@@ -44,14 +44,20 @@ storage = SafeStorage(LocalStorage())
 if 'just_reset' not in st.session_state:
     st.session_state.just_reset = False
 
-# 行数・列数の初期化（LocalStorage から復元）
+# 行数・列数の初期化（LocalStorage からの復元をより安全にする）
 if 'csb_rows' not in st.session_state:
-    saved_rows = storage.get_item('csb_rows')
-    st.session_state.csb_rows = int(saved_rows) if saved_rows is not None else 5
+    try:
+        saved_rows = storage.get_item('csb_rows')
+        st.session_state.csb_rows = int(saved_rows) if saved_rows is not None else 5
+    except (ValueError, TypeError):
+        st.session_state.csb_rows = 5
 
 if 'csb_cols' not in st.session_state:
-    saved_cols = storage.get_item('csb_cols')
-    st.session_state.csb_cols = int(saved_cols) if saved_cols is not None else 5
+    try:
+        saved_cols = storage.get_item('csb_cols')
+        st.session_state.csb_cols = int(saved_cols) if saved_cols is not None else 5
+    except (ValueError, TypeError):
+        st.session_state.csb_cols = 5
 
 # セッション状態の初期化
 def init_cell_state(r, c):
@@ -93,17 +99,21 @@ def on_grid_change():
 # サイドバーの設定項目
 with st.sidebar:
     st.header("設定")
-    # key を指定してセッション状態と同期させる
-    rows = st.number_input("行数", min_value=1, max_value=15, key="csb_rows", on_change=on_grid_change)
-    cols_num = st.number_input("列数", min_value=1, max_value=15, key="csb_cols", on_change=on_grid_change)
+    # key を指定してセッション状態と同期させる。戻り値をそのまま使うのではなく session_state を優先
+    st.number_input("行数", min_value=1, max_value=15, key="csb_rows", on_change=on_grid_change)
+    st.number_input("列数", min_value=1, max_value=15, key="csb_cols", on_change=on_grid_change)
     
+    # 現在の値を確定
+    current_rows = st.session_state.csb_rows
+    current_cols = st.session_state.csb_cols
+
     st.write("---")
     st.subheader("💾 セーブ & ロード")
     
     # ダウンロードデータの準備
     save_data = []
-    for r in range(rows):
-        for c in range(cols_num):
+    for r in range(current_rows):
+        for c in range(current_cols):
             lk, ck = init_cell_state(r, c)
             save_data.append({"row": r, "col": c, "label": st.session_state[lk], "count": st.session_state[ck]})
     
@@ -162,9 +172,9 @@ if st.session_state.just_reset:
     st.session_state.just_reset = False
 
 # メイングリッド表示
-for r in range(rows):
-    cols = st.columns(cols_num)
-    for c in range(cols_num):
+for r in range(current_rows):
+    cols = st.columns(current_cols)
+    for c in range(current_cols):
         label_key, count_key = init_cell_state(r, c)
         with cols[c]:
             st.text_input(f"L_{r}_{c}", key=label_key, label_visibility="collapsed", on_change=on_val_change, args=(label_key,))
