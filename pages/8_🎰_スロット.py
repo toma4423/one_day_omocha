@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import time
+import json
 from streamlit_local_storage import LocalStorage
 from src.utils.storage import SafeStorage
 from src.utils.time import get_jst_now
@@ -157,6 +158,27 @@ with col_info:
 
 with st.sidebar:
     st.header("⚙️ オプション")
+    
+    # JSONロード
+    uploaded_file = st.file_uploader("設定JSONを読込", type="json")
+    if uploaded_file is not None:
+        if st.button("設定を反映する", use_container_width=True):
+            try:
+                data_load = json.load(uploaded_file)
+                if "symbols" in data_load and "payouts" in data_load:
+                    st.session_state.slot_config = data_load
+                    storage.set_item('slot_config', data_load)
+                    if 'slot_config_edit' in st.session_state:
+                        st.session_state.slot_config_edit = data_load
+                    st.success("設定を反映しました！")
+                    st.rerun()
+                else:
+                    st.error("不正な設定ファイル形式です")
+            except Exception:
+                st.error("JSONの読み込みに失敗しました")
+    
+    st.write("---")
+    
     if st.button("履歴をクリア"):
         st.session_state.slot_history = []
         storage.set_item('slot_history', [])

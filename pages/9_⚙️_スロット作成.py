@@ -5,6 +5,8 @@ from src.utils.storage import SafeStorage
 from src.utils.slot import DEFAULT_SYMBOLS, DEFAULT_PAYOUTS, get_slot_config
 from src.utils.styles import render_donation_box
 
+from src.utils.time import get_jst_now
+
 st.set_page_config(page_title="スロット作成", page_icon="⚙️", layout="wide")
 
 # SafeStorage の初期化
@@ -16,6 +18,41 @@ if 'slot_config_edit' not in st.session_state:
     st.session_state.slot_config_edit = get_slot_config(saved_config)
 
 st.title("⚙️ スロットカスタマイズ")
+
+# --- サイドバー：セーブ＆ロード ---
+with st.sidebar:
+    st.header("💾 セーブ & ロード")
+    
+    # JSONセーブ
+    json_str = json.dumps(st.session_state.slot_config_edit, indent=2, ensure_ascii=False)
+    timestamp = get_jst_now().strftime("%Y%m%d_%H%M")
+    st.download_button(
+        label="設定をJSONで保存",
+        data=json_str,
+        file_name=f"slot_config_{timestamp}.json",
+        mime="application/json",
+        use_container_width=True
+    )
+
+    # JSONロード
+    uploaded_file = st.file_uploader("設定JSONを読込", type="json")
+    if uploaded_file is not None:
+        if st.button("設定を復元する", use_container_width=True):
+            try:
+                data_load = json.load(uploaded_file)
+                # 簡易的なバリデーション
+                if "symbols" in data_load and "payouts" in data_load:
+                    st.session_state.slot_config_edit = data_load
+                    storage.set_item('slot_config', data_load)
+                    if 'slot_config' in st.session_state:
+                        st.session_state.slot_config = data_load
+                    st.success("設定を復元しました！")
+                    st.rerun()
+                else:
+                    st.error("不正な設定ファイル形式です")
+            except Exception:
+                st.error("JSONの読み込みに失敗しました")
+    st.write("---")
 
 st.info("スロットの図柄や役（パターンと配当）を自由にカスタマイズできます。変更は自動的にブラウザに保存されます。")
 
