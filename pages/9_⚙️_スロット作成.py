@@ -153,12 +153,30 @@ for i, payout in enumerate(payout_list):
             )
 
         col_p1, col_p2, col_p3 = st.columns(3)
+        # 選択肢の作成（現在の図柄リスト + ANY）
+        symbol_options = ["ANY"] + [s["char"] for s in new_symbols]
+
         with col_p1:
-            p_1 = st.text_input("左リール", payout["pattern"][0], key=f"p_1_{i}")
+            p_1 = st.selectbox(
+                "左リール",
+                symbol_options,
+                index=symbol_options.index(payout["pattern"][0]) if payout["pattern"][0] in symbol_options else 0,
+                key=f"p_1_{i}",
+            )
         with col_p2:
-            p_2 = st.text_input("中リール", payout["pattern"][1], key=f"p_2_{i}")
+            p_2 = st.selectbox(
+                "中リール",
+                symbol_options,
+                index=symbol_options.index(payout["pattern"][1]) if payout["pattern"][1] in symbol_options else 0,
+                key=f"p_2_{i}",
+            )
         with col_p3:
-            p_3 = st.text_input("右リール", payout["pattern"][2], key=f"p_3_{i}")
+            p_3 = st.selectbox(
+                "右リール",
+                symbol_options,
+                index=symbol_options.index(payout["pattern"][2]) if payout["pattern"][2] in symbol_options else 0,
+                key=f"p_3_{i}",
+            )
 
         if st.button("この役を削除する", key=f"p_del_btn_{i}"):
             st.session_state.slot_config_edit["payouts"].pop(i)
@@ -172,9 +190,14 @@ with st.expander("新規追加"):
     add_name = st.text_input("新しい役名", "新規役", key="add_name")
     add_score = st.number_input("新しいスコア", 100, key="add_score")
     ca1, ca2, ca3 = st.columns(3)
-    p_add1 = st.text_input("左図柄", "7️⃣", key="p_add1")
-    p_add2 = st.text_input("中図柄", "7️⃣", key="p_add2")
-    p_add3 = st.text_input("右図柄", "7️⃣", key="p_add3")
+    # 追加時もプルダウンを使用
+    add_symbol_options = ["ANY"] + [s["char"] for s in new_symbols]
+    with ca1:
+        p_add1 = st.selectbox("左図柄", add_symbol_options, index=1 if len(add_symbol_options) > 1 else 0, key="p_add1")
+    with ca2:
+        p_add2 = st.selectbox("中図柄", add_symbol_options, index=1 if len(add_symbol_options) > 1 else 0, key="p_add2")
+    with ca3:
+        p_add3 = st.selectbox("右図柄", add_symbol_options, index=1 if len(add_symbol_options) > 1 else 0, key="p_add3")
     if st.button("役を追加する"):
         st.session_state.slot_config_edit["payouts"].append(
             {"name": add_name, "score": add_score, "pattern": [p_add1, p_add2, p_add3]}
