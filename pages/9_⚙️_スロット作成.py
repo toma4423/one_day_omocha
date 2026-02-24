@@ -341,7 +341,7 @@ with col_save:
     if st.button(
         "💾 この設定を保存して反映する",
         use_container_width=True,
-        help="現在のすべての設定をブラウザに保存し、スロット本体に反映します。",
+        help="現在のすべての設定をブラウザに保存し、スロット本体に反映します。ファイルへの保存は不要です。",
     ):
         if not slot_name:
             st.error("スロットの名前を入力してください。")
@@ -353,10 +353,16 @@ with col_save:
             }
             st.session_state.slot_config_edit = final_config
             storage.set_item("slot_config", final_config)
-            if "slot_config" in st.session_state:
-                st.session_state.slot_config = final_config
-            st.success("設定を保存しました！スロットページで確認してください。")
+            # スロットページで使用するセッション状態を更新
+            st.session_state.slot_config = final_config
+
+            st.success("設定を保存しました！ブラウザを閉じても維持されます。")
             st.balloons()
+
+            # 即座に遊ぶための案内
+            st.info("💡 設定が反映されました。左のメニューから「スロット」を選ぶか、下のボタンから移動して遊べます。")
+            if st.button("🎰 スロットページへ移動して遊ぶ", use_container_width=True):
+                st.switch_page("pages/8_🎰_スロット.py")
 
 with col_reset:
     if st.button(

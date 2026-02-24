@@ -206,6 +206,12 @@ with col_info:
 with st.sidebar:
     st.header("⚙️ オプション")
 
+    # 現在の設定情報の表示
+    with st.expander("ℹ️ 現在の設定情報"):
+        st.write(f"**台名:** {st.session_state.slot_config.get('name')}")
+        st.write(f"**図柄数:** {len(st.session_state.slot_config.get('symbols', []))}")
+        st.caption("※「スロット作成」ページで保存した内容は自動的にここに反映されます。")
+
     # JSONロード
     uploaded_file = st.file_uploader("設定JSONを読込", type="json")
     if uploaded_file is not None:
