@@ -4,10 +4,9 @@ import pandas as pd
 from datetime import datetime
 from src.utils.time import get_jst_now
 from src.utils.dice import (
-    HAND_RANK, roll_dice, evaluate_hand, 
-    display_dice_html, render_dice_animation, DICE_EMOJI
+    HAND_RANK, roll_dice, evaluate_hand, DICE_EMOJI
 )
-from src.utils.styles import render_donation_box
+from src.utils.styles import render_donation_box, display_dice_html, render_dice_animation
 from streamlit_local_storage import LocalStorage
 from src.utils.storage import SafeStorage
 

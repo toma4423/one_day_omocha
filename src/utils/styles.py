@@ -1,4 +1,23 @@
 import streamlit as st
+import time
+from typing import List, Any
+from src.utils.dice import DICE_EMOJI, roll_dice
+
+def display_dice_html(dice: List[int], size: int = 100) -> str:
+    """
+    サイコロの絵文字を含むHTMLを生成します。
+    """
+    return "".join([f"<span style='font-size: {size}px; margin: 0 10px;'>{DICE_EMOJI.get(d, '?')}</span>" for d in dice])
+
+def render_dice_animation(placeholder: Any, size: int = 100, iterations: int = 10):
+    """
+    サイコロが振られるアニメーションを表示します。
+    """
+    for _ in range(iterations):
+        temp_dice = roll_dice(3)
+        html = f"<div style='text-align: center;'>{display_dice_html(temp_dice, size)}</div>"
+        placeholder.markdown(html, unsafe_allow_html=True)
+        time.sleep(0.05)
 
 def render_styled_number(label: str, value: float | int, bg_color: str = "#E3F2FD", border_color: str = "#2196F3", text_color: str = "#0D47A1", font_size: int = 48):
     """

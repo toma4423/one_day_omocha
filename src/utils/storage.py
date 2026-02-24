@@ -1,4 +1,3 @@
-import streamlit as st
 import json
 from typing import Any, Optional
 
@@ -39,10 +38,21 @@ class SafeStorage:
         except Exception:
             pass
 
-    def clear_all_with_prefix(self, prefix: str):
-        """指定したプレフィックスを持つアイテムを削除"""
-        keys_to_delete = [k for k in st.session_state.keys() if k.startswith(prefix)]
-        for key in keys_to_delete:
-            if key in st.session_state:
-                del st.session_state[key]
-            self.delete_item(key)
+    def clear_all_with_prefix(self, prefix: str, state_dict: Optional[dict] = None):
+        """
+        指定したプレフィックスを持つアイテムを削除します。
+        state_dictが指定されている場合はそちらからも削除します（通常は st.session_state を渡します）。
+        """
+        if state_dict is not None:
+            # 辞書から削除
+            keys_to_delete = [k for k in state_dict.keys() if k.startswith(prefix)]
+            for key in keys_to_delete:
+                if key in state_dict:
+                    del state_dict[key]
+                # LocalStorageからも削除
+                self.delete_item(key)
+        else:
+            # state_dictが未指定の場合は、LocalStorageからのみ削除する術がないため何もしないか、
+            # あるいは将来的にLocalStorageの全キーを走査する仕組みが必要。
+            # 現状は安全のためログや警告に留める（この環境ではprint等）
+            pass

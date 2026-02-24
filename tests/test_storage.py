@@ -44,21 +44,20 @@ def test_safe_storage_get_item_variations(mock_storage):
         mock_storage.getItem.return_value = input_val
         assert safe_storage.get_item("key", is_json=False) == expected
 
-@patch("src.utils.storage.st")
-def test_safe_storage_clear_all_with_prefix(mock_st, mock_storage):
+def test_safe_storage_clear_all_with_prefix(mock_storage):
     safe_storage = SafeStorage(mock_storage)
-    mock_st.session_state = {
+    session_state = {
         "target_1": "v1",
         "target_2": "v2",
         "keep_me": "v3"
     }
     
-    safe_storage.clear_all_with_prefix("target_")
+    safe_storage.clear_all_with_prefix("target_", session_state)
     
     # session_stateから消えていること
-    assert "target_1" not in mock_st.session_state
-    assert "target_2" not in mock_st.session_state
-    assert "keep_me" in mock_st.session_state
+    assert "target_1" not in session_state
+    assert "target_2" not in session_state
+    assert "keep_me" in session_state
     
     # LocalStorageからも消えていること
     assert mock_storage.deleteItem.call_count == 2

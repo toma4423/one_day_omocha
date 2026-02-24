@@ -1,5 +1,4 @@
 import random
-import streamlit as st
 from typing import List, Dict, Optional, Any
 
 DICE_EMOJI: Dict[int, str] = {
@@ -63,20 +62,3 @@ def evaluate_hand(dice: List[int]) -> str:
         return f"POINT_{d1}"
         
     return "BUTA"
-
-def display_dice_html(dice: List[int], size: int = 100) -> str:
-    """
-    サイコロの絵文字を含むHTMLを生成します。
-    """
-    return "".join([f"<span style='font-size: {size}px; margin: 0 10px;'>{DICE_EMOJI.get(d, '?')}</span>" for d in dice])
-
-def render_dice_animation(placeholder: Any, size: int = 100, iterations: int = 10):
-    """
-    サイコロが振られるアニメーションを表示します。
-    """
-    import time
-    for _ in range(iterations):
-        temp_dice = roll_dice(3)
-        html = f"<div style='text-align: center;'>{display_dice_html(temp_dice, size)}</div>"
-        placeholder.markdown(html, unsafe_allow_html=True)
-        time.sleep(0.05)

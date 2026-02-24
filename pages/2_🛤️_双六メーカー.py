@@ -65,8 +65,8 @@ with st.sidebar:
 
     if st.button("盤面を完全に初期化", use_container_width=True):
         st.session_state.just_reset_sugoroku = True
-        storage.clear_all_with_prefix("sg_")
-        storage.clear_all_with_prefix("current_pos")
+        storage.clear_all_with_prefix("sg_", st.session_state)
+        storage.clear_all_with_prefix("current_pos", st.session_state)
         st.session_state.current_pos = 0
         st.session_state.board_data = {}
         st.rerun()
