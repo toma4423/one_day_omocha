@@ -3,7 +3,7 @@ import json
 import streamlit as st
 from streamlit_local_storage import LocalStorage
 
-from src.utils.slot import DEFAULT_PAYOUTS, DEFAULT_SYMBOLS, get_slot_config
+from src.utils.slot import DEFAULT_PAYOUTS, DEFAULT_SYMBOLS, calculate_probabilities, get_slot_config
 from src.utils.storage import SafeStorage
 from src.utils.styles import render_donation_box
 from src.utils.time import get_jst_now
@@ -62,7 +62,9 @@ st.subheader("🖼️ 図柄（シンボル）の編集")
 st.write("各リールに出現する図柄とその出現の重み（確率）を設定します。")
 
 new_symbols = []
-for i, symbol in enumerate(st.session_state.slot_config_edit["symbols"]):
+# セッション状態から最新を取得（削除等でずれないように）
+symbol_list = st.session_state.slot_config_edit["symbols"]
+for i, symbol in enumerate(symbol_list):
     col_sym, col_weight, col_del = st.columns([2, 2, 1])
     with col_sym:
         s_char = st.text_input("図柄", symbol["char"], key=f"s_char_{i}", label_visibility="collapsed")
@@ -96,7 +98,6 @@ with c3:
         st.rerun()
 
 # --- 役の編集 ---
-# ... (skip to save logic)
 st.write("---")
 st.subheader("💰 役と配当の設定")
 st.write(
@@ -105,7 +106,8 @@ st.write(
 
 # 役の一覧を表示し、削除や編集を行う
 new_payouts = []
-for i, payout in enumerate(st.session_state.slot_config_edit["payouts"]):
+payout_list = st.session_state.slot_config_edit["payouts"]
+for i, payout in enumerate(payout_list):
     with st.expander(f"役 {i + 1}: {payout['name']}"):
         col_name, col_score = st.columns([3, 1])
         with col_name:
@@ -121,24 +123,47 @@ for i, payout in enumerate(st.session_state.slot_config_edit["payouts"]):
         with col_p3:
             p_3 = st.text_input("右リール", payout["pattern"][2], key=f"p_3_{i}")
 
-        is_delete = st.checkbox("この役を削除する", key=f"del_{i}")
-        if not is_delete:
-            new_payouts.append({"name": p_name, "score": p_score, "pattern": [p_1, p_2, p_3]})
+        if st.button("この役を削除する", key=f"p_del_btn_{i}"):
+            st.session_state.slot_config_edit["payouts"].pop(i)
+            st.rerun()
+
+        new_payouts.append({"name": p_name, "score": p_score, "pattern": [p_1, p_2, p_3]})
 
 # 新しい役を追加
-st.write("---")
 st.write("🆕 新しい役を追加")
 with st.expander("新規追加"):
     add_name = st.text_input("新しい役名", "新規役", key="add_name")
     add_score = st.number_input("新しいスコア", 100, key="add_score")
-    c1, c2, c3 = st.columns(3)
+    ca1, ca2, ca3 = st.columns(3)
     p_add1 = st.text_input("左図柄", "7️⃣", key="p_add1")
     p_add2 = st.text_input("中図柄", "7️⃣", key="p_add2")
     p_add3 = st.text_input("右図柄", "7️⃣", key="p_add3")
     if st.button("役を追加する"):
-        new_payouts.append({"name": add_name, "score": add_score, "pattern": [p_add1, p_add2, p_add3]})
+        st.session_state.slot_config_edit["payouts"].append(
+            {"name": add_name, "score": add_score, "pattern": [p_add1, p_add2, p_add3]}
+        )
         st.success("追加しました！")
         st.rerun()
+
+# --- 確率の表示 ---
+st.write("---")
+st.subheader("📊 現在の設定での期待値と確率")
+if new_symbols:
+    probs = calculate_probabilities(new_symbols, new_payouts)
+
+    col_p1, col_p2 = st.columns(2)
+    with col_p1:
+        st.metric("合算当り確率", f"{probs['total_hit_rate']:.2f}%")
+    with col_p2:
+        st.metric("ハズレ確率", f"{probs['miss_rate']:.2f}%")
+
+    # 各役の確率
+    import pandas as pd
+
+    df_probs = pd.DataFrame(probs["hit_rates"])
+    if not df_probs.empty:
+        df_probs.columns = ["役名", "出現確率 (%)"]
+        st.table(df_probs)
 
 # 保存処理
 st.write("---")
@@ -148,12 +173,12 @@ with col_save:
         if not new_symbols:
             st.error("図柄は少なくとも1つ以上必要です。")
         else:
-            new_config = {"symbols": new_symbols, "payouts": new_payouts}
-            st.session_state.slot_config_edit = new_config
-            storage.set_item("slot_config", new_config)
+            final_config = {"symbols": new_symbols, "payouts": new_payouts}
+            st.session_state.slot_config_edit = final_config
+            storage.set_item("slot_config", final_config)
             # 実行ページ用のセッション状態も更新
             if "slot_config" in st.session_state:
-                st.session_state.slot_config = new_config
+                st.session_state.slot_config = final_config
             st.success("設定を保存しました！スロットページで確認してください。")
             st.balloons()
 
