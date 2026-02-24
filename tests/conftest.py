@@ -1,6 +1,7 @@
-import pytest
 from unittest.mock import MagicMock
-import numpy as np
+
+import pytest
+
 
 @pytest.fixture
 def mock_streamlit_state(monkeypatch):

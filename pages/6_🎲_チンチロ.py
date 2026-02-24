@@ -1,14 +1,12 @@
-import streamlit as st
-import random
+
 import pandas as pd
-from datetime import datetime
-from src.utils.time import get_jst_now
-from src.utils.dice import (
-    HAND_RANK, roll_dice, evaluate_hand, DICE_EMOJI
-)
-from src.utils.styles import render_donation_box, display_dice_html, render_dice_animation
+import streamlit as st
 from streamlit_local_storage import LocalStorage
+
+from src.utils.dice import DICE_EMOJI, HAND_RANK, evaluate_hand, roll_dice
 from src.utils.storage import SafeStorage
+from src.utils.styles import display_dice_html, render_dice_animation
+from src.utils.time import get_jst_now
 
 st.set_page_config(page_title="チンチロ", page_icon="🎲", layout="wide")
 
@@ -97,7 +95,7 @@ with col_roll:
 with col_res:
     if st.session_state.cc_hand:
         hand_info = HAND_RANK[st.session_state.cc_hand]
-        st.markdown(f"<h3 style='text-align: center;'>最新の結果</h3>", unsafe_allow_html=True)
+        st.markdown("<h3 style='text-align: center;'>最新の結果</h3>", unsafe_allow_html=True)
         st.markdown(f"<h2 style='text-align: center; color: #1f77b4;'>役: {hand_info['name']}</h2>", unsafe_allow_html=True)
         st.markdown(f"<p style='text-align: center; color: gray;'>{hand_info['description']}</p>", unsafe_allow_html=True)
         

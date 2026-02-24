@@ -1,9 +1,9 @@
-import pytest
 from src.utils.count_support import (
-    calculate_weighted_value, 
-    calculate_diff_xy, 
-    calculate_final_score
+    calculate_diff_xy,
+    calculate_final_score,
+    calculate_weighted_value,
 )
+
 
 def test_calculate_weighted_value():
     assert calculate_weighted_value(10, 1.5) == 15.0

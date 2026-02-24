@@ -1,9 +1,10 @@
+
 import streamlit as st
-import random
 from streamlit_local_storage import LocalStorage
+
+from src.utils.kurohige import check_slot, init_kurohige
 from src.utils.storage import SafeStorage
-from src.utils.time import get_jst_now
-from src.utils.kurohige import init_kurohige, check_slot
+from src.utils.styles import render_grid_board
 
 st.set_page_config(page_title="黒ひげ危機一発", page_icon="☠️")
 
@@ -61,31 +62,29 @@ else:
 
 # 穴（ボタン）の表示
 cols_per_row = 4
-for i in range(0, num_slots, cols_per_row):
-    cols = st.columns(cols_per_row)
-    for j, col in enumerate(cols):
-        idx = i + j
-        if idx < num_slots:
-            with col:
-                # スロット番号を表示するためのラベル
-                slot_num = idx + 1
-                
-                # すでにクリックされたか、爆発済みの場合は無効化
-                if idx in st.session_state.kurohige_clicked:
-                    # セーフの表示を 🗡️ セーフ に変更
-                    st.button(f"{slot_num}\n🗡️ セーフ", key=f"k_{idx}", disabled=True, use_container_width=True)
-                elif st.session_state.kurohige_status == "boom":
-                    st.button(f"{slot_num}\n🕳️", key=f"k_{idx}", disabled=True, use_container_width=True)
-                else:
-                    # 番号付きのボタン
-                    if st.button(f"{slot_num}\n❓", key=f"k_{idx}", use_container_width=True):
-                        if check_slot(idx, st.session_state.kurohige_target) == "boom":
-                            st.session_state.kurohige_status = "boom"
-                            storage.set_item('kh_status', "boom")
-                        else:
-                            st.session_state.kurohige_clicked.append(idx)
-                            storage.set_item('kh_clicked', st.session_state.kurohige_clicked)
-                        st.rerun()
+
+def render_slot(idx):
+    # スロット番号を表示するためのラベル
+    slot_num = idx + 1
+    
+    # すでにクリックされたか、爆発済みの場合は無効化
+    if idx in st.session_state.kurohige_clicked:
+        # セーフの表示を 🗡️ セーフ に変更
+        st.button(f"{slot_num}\n🗡️ セーフ", key=f"k_{idx}", disabled=True, use_container_width=True)
+    elif st.session_state.kurohige_status == "boom":
+        st.button(f"{slot_num}\n🕳️", key=f"k_{idx}", disabled=True, use_container_width=True)
+    else:
+        # 番号付きのボタン
+        if st.button(f"{slot_num}\n❓", key=f"k_{idx}", use_container_width=True):
+            if check_slot(idx, st.session_state.kurohige_target) == "boom":
+                st.session_state.kurohige_status = "boom"
+                storage.set_item('kh_status', "boom")
+            else:
+                st.session_state.kurohige_clicked.append(idx)
+                storage.set_item('kh_clicked', st.session_state.kurohige_clicked)
+            st.rerun()
+
+render_grid_board(num_slots, cols_per_row, render_slot)
 
 st.sidebar.write("---")
 st.sidebar.info("自動保存：ブラウザ（LocalStorage）")

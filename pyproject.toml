@@ -13,8 +13,27 @@ dependencies = [
 [dependency-groups]
 dev = [
     "pytest>=9.0.2",
+    "ruff>=0.9.7",
+    "mypy>=1.15.0",
 ]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]
 testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+ignore = ["E501"] # Ignore line length for now as streamlit UI code often has long lines
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["E712"] # Allow '== True' in tests for clarity
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+ignore_missing_imports = true
+exclude = ["tests"]

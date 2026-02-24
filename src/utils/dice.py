@@ -1,11 +1,11 @@
 import random
-from typing import List, Dict, Optional, Any
+from typing import Any
 
-DICE_EMOJI: Dict[int, str] = {
+DICE_EMOJI: dict[int, str] = {
     1: "⚀", 2: "⚁", 3: "⚂", 4: "⚃", 5: "⚄", 6: "⚅"
 }
 
-HAND_RANK: Dict[str, Dict[str, Any]] = {
+HAND_RANK: dict[str, dict[str, Any]] = {
     "PINZORO": {"name": "ピンゾロ (1-1-1)", "strength": 1000, "description": "最強の役。"},
     "ARASHI_6": {"name": "アラシ (6-6-6)", "strength": 606, "description": "ゾロ目。数字が大きいほど強い。"},
     "ARASHI_5": {"name": "アラシ (5-5-5)", "strength": 605, "description": "ゾロ目。"},
@@ -23,13 +23,13 @@ HAND_RANK: Dict[str, Dict[str, Any]] = {
     "HIFUMI": {"name": "ヒフミ (1-2-3)", "strength": -100, "description": "最低の役。即負け。"},
 }
 
-def roll_dice(count: int = 1, faces: int = 6) -> List[int]:
+def roll_dice(count: int = 1, faces: int = 6) -> list[int]:
     """
     指定された数と面のサイコロを振り、結果をリストで返します。
     """
     return [random.randint(1, faces) for _ in range(count)]
 
-def evaluate_hand(dice: List[int]) -> str:
+def evaluate_hand(dice: list[int]) -> str:
     """
     チンチロリンの役を判定します。
     """

@@ -1,5 +1,7 @@
 import pytest
-from src.utils.kurohige import init_kurohige, check_slot, is_already_clicked
+
+from src.utils.kurohige import check_slot, init_kurohige, is_already_clicked
+
 
 def test_init_kurohige():
     num_slots = 12

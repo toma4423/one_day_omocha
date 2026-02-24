@@ -1,6 +1,8 @@
-import pytest
 import numpy as np
-from src.utils.minesweeper import create_board, reveal_tile, is_game_won
+import pytest
+
+from src.utils.minesweeper import create_board, is_game_won, reveal_tile
+
 
 def test_create_board_dimensions():
     w, h, mines = 10, 8, 10

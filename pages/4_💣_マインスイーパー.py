@@ -1,7 +1,9 @@
-import streamlit as st
-import random
+
 import numpy as np
-from src.utils.minesweeper import create_board, reveal_tile, is_game_won
+import streamlit as st
+
+from src.utils.minesweeper import create_board, is_game_won, reveal_tile
+from src.utils.styles import render_grid_board
 
 st.set_page_config(page_title="マインスイーパー", page_icon="💣")
 
@@ -47,37 +49,37 @@ if st.session_state.ms_status == "ready":
     init_minesweeper(ms_w, ms_h, ms_mines)
 
 # 描画
-for r in range(ms_h):
-    cols = st.columns(ms_w)
-    for c in range(ms_w):
-        with cols[c]:
-            label, disabled, key = "", False, f"ms_{r}_{c}"
-            
-            if st.session_state.ms_revealed[r, c]:
-                val = st.session_state.ms_board[r, c]
-                label = "💣" if val == -1 else (str(val) if val > 0 else "")
-                disabled = True
-            elif st.session_state.ms_flags[r, c]:
-                label = "🚩"
-            
-            # ゲーム終了時の表示
-            if st.session_state.ms_status in ["won", "lost"]:
-                if st.session_state.ms_board[r, c] == -1:
-                    label = "💣"
-                disabled = True
-            
-            if st.button(label if label else "　", key=key, disabled=disabled, use_container_width=True):
-                if ms_mode == "オープン":
-                    if st.session_state.ms_board[r, c] == -1:
-                        st.session_state.ms_status = "lost"
-                        st.error("ドカン！ゲームオーバー")
-                    else:
-                        reveal(r, c, ms_w, ms_h)
-                        # クリア判定
-                        if is_game_won(st.session_state.ms_board, st.session_state.ms_revealed):
-                            st.session_state.ms_status = "won"
-                            st.balloons()
-                            st.success("クリア！おめでとう！")
-                else:
-                    st.session_state.ms_flags[r, c] = not st.session_state.ms_flags[r, c]
-                st.rerun()
+def render_cell(idx):
+    r, c = idx // ms_w, idx % ms_w
+    label, disabled, key = "", False, f"ms_{r}_{c}"
+    
+    if st.session_state.ms_revealed[r, c]:
+        val = st.session_state.ms_board[r, c]
+        label = "💣" if val == -1 else (str(val) if val > 0 else "")
+        disabled = True
+    elif st.session_state.ms_flags[r, c]:
+        label = "🚩"
+    
+    # ゲーム終了時の表示
+    if st.session_state.ms_status in ["won", "lost"]:
+        if st.session_state.ms_board[r, c] == -1:
+            label = "💣"
+        disabled = True
+    
+    if st.button(label if label else "　", key=key, disabled=disabled, use_container_width=True):
+        if ms_mode == "オープン":
+            if st.session_state.ms_board[r, c] == -1:
+                st.session_state.ms_status = "lost"
+                st.error("ドカン！ゲームオーバー")
+            else:
+                reveal(r, c, ms_w, ms_h)
+                # クリア判定
+                if is_game_won(st.session_state.ms_board, st.session_state.ms_revealed):
+                    st.session_state.ms_status = "won"
+                    st.balloons()
+                    st.success("クリア！おめでとう！")
+        else:
+            st.session_state.ms_flags[r, c] = not st.session_state.ms_flags[r, c]
+        st.rerun()
+
+render_grid_board(ms_w * ms_h, ms_w, render_cell)

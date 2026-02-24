@@ -1,5 +1,5 @@
-import pytest
 from src.utils.sugoroku import calculate_new_position, init_board_data
+
 
 def test_sugoroku_linear_move():
     # 10マス、現在地0、出目3 -> 3

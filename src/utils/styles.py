@@ -1,9 +1,12 @@
-import streamlit as st
 import time
-from typing import List, Any
+from typing import Any
+
+import streamlit as st
+
 from src.utils.dice import DICE_EMOJI, roll_dice
 
-def display_dice_html(dice: List[int], size: int = 100) -> str:
+
+def display_dice_html(dice: list[int], size: int = 100) -> str:
     """
     サイコロの絵文字を含むHTMLを生成します。
     """
@@ -18,6 +21,18 @@ def render_dice_animation(placeholder: Any, size: int = 100, iterations: int = 1
         html = f"<div style='text-align: center;'>{display_dice_html(temp_dice, size)}</div>"
         placeholder.markdown(html, unsafe_allow_html=True)
         time.sleep(0.05)
+
+def render_grid_board(total_items: int, cols_per_row: int, renderer_func: Any):
+    """
+    グリッド状の盤面をレンダリングします。
+    """
+    for i in range(0, total_items, cols_per_row):
+        cols = st.columns(cols_per_row)
+        for j, col in enumerate(cols):
+            idx = i + j
+            if idx < total_items:
+                with col:
+                    renderer_func(idx)
 
 def render_styled_number(label: str, value: float | int, bg_color: str = "#E3F2FD", border_color: str = "#2196F3", text_color: str = "#0D47A1", font_size: int = 48):
     """

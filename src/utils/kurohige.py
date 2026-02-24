@@ -1,5 +1,5 @@
 import random
-from typing import List, Tuple
+
 
 def init_kurohige(num_slots: int) -> int:
     """
@@ -17,7 +17,7 @@ def check_slot(idx: int, target: int) -> str:
         return "boom"
     return "safe"
 
-def is_already_clicked(idx: int, clicked_list: List[int]) -> bool:
+def is_already_clicked(idx: int, clicked_list: list[int]) -> bool:
     """
     すでにクリックされたインデックスかどうかを確認します。
     """

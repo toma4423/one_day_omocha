@@ -1,5 +1,6 @@
 import json
-from typing import Any, Optional
+from typing import Any
+
 
 class SafeStorage:
     """
@@ -17,7 +18,7 @@ class SafeStorage:
         except Exception:
             pass
 
-    def get_item(self, key: str, is_json: bool = True) -> Optional[Any]:
+    def get_item(self, key: str, is_json: bool = True) -> Any | None:
         """保存された JSON 文字列をパースして取得します。"""
         try:
             val = self.storage.getItem(key)
@@ -38,7 +39,7 @@ class SafeStorage:
         except Exception:
             pass
 
-    def clear_all_with_prefix(self, prefix: str, state_dict: Optional[dict] = None):
+    def clear_all_with_prefix(self, prefix: str, state_dict: dict | None = None):
         """
         指定したプレフィックスを持つアイテムを削除します。
         state_dictが指定されている場合はそちらからも削除します（通常は st.session_state を渡します）。

@@ -1,7 +1,7 @@
-import pytest
-from unittest.mock import MagicMock, patch
 import json
+
 from src.utils.storage import SafeStorage
+
 
 def test_safe_storage_set_and_get_json(mock_storage):
     safe_storage = SafeStorage(mock_storage)

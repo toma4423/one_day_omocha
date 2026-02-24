@@ -1,6 +1,7 @@
-import pytest
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
+
 from src.utils.time import get_jst_now
+
 
 def test_get_jst_now_is_japan_time():
     # 実行時の時刻を取得
@@ -13,7 +14,7 @@ def test_get_jst_now_is_japan_time():
     # タイムゾーンを除去した UTC 時刻を取得し、9時間を足して比較する
     # get_jst_now は内部で datetime.now(jst) を呼んでいるため
     # その時点のシステム時刻（UTC）+ 9h とほぼ一致するはず
-    utc_now = datetime.now(timezone.utc)
+    utc_now = datetime.now(UTC)
     
     # どちらも absolute time として比較
     # (JST時刻) と (UTC時刻) の時間差は 0 であるべき

@@ -1,8 +1,10 @@
 import streamlit as st
-from src.utils.dice import roll_dice
-from src.utils.styles import render_styled_number
 from streamlit_local_storage import LocalStorage
+
+from src.utils.dice import roll_dice
 from src.utils.storage import SafeStorage
+from src.utils.styles import render_styled_number, render_grid_board
+from src.utils.sugoroku import calculate_new_position, init_board_data
 
 st.set_page_config(page_title="双六メーカー", page_icon="🛤️", layout="wide")
 
@@ -86,8 +88,6 @@ for i in range(total_tiles):
         else:
             st.session_state.board_data[key] = initial_data[key]
 
-from src.utils.sugoroku import calculate_new_position, init_board_data
-
 # --- メインエリア：サイコロ操作 ---
 st.subheader("🎲 サイコロを振って進む")
 c1, c2, c3 = st.columns([1, 1, 2])
@@ -126,39 +126,37 @@ st.write("---")
 # --- 盤面表示 ---
 st.subheader("🛤️ 双六盤面")
 cols_per_row = 5
-for i in range(0, total_tiles, cols_per_row):
-    cols = st.columns(cols_per_row)
-    for j, col in enumerate(cols):
-        idx = i + j
-        if idx < total_tiles:
-            key = f"sg_tile_{idx}"
-            with col:
-                is_curr = st.session_state.current_pos == idx
-                border_color = '#F44336' if is_curr else '#ccc'
-                bg_color = '#FFEB3B' if is_curr else '#f9f9f9'
-                label_text = '📍 現在地' if is_curr else f'No. {idx+1}'
-                
-                st.markdown(f"""
-                    <div style='border:3px solid {border_color}; border-radius:10px; padding:5px; text-align:center; background-color:{bg_color}; margin-bottom:5px; color:black;'>
-                        <small>{label_text}</small>
-                    </div>
-                """, unsafe_allow_html=True)
-                
-                # 名前編集
-                new_val = st.text_input(f"t_{idx}", st.session_state.board_data[key], key=f"in_{idx}", label_visibility="collapsed")
-                if new_val != st.session_state.board_data[key]:
-                    st.session_state.board_data[key] = new_val
-                    storage.set_item(key, new_val)
-                
-                # 手動移動ボタン
-                if st.button("ここに移動", key=f"b_{idx}", use_container_width=True):
-                    st.session_state.current_pos = idx
-                    storage.set_item('current_pos', idx)
-                    st.rerun()
-                
-                # 矢印
-                if idx < total_tiles - 1:
-                    arrow = "👇" if (j + 1) % cols_per_row == 0 else "👉"
-                    st.markdown(f"<div style='text-align:center;'>{arrow}</div>", unsafe_allow_html=True)
-                elif st.session_state.sg_board_type == "循環型（ループ）":
-                    st.markdown("<div style='text-align:center;'>⤴️ No.1へ戻る</div>", unsafe_allow_html=True)
+
+def render_tile(idx):
+    key = f"sg_tile_{idx}"
+    is_curr = st.session_state.current_pos == idx
+    border_color = '#F44336' if is_curr else '#ccc'
+    bg_color = '#FFEB3B' if is_curr else '#f9f9f9'
+    label_text = '📍 現在地' if is_curr else f'No. {idx+1}'
+    
+    st.markdown(f"""
+        <div style='border:3px solid {border_color}; border-radius:10px; padding:5px; text-align:center; background-color:{bg_color}; margin-bottom:5px; color:black;'>
+            <small>{label_text}</small>
+        </div>
+    """, unsafe_allow_html=True)
+    
+    # 名前編集
+    new_val = st.text_input(f"t_{idx}", st.session_state.board_data[key], key=f"in_{idx}", label_visibility="collapsed")
+    if new_val != st.session_state.board_data[key]:
+        st.session_state.board_data[key] = new_val
+        storage.set_item(key, new_val)
+    
+    # 手動移動ボタン
+    if st.button("ここに移動", key=f"b_{idx}", use_container_width=True):
+        st.session_state.current_pos = idx
+        storage.set_item('current_pos', idx)
+        st.rerun()
+    
+    # 矢印
+    if idx < total_tiles - 1:
+        arrow = "👇" if (idx + 1) % cols_per_row == 0 else "👉"
+        st.markdown(f"<div style='text-align:center;'>{arrow}</div>", unsafe_allow_html=True)
+    elif st.session_state.sg_board_type == "循環型（ループ）":
+        st.markdown("<div style='text-align:center;'>⤴️ No.1へ戻る</div>", unsafe_allow_html=True)
+
+render_grid_board(total_tiles, cols_per_row, render_tile)

@@ -1,14 +1,16 @@
-import streamlit as st
 import json
+
+import streamlit as st
+from streamlit_local_storage import LocalStorage
+
+from src.utils.count_support import (
+    calculate_diff_xy,
+    calculate_final_score,
+    calculate_weighted_value,
+)
+from src.utils.storage import SafeStorage
 from src.utils.styles import render_result_box
 from src.utils.time import get_jst_now
-from streamlit_local_storage import LocalStorage
-from src.utils.storage import SafeStorage
-from src.utils.count_support import (
-    calculate_weighted_value, 
-    calculate_diff_xy, 
-    calculate_final_score
-)
 
 st.set_page_config(page_title="カウントサポート", page_icon="🔢")
 

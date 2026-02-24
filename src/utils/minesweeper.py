@@ -1,6 +1,7 @@
-import numpy as np
 import random
-from typing import Tuple, List
+
+import numpy as np
+
 
 def create_board(w: int, h: int, mines: int) -> np.ndarray:
     """
