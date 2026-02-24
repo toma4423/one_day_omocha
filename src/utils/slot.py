@@ -4,22 +4,22 @@ from typing import Any
 # デフォルト設定
 # 図柄（シンボル）：ID（数字）、識別子（文字）、重み、画像URL
 DEFAULT_SYMBOLS = [
-    {"id": 1, "char": "🍒", "weight": 10.0, "image_url": None},
-    {"id": 2, "char": "🍋", "weight": 8.0, "image_url": None},
-    {"id": 3, "char": "🍉", "weight": 6.0, "image_url": None},
-    {"id": 4, "char": "🔔", "weight": 4.0, "image_url": None},
-    {"id": 5, "char": "⭐", "weight": 2.0, "image_url": None},
-    {"id": 6, "char": "7️⃣", "weight": 1.0, "image_url": None},
+    {"id": 1, "char": "🍒", "weight": 15.0, "image_url": None},
+    {"id": 2, "char": "🍋", "weight": 10.0, "image_url": None},
+    {"id": 3, "char": "🍉", "weight": 7.0, "image_url": None},
+    {"id": 4, "char": "🔔", "weight": 5.0, "image_url": None},
+    {"id": 5, "char": "⭐", "weight": 3.0, "image_url": None},
+    {"id": 6, "char": "7️⃣", "weight": 2.0, "image_url": None},
 ]
 
 DEFAULT_PAYOUTS = [
     {"pattern": [6, 6, 6], "name": "超大当り (777)", "score": 1000},
     {"pattern": [5, 5, 5], "name": "大当り (STAR)", "score": 500},
-    {"pattern": [4, 4, 4], "name": "ベル", "score": 100},
-    {"pattern": [3, 3, 3], "name": "スイカ", "score": 50},
-    {"pattern": [2, 2, 2], "name": "レモン", "score": 20},
-    {"pattern": [1, 1, 1], "name": "チェリー", "score": 10},
-    {"pattern": [1, 1, "ANY"], "name": "ミニチェリー", "score": 2},
+    {"pattern": [4, 4, 4], "name": "ベル", "score": 200},
+    {"pattern": [3, 3, 3], "name": "スイカ", "score": 100},
+    {"pattern": [2, 2, 2], "name": "レモン", "score": 50},
+    {"pattern": [1, 1, 1], "name": "チェリー", "score": 30},
+    {"pattern": [1, 1, "ANY"], "name": "ミニチェリー", "score": 10},
 ]
 
 DEFAULT_SLOT_NAME = "標準スロット"
