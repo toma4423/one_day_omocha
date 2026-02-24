@@ -65,9 +65,17 @@ new_symbols = []
 # セッション状態から最新を取得（削除等でずれないように）
 symbol_list = st.session_state.slot_config_edit["symbols"]
 for i, symbol in enumerate(symbol_list):
-    col_sym, col_weight, col_del = st.columns([2, 2, 1])
+    col_sym, col_url, col_weight, col_del = st.columns([1.5, 3, 1.5, 0.5])
     with col_sym:
         s_char = st.text_input("図柄", symbol["char"], key=f"s_char_{i}", label_visibility="collapsed")
+    with col_url:
+        s_url = st.text_input(
+            "画像URL (任意)",
+            symbol.get("image_url", ""),
+            key=f"s_url_{i}",
+            label_visibility="collapsed",
+            placeholder="https://...",
+        )
     with col_weight:
         s_weight = st.number_input(
             "重み",
@@ -81,20 +89,29 @@ for i, symbol in enumerate(symbol_list):
         if st.button("🗑️", key=f"s_del_{i}"):
             st.session_state.slot_config_edit["symbols"].pop(i)
             st.rerun()
-    new_symbols.append({"char": s_char, "weight": s_weight})
+
+    # 画像プレビュー（URLがある場合）
+    if s_url:
+        st.image(s_url, width=50)
+
+    new_symbols.append({"char": s_char, "weight": s_weight, "image_url": s_url if s_url else None})
 
 # 新しい図柄を追加
 st.write("🆕 新しい図柄を追加")
-c1, c2, c3 = st.columns([2, 2, 1])
+c1, c2, c3, c4 = st.columns([1.5, 3, 1.5, 0.5])
 with c1:
     add_s_char = st.text_input("追加図柄", "💎", key="add_s_char", label_visibility="collapsed")
 with c2:
+    add_s_url = st.text_input("追加URL", "", key="add_s_url", label_visibility="collapsed", placeholder="https://...")
+with c3:
     add_s_weight = st.number_input(
         "追加重み", value=1.0, min_value=0.0, step=0.1, key="add_s_weight", label_visibility="collapsed"
     )
-with c3:
+with c4:
     if st.button("➕", key="add_s_btn"):
-        st.session_state.slot_config_edit["symbols"].append({"char": add_s_char, "weight": add_s_weight})
+        st.session_state.slot_config_edit["symbols"].append(
+            {"char": add_s_char, "weight": add_s_weight, "image_url": add_s_url if add_s_url else None}
+        )
         st.rerun()
 
 # --- 役の編集 ---

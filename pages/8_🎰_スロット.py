@@ -22,7 +22,11 @@ if "slot_config" not in st.session_state:
 
 # セッション状態の初期化
 if "slot_reels" not in st.session_state:
-    st.session_state.slot_reels = ["7️⃣", "7️⃣", "7️⃣"]
+    st.session_state.slot_reels = [
+        {"char": "7️⃣", "image_url": None},
+        {"char": "7️⃣", "image_url": None},
+        {"char": "7️⃣", "image_url": None},
+    ]
 if "slot_history" not in st.session_state:
     saved_history = storage.get_item("slot_history", is_json=True)
     st.session_state.slot_history = saved_history if saved_history else []
@@ -96,14 +100,22 @@ with col1:
     # リール表示用プレースホルダー
     reel_placeholder = st.empty()
 
+    # 単一の図柄をレンダリングするヘルパー（テキスト or 画像）
+    def render_symbol_html(symbol_obj):
+        char = symbol_obj["char"]
+        url = symbol_obj.get("image_url")
+        if url:
+            return f'<img src="{url}" style="width: 100px; height: 100px; object-fit: contain;" alt="{char}">'
+        return char
+
     # 現在のリール状態を表示
     def render_reels(reels, spinning=False):
         cls = "reel spin-animation" if spinning else "reel"
         html = f"""
         <div class="reel-container">
-            <div class="{cls}">{reels[0]}</div>
-            <div class="{cls}">{reels[1]}</div>
-            <div class="{cls}">{reels[2]}</div>
+            <div class="{cls}">{render_symbol_html(reels[0])}</div>
+            <div class="{cls}">{render_symbol_html(reels[1])}</div>
+            <div class="{cls}">{render_symbol_html(reels[2])}</div>
         </div>
         """
         reel_placeholder.markdown(html, unsafe_allow_html=True)
@@ -137,7 +149,7 @@ with col1:
         res_name = result["name"] if result else "ハズレ"
         new_record = {
             "time": get_jst_now().strftime("%H:%M:%S"),
-            "reels": " ".join(final_reels),
+            "reels": " ".join([s["char"] for s in final_reels]),
             "result": res_name,
         }
         st.session_state.slot_history.insert(0, new_record)

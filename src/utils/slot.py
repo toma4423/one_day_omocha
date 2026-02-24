@@ -2,14 +2,14 @@ import random
 from typing import Any
 
 # デフォルト設定
-# 図柄（シンボル）とその重み（出現確率に影響）
+# 図柄（シンボル）とその重み（出現確率に影響）、および画像URL（任意）
 DEFAULT_SYMBOLS = [
-    {"char": "🍒", "weight": 10.0},
-    {"char": "🍋", "weight": 8.0},
-    {"char": "🍉", "weight": 6.0},
-    {"char": "🔔", "weight": 4.0},
-    {"char": "⭐", "weight": 2.0},
-    {"char": "7️⃣", "weight": 1.0},
+    {"char": "🍒", "weight": 10.0, "image_url": None},
+    {"char": "🍋", "weight": 8.0, "image_url": None},
+    {"char": "🍉", "weight": 6.0, "image_url": None},
+    {"char": "🔔", "weight": 4.0, "image_url": None},
+    {"char": "⭐", "weight": 2.0, "image_url": None},
+    {"char": "7️⃣", "weight": 1.0, "image_url": None},
 ]
 
 DEFAULT_PAYOUTS = [
@@ -23,41 +23,44 @@ DEFAULT_PAYOUTS = [
 ]
 
 
-def spin_reels(symbol_data: list[dict[str, Any]], count: int = 3) -> list[str]:
+def spin_reels(symbol_data: list[dict[str, Any]], count: int = 3) -> list[dict[str, Any]]:
     """
-    リールを回転させ、重みに基づいてランダムな出目を取得します。
+    リールを回転させ、重みに基づいてランダムな出目（辞書のリスト）を取得します。
     """
     if not symbol_data:
         return []
 
     # 互換性チェック: 文字列リストが渡された場合
     if isinstance(symbol_data[0], str):
-        return [random.choice(symbol_data) for _ in range(count)]
+        return [{"char": random.choice(symbol_data), "weight": 1.0, "image_url": None} for _ in range(count)]
 
-    chars = [s["char"] for s in symbol_data]
     weights = [s.get("weight", 1.0) for s in symbol_data]
 
     # random.choices はリストを返す
-    return random.choices(chars, weights=weights, k=count)
+    return random.choices(symbol_data, weights=weights, k=count)
 
 
-def evaluate_slot_spin(result: list[str], payouts: list[dict[str, Any]]) -> dict[str, Any] | None:
+def evaluate_slot_spin(result: list[dict[str, Any]], payouts: list[dict[str, Any]]) -> dict[str, Any] | None:
     """
     出目を判定し、成立した役を返します。
+    result は spin_reels が返した辞書のリストです。
     """
     if not result:
         return None
 
+    # 比較のために図柄（char）のみのリストを作成
+    result_chars = [s["char"] for s in result]
+
     for payout in payouts:
         pattern = payout["pattern"]
-        if len(pattern) != len(result):
+        if len(pattern) != len(result_chars):
             continue
 
         match = True
         for i in range(len(pattern)):
             if pattern[i] == "ANY":
                 continue
-            if pattern[i] != result[i]:
+            if pattern[i] != result_chars[i]:
                 match = False
                 break
 
@@ -76,9 +79,15 @@ def get_slot_config(storage_data: dict[str, Any] | None) -> dict[str, Any]:
 
     symbols = storage_data.get("symbols", DEFAULT_SYMBOLS)
 
-    # 互換性マイグレーション: リスト[str] を リスト[dict] に変換
-    if symbols and isinstance(symbols[0], str):
-        symbols = [{"char": s, "weight": 1.0} for s in symbols]
+    # 互換性マイグレーション
+    if symbols:
+        # リスト[str] を リスト[dict] に変換
+        if isinstance(symbols[0], str):
+            symbols = [{"char": s, "weight": 1.0, "image_url": None} for s in symbols]
+        # 各要素に image_url がない場合は追加
+        for s in symbols:
+            if isinstance(s, dict) and "image_url" not in s:
+                s["image_url"] = None
 
     return {
         "symbols": symbols,
