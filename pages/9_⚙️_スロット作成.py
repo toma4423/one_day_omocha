@@ -18,7 +18,7 @@ from src.utils.storage import SafeStorage
 from src.utils.styles import render_donation_box
 from src.utils.time import get_jst_now
 
-st.set_page_config(page_title="スロット作成", page_icon="⚙️", layout="wide")
+st.set_page_config(page_title="スロット作成 [β]", page_icon="⚙️", layout="wide")
 
 # SafeStorage の初期化
 storage = SafeStorage(LocalStorage())
@@ -34,7 +34,8 @@ if "slot_targets" not in st.session_state:
 if "slot_target_hit_rate" not in st.session_state:
     st.session_state.slot_target_hit_rate = 10.0
 
-st.title("⚙️ スロットカスタマイズ")
+st.title("⚙️ スロットカスタマイズ [β]")
+st.warning("⚠️ この機能は現在開発中のベータ版です。設定項目の変更やデータ構造の更新が頻繁に行われる可能性があります。")
 
 # --- 設定：名前 ---
 st.subheader("📝 基本設定")

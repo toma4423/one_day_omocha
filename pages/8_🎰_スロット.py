@@ -16,7 +16,7 @@ from src.utils.storage import SafeStorage
 from src.utils.styles import render_donation_box
 from src.utils.time import get_jst_now
 
-st.set_page_config(page_title="スロット", page_icon="🎰", layout="wide")
+st.set_page_config(page_title="スロット [β]", page_icon="🎰", layout="wide")
 
 # SafeStorage の初期化
 storage = SafeStorage(LocalStorage())
@@ -90,7 +90,8 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-st.title(f"🎰 スロットマシン - {st.session_state.slot_config.get('name', '標準スロット')}")
+st.title(f"🎰 スロットマシン [β] - {st.session_state.slot_config.get('name', '標準スロット')}")
+st.warning("⚠️ この機能は現在開発中のベータ版です。予期せぬ動作が発生する可能性があります。")
 
 # 統計情報の表示
 c_stat1, c_stat2 = st.columns(2)
