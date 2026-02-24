@@ -178,63 +178,80 @@ def calculate_probabilities(symbol_data: list[dict[str, Any]], payouts: list[dic
 
 
 def solve_weights_from_targets(
-    symbol_data: list[dict[str, Any]], payouts: list[dict[str, Any]], targets: dict[str, float]
+    symbol_data: list[dict[str, Any]],
+    payouts: list[dict[str, Any]],
+    targets: dict[str, float],
+    total_hit_rate: float | None = None,
 ) -> list[dict[str, Any]]:
     """
     目標とする役の出現確率（%）から、図柄の重みを逆算して更新します。
-    簡略化のため、3つの同じ図柄が並ぶ役、または ANY を含む単純な役を優先的に処理します。
+    total_hit_rate が指定された場合、全役の合計確率がその値になるよう調整します。
     """
-    # 図柄ごとの目標確率 (0.0 - 1.0)
+    # 1. 各役の目標確率（絶対値）を確定させる
+    actual_targets = targets.copy()
+    sum_targets = sum(targets.values())
+
+    # 合計ヒット率の調整
+    if total_hit_rate is not None and sum_targets > 0:
+        scale = total_hit_rate / sum_targets
+        for name in actual_targets:
+            actual_targets[name] *= scale
+    elif sum_targets > 100.0:
+        # 100%を超える場合は強制スケーリング
+        scale = 95.0 / sum_targets
+        for name in actual_targets:
+            actual_targets[name] *= scale
+
+    # 図柄ごとの目標出現率 (0.0 - 1.0)
     required_probs: dict[str, float] = {s["char"]: 0.0 for s in symbol_data}
 
-    # 1. 役のパターンから各図柄に必要な出現率を推定
+    # 2. 役のパターンから各図柄に必要な出現率を推定
+    # 優先順位が高い役から順に、必要な確率を確保していく
     for p in payouts:
-        target_rate = targets.get(p["name"], 0.0) / 100.0
+        target_rate = actual_targets.get(p["name"], 0.0) / 100.0
         if target_rate <= 0:
             continue
 
         pattern = p["pattern"]
-        unique_chars = set(pattern)
-        if "ANY" in unique_chars:
-            unique_chars.remove("ANY")
+        unique_chars = [c for s in [set(pattern)] for c in s if c != "ANY"]
 
-        # 3つとも同じ図柄の場合: p^3 = target => p = target^(1/3)
         if len(unique_chars) == 1:
-            char = list(unique_chars)[0]
+            char = unique_chars[0]
             count = pattern.count(char)
-            # p^count = target (ANYは確率1.0と仮定して近似)
+            # p^count = target => p = target^(1/count)
             p_val = target_rate ** (1.0 / count)
+            # 複数の役で同じ図柄が必要な場合、高い方を採用（近似）
             required_probs[char] = max(required_probs[char], p_val)
 
-    # 2. 合計が1.0を超えないように調整
+    # 3. 合計確率の正規化とハズレ枠の確保
     total_req = sum(required_probs.values())
-    if total_req > 0.95:
-        # 1.0を超えそうな場合はスケーリング（ハズレ分を5%残す）
-        scale = 0.95 / total_req
+    max_allowed = 0.98  # 最大98%まで（2%は遊び）
+
+    if total_req > max_allowed:
+        scale = max_allowed / total_req
         for char in required_probs:
             required_probs[char] *= scale
-        total_req = 0.95
+        total_req = max_allowed
 
-    # 3. 余った確率を、目標が設定されていない（または低い）図柄に均等配分
+    # 4. 余った確率を、目標が設定されていない図柄に分配
     remaining_prob = 1.0 - total_req
-    unassigned_symbols = [s["char"] for s in symbol_data if required_probs[s["char"]] == 0]
+    unassigned_symbols = [s["char"] for s in symbol_data if required_probs[s["char"]] < 0.01]
 
     if unassigned_symbols:
         p_extra = remaining_prob / len(unassigned_symbols)
         for char in unassigned_symbols:
-            required_probs[char] = p_extra
-    elif remaining_prob > 0:
-        # 全図柄に目標があった場合は全体に加算
+            required_probs[char] += p_extra
+    else:
+        # 全てに割り当てがある場合は全体に分配
         p_extra = remaining_prob / len(symbol_data)
         for char in required_probs:
             required_probs[char] += p_extra
 
-    # 4. 確率(0-1)を重み（整数値など）に変換
+    # 5. 最終的な重みを計算（1000倍して整数化）
     new_symbol_data = []
     for s in symbol_data:
         new_s = s.copy()
-        # 重みとして扱いやすいよう1000倍して整数化（最低1）
-        new_s["weight"] = max(1.0, round(required_probs[s["char"]] * 1000, 1))
+        new_s["weight"] = max(0.1, round(required_probs[s["char"]] * 1000, 1))
         new_symbol_data.append(new_s)
 
     return new_symbol_data

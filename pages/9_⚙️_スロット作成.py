@@ -29,6 +29,8 @@ if "slot_config_edit" not in st.session_state:
 # 逆算用ターゲット率の保持
 if "slot_targets" not in st.session_state:
     st.session_state.slot_targets = {}
+if "slot_target_hit_rate" not in st.session_state:
+    st.session_state.slot_target_hit_rate = 10.0
 
 st.title("⚙️ スロットカスタマイズ")
 
@@ -57,7 +59,6 @@ with st.sidebar:
         if st.button("設定を復元する", use_container_width=True):
             try:
                 data_load = json.load(uploaded_file)
-                # 簡易的なバリデーション
                 if "symbols" in data_load and "payouts" in data_load:
                     st.session_state.slot_config_edit = data_load
                     storage.set_item("slot_config", data_load)
@@ -71,22 +72,19 @@ with st.sidebar:
                 st.error("JSONの読み込みに失敗しました")
     st.write("---")
 
-st.info(
-    "スロットの図柄や役（パターンと配当）を自由にカスタマイズできます。文字識別子は判定に使用され、画像URLがあれば優先的に表示されます。"
-)
+st.info("スロットの図柄や役の出現率を％でカスタマイズできます。重み（Weight）は役の確率から自動計算されます。")
 
 # --- 図柄の編集 ---
 st.subheader("🖼️ 図柄（シンボル）の編集")
-st.write("各リールに出現する図柄とその出現の重み（確率）を設定します。")
+st.write("図柄の識別名と、オプションの画像URLを設定します。")
 
 new_symbols = []
-# セッション状態から最新を取得（削除等でずれないように）
 symbol_list = st.session_state.slot_config_edit["symbols"]
 for i, symbol in enumerate(symbol_list):
-    col_sym, col_url, col_weight, col_del = st.columns([1.5, 3, 1.5, 0.5])
+    col_sym, col_url, col_del = st.columns([2, 4, 1])
     with col_sym:
         s_char = st.text_input(
-            "図柄識別子", symbol["char"], key=f"s_char_{i}", label_visibility="collapsed", placeholder="識別子"
+            "図柄識別子", symbol["char"], key=f"s_char_{i}", label_visibility="collapsed", placeholder="識別名"
         )
     with col_url:
         s_url = st.text_input(
@@ -96,52 +94,45 @@ for i, symbol in enumerate(symbol_list):
             label_visibility="collapsed",
             placeholder="https://... (画像URL)",
         )
-    with col_weight:
-        s_weight = st.number_input(
-            "重み",
-            value=float(symbol["weight"]),
-            min_value=0.0,
-            step=0.1,
-            key=f"s_weight_{i}",
-            label_visibility="collapsed",
-        )
     with col_del:
         if st.button("🗑️", key=f"s_del_{i}"):
             st.session_state.slot_config_edit["symbols"].pop(i)
             st.rerun()
 
-    # 画像プレビュー（URLがある場合）
     if s_url:
         st.image(s_url, width=50)
+    else:
+        st.markdown(f"<h3 style='margin:0;'>{s_char}</h3>", unsafe_allow_html=True)
 
-    new_symbols.append({"char": s_char, "weight": s_weight, "image_url": s_url if s_url else None})
+    new_symbols.append({"char": s_char, "weight": symbol.get("weight", 1.0), "image_url": s_url if s_url else None})
 
 # 新しい図柄を追加
 st.write("🆕 新しい図柄を追加")
-c1, c2, c3, c4 = st.columns([1.5, 3, 1.5, 0.5])
+c1, c2, c3 = st.columns([2, 4, 1])
 with c1:
-    add_s_char = st.text_input("追加図柄", "💎", key="add_s_char", label_visibility="collapsed")
+    add_s_char = st.text_input("追加識別名", "💎", key="add_s_char", label_visibility="collapsed")
 with c2:
-    add_s_url = st.text_input("追加URL", "", key="add_s_url", label_visibility="collapsed", placeholder="https://...")
-with c3:
-    add_s_weight = st.number_input(
-        "追加重み", value=1.0, min_value=0.0, step=0.1, key="add_s_weight", label_visibility="collapsed"
+    add_s_url = st.text_input(
+        "追加画像URL", "", key="add_s_url", label_visibility="collapsed", placeholder="https://..."
     )
-with c4:
+with c3:
     if st.button("➕", key="add_s_btn"):
         st.session_state.slot_config_edit["symbols"].append(
-            {"char": add_s_char, "weight": add_s_weight, "image_url": add_s_url if add_s_url else None}
+            {"char": add_s_char, "weight": 1.0, "image_url": add_s_url if add_s_url else None}
         )
         st.rerun()
 
 # --- 役の編集 ---
 st.write("---")
-st.subheader("💰 役と配当の設定")
-st.write(
-    "各役の名称、図柄パターン、スコアを設定します。パターンのどこかに `ANY` を入れると、そのマスは何の図柄でも成立します。"
-)
+st.subheader("💰 役と出現率の設定")
+st.write("各役の名称、図柄パターン、スコア、そして**目標とする出現確率 (%)**を設定します。")
 
-# 役の一覧を表示し、削除や編集を行う
+# 全体確率の調整
+st.session_state.slot_target_hit_rate = st.slider(
+    "全体の合算当り確率 (%)", 0.1, 95.0, float(st.session_state.slot_target_hit_rate), step=0.1
+)
+st.caption(f"（ハズレ確率は約 {100.0 - st.session_state.slot_target_hit_rate:.1f}% になります）")
+
 new_payouts = []
 payout_list = st.session_state.slot_config_edit["payouts"]
 for i, payout in enumerate(payout_list):
@@ -150,15 +141,14 @@ for i, payout in enumerate(payout_list):
         with col_name:
             p_name = st.text_input("役名", payout["name"], key=f"p_name_{i}")
         with col_score:
-            p_score = st.number_input("スコア", value=payout["score"], min_value=0, step=1, key=f"p_score_{i}")
+            p_score = st.number_input("スコア", value=int(payout["score"]), min_value=0, step=1, key=f"p_score_{i}")
         with col_target:
-            # 役の出現確率を直接指定したい場合の入力欄
             st.session_state.slot_targets[p_name] = st.number_input(
                 "目標確率 (%)",
-                value=st.session_state.slot_targets.get(p_name, 0.0),
+                value=float(st.session_state.slot_targets.get(p_name, 1.0 if i == 0 else 0.0)),
                 min_value=0.0,
                 max_value=100.0,
-                step=0.1,
+                step=0.01,
                 key=f"p_target_{i}",
             )
 
@@ -189,52 +179,50 @@ with st.expander("新規追加"):
         st.session_state.slot_config_edit["payouts"].append(
             {"name": add_name, "score": add_score, "pattern": [p_add1, p_add2, p_add3]}
         )
-        st.success("追加しました！")
         st.rerun()
 
-# --- 確率計算ツール ---
+# --- 確率計算と反映 ---
 st.write("---")
-st.subheader("🧮 確率自動設定ツール")
-st.write("「目標確率 (%)」を入力した状態で下のボタンを押すと、その確率に近づくように図柄の重みを自動計算します。")
-if st.button("目標確率から重みを自動計算する"):
-    # 現在の入力値を使用して計算
-    updated_symbols = solve_weights_from_targets(new_symbols, new_payouts, st.session_state.slot_targets)
+st.subheader("🧮 確率計算と反映")
+st.write("設定した目標確率に合わせて、図柄の出現率を自動計算します。")
+
+if st.button("自動計算を実行してプレビュー", use_container_width=True):
+    # 重みの逆算を実行
+    updated_symbols = solve_weights_from_targets(
+        new_symbols, new_payouts, st.session_state.slot_targets, st.session_state.slot_target_hit_rate
+    )
     st.session_state.slot_config_edit["symbols"] = updated_symbols
-    st.success("重みを再計算しました。下のプレビューで確率を確認してください。")
+    st.success("重みを計算しました。下の「現在の確率」を確認してください。")
     st.rerun()
 
-# --- 確率の表示 ---
-st.write("---")
-st.subheader("📊 現在の設定での期待値と確率")
-if new_symbols:
-    probs = calculate_probabilities(new_symbols, new_payouts)
+# 現在の重みに基づく理論値の表示
+probs = calculate_probabilities(st.session_state.slot_config_edit["symbols"], new_payouts)
+col_res1, col_res2 = st.columns(2)
+with col_res1:
+    st.metric("実際の合計当り確率", f"{probs['total_hit_rate']:.2f}%")
+with col_res2:
+    st.metric("ハズレ確率", f"{probs['miss_rate']:.2f}%")
 
-    col_p1, col_p2 = st.columns(2)
-    with col_p1:
-        st.metric("合算当り確率", f"{probs['total_hit_rate']:.2f}%")
-    with col_p2:
-        st.metric("ハズレ確率", f"{probs['miss_rate']:.2f}%")
-
-    # 各役の確率
-    df_probs = pd.DataFrame(probs["hit_rates"])
-    if not df_probs.empty:
-        df_probs.columns = ["役名", "出現確率 (%)"]
-        st.table(df_probs)
+df_probs = pd.DataFrame(probs["hit_rates"])
+if not df_probs.empty:
+    df_probs.columns = ["役名", "出現確率 (%)"]
+    st.table(df_probs)
 
 # 保存処理
 st.write("---")
 col_save, col_reset = st.columns([1, 1])
 with col_save:
-    if st.button("💾 設定を保存して反映する", use_container_width=True):
-        if not new_symbols:
-            st.error("図柄は少なくとも1つ以上必要です。")
-        elif not slot_name:
+    if st.button("💾 この設定を保存して反映する", use_container_width=True):
+        if not slot_name:
             st.error("スロットの名前を入力してください。")
         else:
-            final_config = {"name": slot_name, "symbols": new_symbols, "payouts": new_payouts}
+            final_config = {
+                "name": slot_name,
+                "symbols": st.session_state.slot_config_edit["symbols"],
+                "payouts": new_payouts,
+            }
             st.session_state.slot_config_edit = final_config
             storage.set_item("slot_config", final_config)
-            # 実行ページ用のセッション状態も更新
             if "slot_config" in st.session_state:
                 st.session_state.slot_config = final_config
             st.success("設定を保存しました！スロットページで確認してください。")
@@ -245,9 +233,7 @@ with col_reset:
         default_config = {"name": DEFAULT_SLOT_NAME, "symbols": DEFAULT_SYMBOLS, "payouts": DEFAULT_PAYOUTS}
         st.session_state.slot_config_edit = default_config
         storage.set_item("slot_config", default_config)
-        if "slot_config" in st.session_state:
-            st.session_state.slot_config = default_config
-        st.success("デフォルト設定にリセットしました。")
+        st.success("デフォルトにリセットしました。")
         st.rerun()
 
 render_donation_box("https://paypay.me/xxxx", is_sidebar=True)
