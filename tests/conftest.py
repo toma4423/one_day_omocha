@@ -12,6 +12,7 @@ def mock_streamlit_state(monkeypatch):
     monkeypatch.setattr("streamlit.session_state", mock_state)
     return mock_state
 
+
 @pytest.fixture
 def mock_storage():
     """

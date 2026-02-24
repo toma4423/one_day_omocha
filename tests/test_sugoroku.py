@@ -9,6 +9,7 @@ def test_sugoroku_linear_move():
     # 10マス、現在地8、出目5 -> 9 (オーバーしてもゴールで止まる)
     assert calculate_new_position(8, 5, 10, False) == 9
 
+
 def test_sugoroku_loop_move():
     # 10マス、現在地0、出目3 -> 3
     assert calculate_new_position(0, 3, 10, True) == 3
@@ -19,6 +20,7 @@ def test_sugoroku_loop_move():
     # ちょうど一周
     assert calculate_new_position(0, 10, 10, True) == 0
 
+
 def test_init_board_data_linear():
     total_tiles = 5
     board_type = "スタートからゴール"
@@ -27,6 +29,7 @@ def test_init_board_data_linear():
     assert data["sg_tile_0"] == "🚩 START"
     assert data["sg_tile_4"] == "🏆 GOAL"
     assert data["sg_tile_2"] == "マス 3"
+
 
 def test_init_board_data_loop():
     total_tiles = 3

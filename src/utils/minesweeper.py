@@ -18,7 +18,7 @@ def create_board(w: int, h: int, mines: int) -> np.ndarray:
     mines_pos = random.sample(range(w * h), mines)
     for p in mines_pos:
         board[p // w, p % w] = -1
-    
+
     # 周囲の爆弾数を計算
     for r in range(h):
         for c in range(w):
@@ -33,7 +33,10 @@ def create_board(w: int, h: int, mines: int) -> np.ndarray:
             board[r, c] = count
     return board
 
-def reveal_tile(r: int, c: int, w: int, h: int, board: np.ndarray, revealed: np.ndarray, flags: np.ndarray) -> np.ndarray:
+
+def reveal_tile(
+    r: int, c: int, w: int, h: int, board: np.ndarray, revealed: np.ndarray, flags: np.ndarray
+) -> np.ndarray:
     """
     指定された座標のマスを開きます。0の場合は周囲も再帰的に開きます。
     revealedを更新して返します。
@@ -42,9 +45,9 @@ def reveal_tile(r: int, c: int, w: int, h: int, board: np.ndarray, revealed: np.
         return revealed
     if revealed[r, c] or flags[r, c]:
         return revealed
-    
+
     revealed[r, c] = True
-    
+
     # 0の場合は周囲も開く
     if board[r, c] == 0:
         for dr in [-1, 0, 1]:
@@ -54,9 +57,10 @@ def reveal_tile(r: int, c: int, w: int, h: int, board: np.ndarray, revealed: np.
                 reveal_tile(r + dr, c + dc, w, h, board, revealed, flags)
     return revealed
 
+
 def is_game_won(board: np.ndarray, revealed: np.ndarray) -> bool:
     """
     爆弾以外のすべてのマスが開かれているか判定します。
     """
     unrevealed_safe = np.sum((board != -1) & (~revealed))
-    return unrevealed_safe == 0
+    return bool(unrevealed_safe == 0)

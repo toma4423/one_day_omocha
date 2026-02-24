@@ -9,15 +9,18 @@ def test_init_kurohige():
         target = init_kurohige(num_slots)
         assert 0 <= target < num_slots
 
+
 def test_init_kurohige_invalid():
     with pytest.raises(ValueError):
         init_kurohige(0)
+
 
 def test_check_slot():
     target = 5
     assert check_slot(5, target) == "boom"
     assert check_slot(4, target) == "safe"
     assert check_slot(6, target) == "safe"
+
 
 def test_is_already_clicked():
     clicked_list = [1, 3, 5]

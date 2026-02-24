@@ -6,10 +6,11 @@ class SafeStorage:
     """
     Streamlit の LocalStorage 操作を安全に行うためのクラスです。
     """
-    def __init__(self, storage_instance):
+
+    def __init__(self, storage_instance: Any):
         self.storage = storage_instance
 
-    def set_item(self, key: str, value: Any):
+    def set_item(self, key: str, value: Any) -> None:
         """値を JSON 文字列として確実に保存します。"""
         try:
             # 常に JSON 文字列にして保存することで型の不整合を防ぐ
@@ -33,13 +34,13 @@ class SafeStorage:
         except Exception:
             return None
 
-    def delete_item(self, key: str):
+    def delete_item(self, key: str) -> None:
         try:
             self.storage.deleteItem(key)
         except Exception:
             pass
 
-    def clear_all_with_prefix(self, prefix: str, state_dict: dict | None = None):
+    def clear_all_with_prefix(self, prefix: str, state_dict: dict[str, Any] | None = None) -> None:
         """
         指定したプレフィックスを持つアイテムを削除します。
         state_dictが指定されている場合はそちらからも削除します（通常は st.session_state を渡します）。

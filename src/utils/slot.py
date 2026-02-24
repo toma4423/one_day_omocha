@@ -1,5 +1,5 @@
 import random
-from typing import List, Dict, Any, Optional
+from typing import Any
 
 # デフォルト設定
 DEFAULT_SYMBOLS = ["🍒", "🍋", "🍉", "🔔", "⭐", "7️⃣"]
@@ -13,7 +13,8 @@ DEFAULT_PAYOUTS = [
     {"pattern": ["🍒", "🍒", "ANY"], "name": "ミニチェリー", "score": 2},
 ]
 
-def spin_reels(symbols: List[str], count: int = 3) -> List[str]:
+
+def spin_reels(symbols: list[str], count: int = 3) -> list[str]:
     """
     リールを回転させ、ランダムな出目を取得します。
     """
@@ -21,7 +22,8 @@ def spin_reels(symbols: List[str], count: int = 3) -> List[str]:
         return []
     return [random.choice(symbols) for _ in range(count)]
 
-def evaluate_slot_spin(result: List[str], payouts: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+
+def evaluate_slot_spin(result: list[str], payouts: list[dict[str, Any]]) -> dict[str, Any] | None:
     """
     出目を判定し、成立した役を返します。
     """
@@ -32,7 +34,7 @@ def evaluate_slot_spin(result: List[str], payouts: List[Dict[str, Any]]) -> Opti
         pattern = payout["pattern"]
         if len(pattern) != len(result):
             continue
-        
+
         match = True
         for i in range(len(pattern)):
             if pattern[i] == "ANY":
@@ -40,22 +42,20 @@ def evaluate_slot_spin(result: List[str], payouts: List[Dict[str, Any]]) -> Opti
             if pattern[i] != result[i]:
                 match = False
                 break
-        
+
         if match:
             return payout
-            
+
     return None
 
-def get_slot_config(storage_data: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+
+def get_slot_config(storage_data: dict[str, Any] | None) -> dict[str, Any]:
     """
     ストレージデータから設定を取得、またはデフォルトを返します。
     """
     if not storage_data:
-        return {
-            "symbols": DEFAULT_SYMBOLS,
-            "payouts": DEFAULT_PAYOUTS
-        }
+        return {"symbols": DEFAULT_SYMBOLS, "payouts": DEFAULT_PAYOUTS}
     return {
         "symbols": storage_data.get("symbols", DEFAULT_SYMBOLS),
-        "payouts": storage_data.get("payouts", DEFAULT_PAYOUTS)
+        "payouts": storage_data.get("payouts", DEFAULT_PAYOUTS),
     }

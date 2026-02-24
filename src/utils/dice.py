@@ -1,9 +1,7 @@
 import random
 from typing import Any
 
-DICE_EMOJI: dict[int, str] = {
-    1: "⚀", 2: "⚁", 3: "⚂", 4: "⚃", 5: "⚄", 6: "⚅"
-}
+DICE_EMOJI: dict[int, str] = {1: "⚀", 2: "⚁", 3: "⚂", 4: "⚃", 5: "⚄", 6: "⚅"}
 
 HAND_RANK: dict[str, dict[str, Any]] = {
     "PINZORO": {"name": "ピンゾロ (1-1-1)", "strength": 1000, "description": "最強の役。"},
@@ -23,11 +21,13 @@ HAND_RANK: dict[str, dict[str, Any]] = {
     "HIFUMI": {"name": "ヒフミ (1-2-3)", "strength": -100, "description": "最低の役。即負け。"},
 }
 
+
 def roll_dice(count: int = 1, faces: int = 6) -> list[int]:
     """
     指定された数と面のサイコロを振り、結果をリストで返します。
     """
     return [random.randint(1, faces) for _ in range(count)]
+
 
 def evaluate_hand(dice: list[int]) -> str:
     """
@@ -35,30 +35,30 @@ def evaluate_hand(dice: list[int]) -> str:
     """
     if len(dice) != 3:
         return "BUTA"
-    
+
     sorted_dice = sorted(dice)
     d1, d2, d3 = sorted_dice
-    
+
     # ピンゾロ
     if d1 == 1 and d2 == 1 and d3 == 1:
         return "PINZORO"
-    
+
     # アラシ
     if d1 == d2 == d3:
         return f"ARASHI_{d1}"
-    
+
     # シゴロ
     if d1 == 4 and d2 == 5 and d3 == 6:
         return "SHIGORO"
-    
+
     # ヒフミ
     if d1 == 1 and d2 == 2 and d3 == 3:
         return "HIFUMI"
-    
+
     # 目（ポイント）
     if d1 == d2:
         return f"POINT_{d3}"
     if d2 == d3:
         return f"POINT_{d1}"
-        
+
     return "BUTA"

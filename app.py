@@ -7,7 +7,10 @@ st.set_page_config(page_title="今日のおもちゃ箱", layout="wide", page_ic
 
 # メインページ（ホーム）
 st.markdown("<h1 style='text-align: center; margin-top: 2vh;'>🎁 今日のおもちゃ箱</h1>", unsafe_allow_html=True)
-st.markdown("<p style='text-align: center; font-size: 18px;'>サイドバーからおもちゃを選んで遊んでね！</p>", unsafe_allow_html=True)
+st.markdown(
+    "<p style='text-align: center; font-size: 18px;'>サイドバーからおもちゃを選んで遊んでね！</p>",
+    unsafe_allow_html=True,
+)
 st.write("---")
 
 # 各おもちゃの説明エリア
@@ -32,7 +35,9 @@ with col2:
     - **カウントサポートビンゴ**: 最大 15×15 の多機能カウンタ。**自動保存とJSON入出力**を完備。
     """)
 
-st.info("💡 **すべてのツールは「自動保存」に対応しています。** ブラウザをリロードしたり閉じたりしても、あなたのデータは手元のデバイスに安全に保持されます。")
+st.info(
+    "💡 **すべてのツールは「自動保存」に対応しています。** ブラウザをリロードしたり閉じたりしても、あなたのデータは手元のデバイスに安全に保持されます。"
+)
 
 st.write("---")
 

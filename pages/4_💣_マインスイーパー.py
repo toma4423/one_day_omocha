@@ -1,15 +1,15 @@
-
 import numpy as np
 import streamlit as st
 
 from src.utils.minesweeper import create_board, is_game_won, reveal_tile
-from src.utils.styles import render_grid_board
+from src.utils.styles import render_donation_box, render_grid_board
 
 st.set_page_config(page_title="マインスイーパー", page_icon="💣")
 
 # セッション状態の初期化
-if 'ms_status' not in st.session_state:
+if "ms_status" not in st.session_state:
     st.session_state.ms_status = "ready"
+
 
 def init_minesweeper(w, h, mines):
     board = create_board(w, h, mines)
@@ -18,13 +18,12 @@ def init_minesweeper(w, h, mines):
     st.session_state.ms_flags = np.zeros((h, w), dtype=bool)
     st.session_state.ms_status = "playing"
 
+
 def reveal(r, c, w, h):
     st.session_state.ms_revealed = reveal_tile(
-        r, c, w, h,
-        st.session_state.ms_board,
-        st.session_state.ms_revealed,
-        st.session_state.ms_flags
+        r, c, w, h, st.session_state.ms_board, st.session_state.ms_revealed, st.session_state.ms_flags
     )
+
 
 st.title("💣 マインスイーパー")
 
@@ -32,9 +31,9 @@ with st.sidebar:
     ms_w = st.number_input("幅", 4, 15, 8)
     ms_h = st.number_input("高さ", 4, 15, 8)
     ms_mines = st.number_input("爆弾の数", 1, (ms_w * ms_h) - 1, 10)
-    
+
     # サイズまたは爆弾の数が変わった場合にステータスをリセット
-    if 'ms_board' in st.session_state:
+    if "ms_board" in st.session_state:
         current_mines = np.sum(st.session_state.ms_board == -1)
         if st.session_state.ms_board.shape != (ms_h, ms_w) or current_mines != ms_mines:
             st.session_state.ms_status = "ready"
@@ -48,24 +47,25 @@ with st.sidebar:
 if st.session_state.ms_status == "ready":
     init_minesweeper(ms_w, ms_h, ms_mines)
 
+
 # 描画
 def render_cell(idx):
     r, c = idx // ms_w, idx % ms_w
     label, disabled, key = "", False, f"ms_{r}_{c}"
-    
+
     if st.session_state.ms_revealed[r, c]:
         val = st.session_state.ms_board[r, c]
         label = "💣" if val == -1 else (str(val) if val > 0 else "")
         disabled = True
     elif st.session_state.ms_flags[r, c]:
         label = "🚩"
-    
+
     # ゲーム終了時の表示
     if st.session_state.ms_status in ["won", "lost"]:
         if st.session_state.ms_board[r, c] == -1:
             label = "💣"
         disabled = True
-    
+
     if st.button(label if label else "　", key=key, disabled=disabled, use_container_width=True):
         if ms_mode == "オープン":
             if st.session_state.ms_board[r, c] == -1:
@@ -82,4 +82,6 @@ def render_cell(idx):
             st.session_state.ms_flags[r, c] = not st.session_state.ms_flags[r, c]
         st.rerun()
 
+
 render_grid_board(ms_w * ms_h, ms_w, render_cell)
+render_donation_box("https://paypay.me/xxxx", is_sidebar=True)

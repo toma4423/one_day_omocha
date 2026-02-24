@@ -4,11 +4,13 @@ def calculate_weighted_value(value: float, weight: float) -> float:
     """
     return round(value * weight, 1)
 
+
 def calculate_diff_xy(x_val: float, y_val: float) -> float:
     """
     XとYの差分を計算します。
     """
     return round(x_val - y_val, 1)
+
 
 def calculate_final_score(x_val: float, y_val: float, z_val: float) -> float:
     """
