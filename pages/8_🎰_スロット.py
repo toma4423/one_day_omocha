@@ -155,7 +155,6 @@ with col1:
         res_name = result["name"] if result else "ハズレ"
         new_record = {
             "time": get_jst_now().strftime("%H:%M:%S"),
-            "reels": " ".join([s["char"] for s in final_reels]),
             "result": res_name,
         }
         st.session_state.slot_history.insert(0, new_record)
@@ -189,7 +188,7 @@ with col_hist:
     st.subheader("📜 履歴")
     if st.session_state.slot_history:
         df = pd.DataFrame(st.session_state.slot_history)
-        df.columns = ["時刻", "出目", "結果"]
+        df.columns = ["時刻", "成立役"]
         st.table(df)
     else:
         st.write("履歴はありません。")

@@ -94,7 +94,7 @@ st.write("リールに出現する図柄の種類を定義します。")
 # ヘッダー説明
 hc1, hc2, hc3, hc4 = st.columns([1, 2, 4, 1])
 hc1.caption("ID（識別番号）")
-hc2.caption("表示テキスト")
+hc2.caption("管理用ラベル")
 hc3.caption("画像URL (オプション)")
 hc4.caption("削除")
 
@@ -113,12 +113,12 @@ for i, symbol in enumerate(symbol_list):
         )
     with col_sym:
         s_char = st.text_input(
-            "表示テキスト",
+            "管理用ラベル",
             symbol["char"],
             key=f"s_char_{i}",
             label_visibility="collapsed",
-            placeholder="識別名",
-            help="画像がない場合や、履歴画面で表示される文字です。",
+            placeholder="ラベル",
+            help="作成ページ内での識別のための名前です。ゲーム中には表示されません。",
         )
     with col_url:
         s_url = st.text_input(
@@ -162,7 +162,7 @@ with c1:
     )
 with c2:
     add_s_char = st.text_input(
-        "表示", "💎", key="add_s_char", label_visibility="collapsed", help="新しい図柄の表示文字です。"
+        "ラベル", "💎", key="add_s_char", label_visibility="collapsed", help="新しい図柄の管理用ラベルです。"
     )
 with c3:
     add_s_url = st.text_input(
