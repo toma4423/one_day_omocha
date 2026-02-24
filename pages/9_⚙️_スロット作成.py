@@ -6,6 +6,7 @@ from streamlit_local_storage import LocalStorage
 
 from src.utils.slot import (
     DEFAULT_PAYOUTS,
+    DEFAULT_SLOT_NAME,
     DEFAULT_SYMBOLS,
     calculate_probabilities,
     get_slot_config,
@@ -30,6 +31,10 @@ if "slot_targets" not in st.session_state:
     st.session_state.slot_targets = {}
 
 st.title("⚙️ スロットカスタマイズ")
+
+# --- 設定：名前 ---
+st.subheader("📝 基本設定")
+slot_name = st.text_input("スロットの名前", st.session_state.slot_config_edit.get("name", DEFAULT_SLOT_NAME))
 
 # --- サイドバー：セーブ＆ロード ---
 with st.sidebar:
@@ -223,8 +228,10 @@ with col_save:
     if st.button("💾 設定を保存して反映する", use_container_width=True):
         if not new_symbols:
             st.error("図柄は少なくとも1つ以上必要です。")
+        elif not slot_name:
+            st.error("スロットの名前を入力してください。")
         else:
-            final_config = {"symbols": new_symbols, "payouts": new_payouts}
+            final_config = {"name": slot_name, "symbols": new_symbols, "payouts": new_payouts}
             st.session_state.slot_config_edit = final_config
             storage.set_item("slot_config", final_config)
             # 実行ページ用のセッション状態も更新
@@ -235,7 +242,7 @@ with col_save:
 
 with col_reset:
     if st.button("🚨 デフォルトに戻す", use_container_width=True):
-        default_config = {"symbols": DEFAULT_SYMBOLS, "payouts": DEFAULT_PAYOUTS}
+        default_config = {"name": DEFAULT_SLOT_NAME, "symbols": DEFAULT_SYMBOLS, "payouts": DEFAULT_PAYOUTS}
         st.session_state.slot_config_edit = default_config
         storage.set_item("slot_config", default_config)
         if "slot_config" in st.session_state:

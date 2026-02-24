@@ -84,7 +84,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-st.title("🎰 スロットマシン")
+st.title(f"🎰 スロットマシン - {st.session_state.slot_config.get('name', '標準スロット')}")
 
 # 統計情報の表示
 c_stat1, c_stat2 = st.columns(2)

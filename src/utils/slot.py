@@ -22,6 +22,8 @@ DEFAULT_PAYOUTS = [
     {"pattern": ["🍒", "🍒", "ANY"], "name": "ミニチェリー", "score": 2},
 ]
 
+DEFAULT_SLOT_NAME = "標準スロット"
+
 
 def spin_reels(symbol_data: list[dict[str, Any]], count: int = 3) -> list[dict[str, Any]]:
     """
@@ -75,7 +77,7 @@ def get_slot_config(storage_data: dict[str, Any] | None) -> dict[str, Any]:
     ストレージデータから設定を取得、またはデフォルトを返します。
     """
     if not storage_data:
-        return {"symbols": DEFAULT_SYMBOLS, "payouts": DEFAULT_PAYOUTS}
+        return {"name": DEFAULT_SLOT_NAME, "symbols": DEFAULT_SYMBOLS, "payouts": DEFAULT_PAYOUTS}
 
     symbols = storage_data.get("symbols", DEFAULT_SYMBOLS)
 
@@ -90,6 +92,7 @@ def get_slot_config(storage_data: dict[str, Any] | None) -> dict[str, Any]:
                 s["image_url"] = None
 
     return {
+        "name": storage_data.get("name", DEFAULT_SLOT_NAME),
         "symbols": symbols,
         "payouts": storage_data.get("payouts", DEFAULT_PAYOUTS),
     }
