@@ -3,6 +3,7 @@ import random
 from streamlit_local_storage import LocalStorage
 from src.utils.storage import SafeStorage
 from src.utils.time import get_jst_now
+from src.utils.kurohige import init_kurohige, check_slot
 
 st.set_page_config(page_title="黒ひげ危機一発", page_icon="☠️")
 
@@ -36,7 +37,7 @@ if 'kurohige_clicked' not in st.session_state:
     st.session_state.kurohige_clicked = saved_clicked if saved_clicked is not None else []
 
 def reset_game(num_slots):
-    st.session_state.kurohige_target = random.randint(0, num_slots - 1)
+    st.session_state.kurohige_target = init_kurohige(num_slots)
     st.session_state.kurohige_clicked = []
     st.session_state.kurohige_status = "playing"
     # ストレージも更新
@@ -78,7 +79,7 @@ for i in range(0, num_slots, cols_per_row):
                 else:
                     # 番号付きのボタン
                     if st.button(f"{slot_num}\n❓", key=f"k_{idx}", use_container_width=True):
-                        if idx == st.session_state.kurohige_target:
+                        if check_slot(idx, st.session_state.kurohige_target) == "boom":
                             st.session_state.kurohige_status = "boom"
                             storage.set_item('kh_status', "boom")
                         else:

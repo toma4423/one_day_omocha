@@ -76,6 +76,7 @@ if st.session_state.just_reset_sugoroku:
 
 # 盤面データの生成とLocalStorageからの復元
 total_tiles = st.session_state.sg_num_tiles
+initial_data = init_board_data(total_tiles, st.session_state.sg_board_type)
 for i in range(total_tiles):
     key = f"sg_tile_{i}"
     if key not in st.session_state.board_data:
@@ -83,14 +84,9 @@ for i in range(total_tiles):
         if saved:
             st.session_state.board_data[key] = saved
         else:
-            if st.session_state.sg_board_type == "スタートからゴール":
-                if i == 0: st.session_state.board_data[key] = "🚩 START"
-                elif i == total_tiles - 1: st.session_state.board_data[key] = "🏆 GOAL"
-                else: st.session_state.board_data[key] = f"マス {i+1}"
-            else:
-                st.session_state.board_data[key] = f"マス {i+1}"
+            st.session_state.board_data[key] = initial_data[key]
 
-from src.utils.sugoroku import calculate_new_position
+from src.utils.sugoroku import calculate_new_position, init_board_data
 
 # --- メインエリア：サイコロ操作 ---
 st.subheader("🎲 サイコロを振って進む")

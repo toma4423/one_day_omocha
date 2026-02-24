@@ -12,3 +12,18 @@ def calculate_new_position(current_pos: int, dice_sum: int, total_tiles: int, is
         if new_pos >= total_tiles:
             return total_tiles - 1
         return new_pos
+
+def init_board_data(total_tiles: int, board_type: str) -> dict:
+    """
+    盤面の初期データを生成します。
+    """
+    board_data = {}
+    for i in range(total_tiles):
+        key = f"sg_tile_{i}"
+        if board_type == "スタートからゴール":
+            if i == 0: board_data[key] = "🚩 START"
+            elif i == total_tiles - 1: board_data[key] = "🏆 GOAL"
+            else: board_data[key] = f"マス {i+1}"
+        else:
+            board_data[key] = f"マス {i+1}"
+    return board_data

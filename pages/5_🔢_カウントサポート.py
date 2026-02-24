@@ -4,6 +4,11 @@ from src.utils.styles import render_result_box
 from src.utils.time import get_jst_now
 from streamlit_local_storage import LocalStorage
 from src.utils.storage import SafeStorage
+from src.utils.count_support import (
+    calculate_weighted_value, 
+    calculate_diff_xy, 
+    calculate_final_score
+)
 
 st.set_page_config(page_title="カウントサポート", page_icon="🔢")
 
@@ -78,7 +83,7 @@ def weighted_counter_ui(label: str, key_val: str, key_weight: str):
             on_change=save_to_storage
         )
     
-    current_weighted = st.session_state[key_val] * st.session_state[key_weight]
+    current_weighted = calculate_weighted_value(st.session_state[key_val], st.session_state[key_weight])
     st.caption(f"現在の{label}値: {current_weighted:.1f}")
     return current_weighted
 
@@ -142,12 +147,11 @@ with col_main1:
     val_y = weighted_counter_ui("Y", "cs_y", "cs_weight_y")
     
     st.write("---")
-    render_result_box("X - Y (算出値)", f"{val_x - val_y:.1f}")
+    render_result_box("X - Y (算出値)", f"{calculate_diff_xy(val_x, val_y):.1f}")
 
 with col_main2:
     st.subheader("追加カウント")
     val_z = weighted_counter_ui("Z", "cs_z", "cs_weight_z")
     
     st.write("---")
-    diff_xy = val_x - val_y
-    render_result_box("(X - Y) - Z", f"{diff_xy - val_z:.1f}", bg_color="#E8F5E9", border_color="#2E7D32", text_color="#2E7D32", font_size=64)
+    render_result_box("(X - Y) - Z", f"{calculate_final_score(val_x, val_y, val_z):.1f}", bg_color="#E8F5E9", border_color="#2E7D32", text_color="#2E7D32", font_size=64)
