@@ -72,19 +72,23 @@ with st.sidebar:
                 st.error("JSONの読み込みに失敗しました")
     st.write("---")
 
-st.info("スロットの図柄や役の出現率を％でカスタマイズできます。重み（Weight）は役の確率から自動計算されます。")
+st.info("スロットの図柄や出現率をカスタマイズできます。数字の「ID」が図柄の識別に使われます。")
 
 # --- 図柄の編集 ---
 st.subheader("🖼️ 図柄（シンボル）の編集")
-st.write("図柄の識別名と、オプションの画像URLを設定します。")
+st.write("数字のID、表示用テキスト、オプションの画像URLを設定します。")
 
 new_symbols = []
 symbol_list = st.session_state.slot_config_edit["symbols"]
 for i, symbol in enumerate(symbol_list):
-    col_sym, col_url, col_del = st.columns([2, 4, 1])
+    col_id, col_sym, col_url, col_del = st.columns([1, 2, 4, 1])
+    with col_id:
+        s_id = st.number_input(
+            "ID", value=int(symbol["id"]), min_value=1, key=f"s_id_{i}", label_visibility="collapsed"
+        )
     with col_sym:
         s_char = st.text_input(
-            "図柄識別子", symbol["char"], key=f"s_char_{i}", label_visibility="collapsed", placeholder="識別名"
+            "表示テキスト", symbol["char"], key=f"s_char_{i}", label_visibility="collapsed", placeholder="表示テキスト"
         )
     with col_url:
         s_url = st.text_input(
@@ -104,37 +108,51 @@ for i, symbol in enumerate(symbol_list):
     else:
         st.markdown(f"<h3 style='margin:0;'>{s_char}</h3>", unsafe_allow_html=True)
 
-    new_symbols.append({"char": s_char, "weight": symbol.get("weight", 1.0), "image_url": s_url if s_url else None})
+    new_symbols.append(
+        {"id": s_id, "char": s_char, "weight": symbol.get("weight", 1.0), "image_url": s_url if s_url else None}
+    )
 
 # 新しい図柄を追加
 st.write("🆕 新しい図柄を追加")
-c1, c2, c3 = st.columns([2, 4, 1])
+c1, c2, c3, c4 = st.columns([1, 2, 4, 1])
 with c1:
-    add_s_char = st.text_input("追加識別名", "💎", key="add_s_char", label_visibility="collapsed")
+    # 現在の最大ID+1をデフォルトにする
+    max_id = max([s["id"] for s in new_symbols]) if new_symbols else 0
+    add_s_id = st.number_input("新ID", value=max_id + 1, min_value=1, key="add_s_id", label_visibility="collapsed")
 with c2:
-    add_s_url = st.text_input(
-        "追加画像URL", "", key="add_s_url", label_visibility="collapsed", placeholder="https://..."
-    )
+    add_s_char = st.text_input("表示", "💎", key="add_s_char", label_visibility="collapsed")
 with c3:
+    add_s_url = st.text_input("画像URL", "", key="add_s_url", label_visibility="collapsed", placeholder="https://...")
+with c4:
     if st.button("➕", key="add_s_btn"):
         st.session_state.slot_config_edit["symbols"].append(
-            {"char": add_s_char, "weight": 1.0, "image_url": add_s_url if add_s_url else None}
+            {"id": add_s_id, "char": add_s_char, "weight": 1.0, "image_url": add_s_url if add_s_url else None}
         )
         st.rerun()
 
 # --- 役の編集 ---
 st.write("---")
 st.subheader("💰 役と出現率の設定")
-st.write("各役の名称、図柄パターン、スコア、そして**目標とする出現確率 (%)**を設定します。")
+st.write("各役の名称、図柄パターン（IDで選択）、スコア、目標出現確率を設定します。")
 
 # 全体確率の調整
 st.session_state.slot_target_hit_rate = st.slider(
     "全体の合算当り確率 (%)", 0.1, 95.0, float(st.session_state.slot_target_hit_rate), step=0.1
 )
-st.caption(f"（ハズレ確率は約 {100.0 - st.session_state.slot_target_hit_rate:.1f}% になります）")
 
 new_payouts = []
 payout_list = st.session_state.slot_config_edit["payouts"]
+# 図柄のIDと表示名のマップを作成
+symbol_options_map = {s["id"]: f"{s['id']}: {s['char']}" for s in new_symbols}
+symbol_ids = ["ANY"] + sorted(list(symbol_options_map.keys()))
+
+
+def get_label(sid):
+    if sid == "ANY":
+        return "ANY (何でも)"
+    return symbol_options_map.get(sid, str(sid))
+
+
 for i, payout in enumerate(payout_list):
     with st.expander(f"役 {i + 1}: {payout['name']}"):
         col_name, col_score, col_target = st.columns([2, 1, 1])
@@ -153,28 +171,28 @@ for i, payout in enumerate(payout_list):
             )
 
         col_p1, col_p2, col_p3 = st.columns(3)
-        # 選択肢の作成（現在の図柄リスト + ANY）
-        symbol_options = ["ANY"] + [s["char"] for s in new_symbols]
-
         with col_p1:
             p_1 = st.selectbox(
-                "左リール",
-                symbol_options,
-                index=symbol_options.index(payout["pattern"][0]) if payout["pattern"][0] in symbol_options else 0,
+                "左リール (ID)",
+                symbol_ids,
+                index=symbol_ids.index(payout["pattern"][0]) if payout["pattern"][0] in symbol_ids else 0,
+                format_func=get_label,
                 key=f"p_1_{i}",
             )
         with col_p2:
             p_2 = st.selectbox(
-                "中リール",
-                symbol_options,
-                index=symbol_options.index(payout["pattern"][1]) if payout["pattern"][1] in symbol_options else 0,
+                "中リール (ID)",
+                symbol_ids,
+                index=symbol_ids.index(payout["pattern"][1]) if payout["pattern"][1] in symbol_ids else 0,
+                format_func=get_label,
                 key=f"p_2_{i}",
             )
         with col_p3:
             p_3 = st.selectbox(
-                "右リール",
-                symbol_options,
-                index=symbol_options.index(payout["pattern"][2]) if payout["pattern"][2] in symbol_options else 0,
+                "右リール (ID)",
+                symbol_ids,
+                index=symbol_ids.index(payout["pattern"][2]) if payout["pattern"][2] in symbol_ids else 0,
+                format_func=get_label,
                 key=f"p_3_{i}",
             )
 
@@ -190,14 +208,12 @@ with st.expander("新規追加"):
     add_name = st.text_input("新しい役名", "新規役", key="add_name")
     add_score = st.number_input("新しいスコア", 100, key="add_score")
     ca1, ca2, ca3 = st.columns(3)
-    # 追加時もプルダウンを使用
-    add_symbol_options = ["ANY"] + [s["char"] for s in new_symbols]
     with ca1:
-        p_add1 = st.selectbox("左図柄", add_symbol_options, index=1 if len(add_symbol_options) > 1 else 0, key="p_add1")
+        p_add1 = st.selectbox("左図柄 ID", symbol_ids, format_func=get_label, key="p_add1")
     with ca2:
-        p_add2 = st.selectbox("中図柄", add_symbol_options, index=1 if len(add_symbol_options) > 1 else 0, key="p_add2")
+        p_add2 = st.selectbox("中図柄 ID", symbol_ids, format_func=get_label, key="p_add2")
     with ca3:
-        p_add3 = st.selectbox("右図柄", add_symbol_options, index=1 if len(add_symbol_options) > 1 else 0, key="p_add3")
+        p_add3 = st.selectbox("右図柄 ID", symbol_ids, format_func=get_label, key="p_add3")
     if st.button("役を追加する"):
         st.session_state.slot_config_edit["payouts"].append(
             {"name": add_name, "score": add_score, "pattern": [p_add1, p_add2, p_add3]}
@@ -207,18 +223,14 @@ with st.expander("新規追加"):
 # --- 確率計算と反映 ---
 st.write("---")
 st.subheader("🧮 確率計算と反映")
-st.write("設定した目標確率に合わせて、図柄の出現率を自動計算します。")
-
 if st.button("自動計算を実行してプレビュー", use_container_width=True):
-    # 重みの逆算を実行
     updated_symbols = solve_weights_from_targets(
         new_symbols, new_payouts, st.session_state.slot_targets, st.session_state.slot_target_hit_rate
     )
     st.session_state.slot_config_edit["symbols"] = updated_symbols
-    st.success("重みを計算しました。下の「現在の確率」を確認してください。")
+    st.success("重みを計算しました。")
     st.rerun()
 
-# 現在の重みに基づく理論値の表示
 probs = calculate_probabilities(st.session_state.slot_config_edit["symbols"], new_payouts)
 col_res1, col_res2 = st.columns(2)
 with col_res1:
@@ -248,7 +260,7 @@ with col_save:
             storage.set_item("slot_config", final_config)
             if "slot_config" in st.session_state:
                 st.session_state.slot_config = final_config
-            st.success("設定を保存しました！スロットページで確認してください。")
+            st.success("設定を保存しました！")
             st.balloons()
 
 with col_reset:
@@ -256,7 +268,6 @@ with col_reset:
         default_config = {"name": DEFAULT_SLOT_NAME, "symbols": DEFAULT_SYMBOLS, "payouts": DEFAULT_PAYOUTS}
         st.session_state.slot_config_edit = default_config
         storage.set_item("slot_config", default_config)
-        st.success("デフォルトにリセットしました。")
         st.rerun()
 
 render_donation_box("https://paypay.me/xxxx", is_sidebar=True)
