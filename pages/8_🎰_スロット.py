@@ -29,6 +29,14 @@ if "slot_history" not in st.session_state:
 if "slot_result" not in st.session_state:
     st.session_state.slot_result = None
 
+# 統計情報の初期化
+if "slot_spins" not in st.session_state:
+    saved_spins = storage.get_item("slot_spins", is_json=False)
+    st.session_state.slot_spins = int(saved_spins) if saved_spins is not None else 0
+if "slot_total_score" not in st.session_state:
+    saved_total_score = storage.get_item("slot_total_score", is_json=False)
+    st.session_state.slot_total_score = int(saved_total_score) if saved_total_score is not None else 0
+
 # CSSによるリールアニメーション風の表示
 st.markdown(
     """
@@ -74,6 +82,13 @@ st.markdown(
 
 st.title("🎰 スロットマシン")
 
+# 統計情報の表示
+c_stat1, c_stat2 = st.columns(2)
+with c_stat1:
+    st.metric("総回転数", st.session_state.slot_spins)
+with c_stat2:
+    st.metric("累計スコア", st.session_state.slot_total_score)
+
 # --- メインエリア ---
 col1, col2 = st.columns([2, 1])
 
@@ -111,9 +126,20 @@ with col1:
         result = evaluate_slot_spin(final_reels, st.session_state.slot_config["payouts"])
         st.session_state.slot_result = result
 
+        # 統計更新
+        st.session_state.slot_spins += 1
+        storage.set_item("slot_spins", st.session_state.slot_spins)
+        if result:
+            st.session_state.slot_total_score += result["score"]
+            storage.set_item("slot_total_score", st.session_state.slot_total_score)
+
         # 履歴追加
         res_name = result["name"] if result else "ハズレ"
-        new_record = {"time": get_jst_now().strftime("%H:%M:%S"), "reels": " ".join(final_reels), "result": res_name}
+        new_record = {
+            "time": get_jst_now().strftime("%H:%M:%S"),
+            "reels": " ".join(final_reels),
+            "result": res_name,
+        }
         st.session_state.slot_history.insert(0, new_record)
         # 履歴は直近50件
         st.session_state.slot_history = st.session_state.slot_history[:50]
@@ -179,6 +205,14 @@ with st.sidebar:
                 st.error("JSONの読み込みに失敗しました")
 
     st.write("---")
+
+    if st.button("統計をリセット"):
+        st.session_state.slot_spins = 0
+        st.session_state.slot_total_score = 0
+        storage.set_item("slot_spins", 0)
+        storage.set_item("slot_total_score", 0)
+        st.success("統計をリセットしました")
+        st.rerun()
 
     if st.button("履歴をクリア"):
         st.session_state.slot_history = []

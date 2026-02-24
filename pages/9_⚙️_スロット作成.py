@@ -59,13 +59,44 @@ st.info("スロットの図柄や役（パターンと配当）を自由にカ�
 
 # --- 図柄の編集 ---
 st.subheader("🖼️ 図柄（シンボル）の編集")
-st.write("各リールに出現する図柄をカンマ区切りで入力してください。")
+st.write("各リールに出現する図柄とその出現の重み（確率）を設定します。")
 
-symbols_str = st.text_input(
-    "図柄のリスト", ", ".join(st.session_state.slot_config_edit["symbols"]), key="symbols_edit_input"
-)
+new_symbols = []
+for i, symbol in enumerate(st.session_state.slot_config_edit["symbols"]):
+    col_sym, col_weight, col_del = st.columns([2, 2, 1])
+    with col_sym:
+        s_char = st.text_input("図柄", symbol["char"], key=f"s_char_{i}", label_visibility="collapsed")
+    with col_weight:
+        s_weight = st.number_input(
+            "重み",
+            value=float(symbol["weight"]),
+            min_value=0.0,
+            step=0.1,
+            key=f"s_weight_{i}",
+            label_visibility="collapsed",
+        )
+    with col_del:
+        if st.button("🗑️", key=f"s_del_{i}"):
+            st.session_state.slot_config_edit["symbols"].pop(i)
+            st.rerun()
+    new_symbols.append({"char": s_char, "weight": s_weight})
+
+# 新しい図柄を追加
+st.write("🆕 新しい図柄を追加")
+c1, c2, c3 = st.columns([2, 2, 1])
+with c1:
+    add_s_char = st.text_input("追加図柄", "💎", key="add_s_char", label_visibility="collapsed")
+with c2:
+    add_s_weight = st.number_input(
+        "追加重み", value=1.0, min_value=0.0, step=0.1, key="add_s_weight", label_visibility="collapsed"
+    )
+with c3:
+    if st.button("➕", key="add_s_btn"):
+        st.session_state.slot_config_edit["symbols"].append({"char": add_s_char, "weight": add_s_weight})
+        st.rerun()
 
 # --- 役の編集 ---
+# ... (skip to save logic)
 st.write("---")
 st.subheader("💰 役と配当の設定")
 st.write(
@@ -114,12 +145,10 @@ st.write("---")
 col_save, col_reset = st.columns([1, 1])
 with col_save:
     if st.button("💾 設定を保存して反映する", use_container_width=True):
-        # 図柄文字列をリストに戻す
-        final_symbols = [s.strip() for s in symbols_str.split(",") if s.strip()]
-        if not final_symbols:
+        if not new_symbols:
             st.error("図柄は少なくとも1つ以上必要です。")
         else:
-            new_config = {"symbols": final_symbols, "payouts": new_payouts}
+            new_config = {"symbols": new_symbols, "payouts": new_payouts}
             st.session_state.slot_config_edit = new_config
             storage.set_item("slot_config", new_config)
             # 実行ページ用のセッション状態も更新
