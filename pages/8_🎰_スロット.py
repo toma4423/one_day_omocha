@@ -5,7 +5,13 @@ import pandas as pd
 import streamlit as st
 from streamlit_local_storage import LocalStorage
 
-from src.utils.slot import evaluate_slot_spin, get_slot_config, resolve_pattern_to_chars, spin_reels
+from src.utils.slot import (
+    evaluate_slot_spin,
+    get_slot_config,
+    migrate_slot_config,
+    resolve_pattern_to_chars,
+    spin_reels,
+)
 from src.utils.storage import SafeStorage
 from src.utils.styles import render_donation_box
 from src.utils.time import get_jst_now
@@ -208,10 +214,11 @@ with st.sidebar:
             try:
                 data_load = json.load(uploaded_file)
                 if "symbols" in data_load and "payouts" in data_load:
-                    st.session_state.slot_config = data_load
-                    storage.set_item("slot_config", data_load)
+                    migrated_config = migrate_slot_config(data_load)
+                    st.session_state.slot_config = migrated_config
+                    storage.set_item("slot_config", migrated_config)
                     if "slot_config_edit" in st.session_state:
-                        st.session_state.slot_config_edit = data_load
+                        st.session_state.slot_config_edit = migrated_config
                     st.success("設定を反映しました！")
                     st.rerun()
                 else:

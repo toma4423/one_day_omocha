@@ -80,43 +80,58 @@ def get_slot_config(storage_data: dict[str, Any] | None) -> dict[str, Any]:
     ストレージデータから設定を取得、またはデフォルトを返します。
     """
     if not storage_data:
-        return {
-            "name": DEFAULT_SLOT_NAME,
-            "symbols": DEFAULT_SYMBOLS,
-            "payouts": DEFAULT_PAYOUTS,
-        }
+        return migrate_slot_config({"name": DEFAULT_SLOT_NAME, "symbols": DEFAULT_SYMBOLS, "payouts": DEFAULT_PAYOUTS})
 
-    symbols = storage_data.get("symbols", DEFAULT_SYMBOLS)
-    payouts = storage_data.get("payouts", DEFAULT_PAYOUTS)
+    return migrate_slot_config(storage_data)
 
-    # 互換性マイグレーション
-    if symbols:
-        # 文字列リスト形式からの変換
-        if isinstance(symbols[0], str):
-            symbols = [{"id": i + 1, "char": s, "weight": 1.0, "image_url": None} for i, s in enumerate(symbols)]
 
-        # IDフィールドがない場合の追加
+def migrate_slot_config(config: dict[str, Any]) -> dict[str, Any]:
+    """
+    設定データを最新の形式（IDベース）に変換・補完します。
+    """
+    name = config.get("name", DEFAULT_SLOT_NAME)
+    symbols = config.get("symbols", DEFAULT_SYMBOLS)
+    payouts = config.get("payouts", DEFAULT_PAYOUTS)
+
+    # 1. シンボルの移行
+    new_symbols = []
+    if symbols and isinstance(symbols[0], str):
+        # 古い文字列リスト形式
+        new_symbols = [{"id": i + 1, "char": s, "weight": 1.0, "image_url": None} for i, s in enumerate(symbols)]
+    else:
+        # 辞書リスト形式
         for i, s in enumerate(symbols):
-            if isinstance(s, dict) and "id" not in s:
-                s["id"] = i + 1
-            if isinstance(s, dict) and "image_url" not in s:
-                s["image_url"] = None
+            new_s = s.copy()
+            if "id" not in new_s:
+                new_s["id"] = i + 1
+            if "image_url" not in new_s:
+                new_s["image_url"] = None
+            if "weight" not in new_s:
+                new_s["weight"] = 1.0
+            new_symbols.append(new_s)
 
-    # 役パターンのマイグレーション (charベースからidベースへ)
-    char_to_id = {s["char"]: s["id"] for s in symbols}
+    # 2. 役パターンの移行 (charベースからidベースへ)
+    # 図柄文字からIDへのマップを作成
+    char_to_id = {s["char"]: s["id"] for s in new_symbols}
+    new_payouts = []
     for p in payouts:
+        new_p = p.copy()
+        old_pattern = p.get("pattern", [])
         new_pattern = []
-        for item in p["pattern"]:
+        for item in old_pattern:
+            # 文字列かつIDマップに存在する場合はIDに変換
             if isinstance(item, str) and item in char_to_id:
                 new_pattern.append(char_to_id[item])
             else:
+                # すでにID（数字）または ANY の場合はそのまま
                 new_pattern.append(item)
-        p["pattern"] = new_pattern
+        new_p["pattern"] = new_pattern
+        new_payouts.append(new_p)
 
     return {
-        "name": storage_data.get("name", DEFAULT_SLOT_NAME),
-        "symbols": symbols,
-        "payouts": payouts,
+        "name": name,
+        "symbols": new_symbols,
+        "payouts": new_payouts,
     }
 
 

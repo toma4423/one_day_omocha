@@ -10,6 +10,7 @@ from src.utils.slot import (
     DEFAULT_SYMBOLS,
     calculate_probabilities,
     get_slot_config,
+    migrate_slot_config,
     solve_weights_from_targets,
 )
 from src.utils.storage import SafeStorage
@@ -60,10 +61,11 @@ with st.sidebar:
             try:
                 data_load = json.load(uploaded_file)
                 if "symbols" in data_load and "payouts" in data_load:
-                    st.session_state.slot_config_edit = data_load
-                    storage.set_item("slot_config", data_load)
+                    migrated_config = migrate_slot_config(data_load)
+                    st.session_state.slot_config_edit = migrated_config
+                    storage.set_item("slot_config", migrated_config)
                     if "slot_config" in st.session_state:
-                        st.session_state.slot_config = data_load
+                        st.session_state.slot_config = migrated_config
                     st.success("設定を復元しました！")
                     st.rerun()
                 else:
