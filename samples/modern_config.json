@@ -1,0 +1,51 @@
+{
+  "name": "プレミアム・ダイヤモンド",
+  "symbols": [
+    {
+      "id": 1,
+      "char": "💎",
+      "weight": 1.0,
+      "image_url": "https://img.icons8.com/emoji/96/diamond-emoji.png"
+    },
+    {
+      "id": 2,
+      "char": "🥇",
+      "weight": 5.0,
+      "image_url": null
+    },
+    {
+      "id": 3,
+      "char": "🥈",
+      "weight": 10.0,
+      "image_url": null
+    },
+    {
+      "id": 4,
+      "char": "💩",
+      "weight": 20.0,
+      "image_url": null
+    }
+  ],
+  "payouts": [
+    {
+      "name": "ダイヤモンド・ジャックポット",
+      "pattern": [1, 1, 1],
+      "score": 10000
+    },
+    {
+      "name": "金メダルラッシュ",
+      "pattern": [2, 2, 2],
+      "score": 1000
+    },
+    {
+      "name": "銀メダル",
+      "pattern": [3, 3, 3],
+      "score": 500
+    },
+    {
+      "name": "ハズレの慰め",
+      "pattern": [4, 4, "ANY"],
+      "score": 10
+    }
+  ]
+}
