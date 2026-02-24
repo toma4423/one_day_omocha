@@ -172,3 +172,66 @@ def calculate_probabilities(symbol_data: list[dict[str, Any]], payouts: list[dic
         "total_hit_rate": total_hit_prob * 100,
         "miss_rate": max(0.0, (1.0 - total_hit_prob) * 100),
     }
+
+
+def solve_weights_from_targets(
+    symbol_data: list[dict[str, Any]], payouts: list[dict[str, Any]], targets: dict[str, float]
+) -> list[dict[str, Any]]:
+    """
+    目標とする役の出現確率（%）から、図柄の重みを逆算して更新します。
+    簡略化のため、3つの同じ図柄が並ぶ役、または ANY を含む単純な役を優先的に処理します。
+    """
+    # 図柄ごとの目標確率 (0.0 - 1.0)
+    required_probs: dict[str, float] = {s["char"]: 0.0 for s in symbol_data}
+
+    # 1. 役のパターンから各図柄に必要な出現率を推定
+    for p in payouts:
+        target_rate = targets.get(p["name"], 0.0) / 100.0
+        if target_rate <= 0:
+            continue
+
+        pattern = p["pattern"]
+        unique_chars = set(pattern)
+        if "ANY" in unique_chars:
+            unique_chars.remove("ANY")
+
+        # 3つとも同じ図柄の場合: p^3 = target => p = target^(1/3)
+        if len(unique_chars) == 1:
+            char = list(unique_chars)[0]
+            count = pattern.count(char)
+            # p^count = target (ANYは確率1.0と仮定して近似)
+            p_val = target_rate ** (1.0 / count)
+            required_probs[char] = max(required_probs[char], p_val)
+
+    # 2. 合計が1.0を超えないように調整
+    total_req = sum(required_probs.values())
+    if total_req > 0.95:
+        # 1.0を超えそうな場合はスケーリング（ハズレ分を5%残す）
+        scale = 0.95 / total_req
+        for char in required_probs:
+            required_probs[char] *= scale
+        total_req = 0.95
+
+    # 3. 余った確率を、目標が設定されていない（または低い）図柄に均等配分
+    remaining_prob = 1.0 - total_req
+    unassigned_symbols = [s["char"] for s in symbol_data if required_probs[s["char"]] == 0]
+
+    if unassigned_symbols:
+        p_extra = remaining_prob / len(unassigned_symbols)
+        for char in unassigned_symbols:
+            required_probs[char] = p_extra
+    elif remaining_prob > 0:
+        # 全図柄に目標があった場合は全体に加算
+        p_extra = remaining_prob / len(symbol_data)
+        for char in required_probs:
+            required_probs[char] += p_extra
+
+    # 4. 確率(0-1)を重み（整数値など）に変換
+    new_symbol_data = []
+    for s in symbol_data:
+        new_s = s.copy()
+        # 重みとして扱いやすいよう1000倍して整数化（最低1）
+        new_s["weight"] = max(1.0, round(required_probs[s["char"]] * 1000, 1))
+        new_symbol_data.append(new_s)
+
+    return new_symbol_data

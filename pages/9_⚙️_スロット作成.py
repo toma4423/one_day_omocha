@@ -1,9 +1,16 @@
 import json
 
+import pandas as pd
 import streamlit as st
 from streamlit_local_storage import LocalStorage
 
-from src.utils.slot import DEFAULT_PAYOUTS, DEFAULT_SYMBOLS, calculate_probabilities, get_slot_config
+from src.utils.slot import (
+    DEFAULT_PAYOUTS,
+    DEFAULT_SYMBOLS,
+    calculate_probabilities,
+    get_slot_config,
+    solve_weights_from_targets,
+)
 from src.utils.storage import SafeStorage
 from src.utils.styles import render_donation_box
 from src.utils.time import get_jst_now
@@ -17,6 +24,10 @@ storage = SafeStorage(LocalStorage())
 if "slot_config_edit" not in st.session_state:
     saved_config = storage.get_item("slot_config", is_json=True)
     st.session_state.slot_config_edit = get_slot_config(saved_config)
+
+# 逆算用ターゲット率の保持
+if "slot_targets" not in st.session_state:
+    st.session_state.slot_targets = {}
 
 st.title("⚙️ スロットカスタマイズ")
 
@@ -55,7 +66,9 @@ with st.sidebar:
                 st.error("JSONの読み込みに失敗しました")
     st.write("---")
 
-st.info("スロットの図柄や役（パターンと配当）を自由にカスタマイズできます。変更は自動的にブラウザに保存されます。")
+st.info(
+    "スロットの図柄や役（パターンと配当）を自由にカスタマイズできます。文字識別子は判定に使用され、画像URLがあれば優先的に表示されます。"
+)
 
 # --- 図柄の編集 ---
 st.subheader("🖼️ 図柄（シンボル）の編集")
@@ -67,14 +80,16 @@ symbol_list = st.session_state.slot_config_edit["symbols"]
 for i, symbol in enumerate(symbol_list):
     col_sym, col_url, col_weight, col_del = st.columns([1.5, 3, 1.5, 0.5])
     with col_sym:
-        s_char = st.text_input("図柄", symbol["char"], key=f"s_char_{i}", label_visibility="collapsed")
+        s_char = st.text_input(
+            "図柄識別子", symbol["char"], key=f"s_char_{i}", label_visibility="collapsed", placeholder="識別子"
+        )
     with col_url:
         s_url = st.text_input(
             "画像URL (任意)",
             symbol.get("image_url", ""),
             key=f"s_url_{i}",
             label_visibility="collapsed",
-            placeholder="https://...",
+            placeholder="https://... (画像URL)",
         )
     with col_weight:
         s_weight = st.number_input(
@@ -126,11 +141,21 @@ new_payouts = []
 payout_list = st.session_state.slot_config_edit["payouts"]
 for i, payout in enumerate(payout_list):
     with st.expander(f"役 {i + 1}: {payout['name']}"):
-        col_name, col_score = st.columns([3, 1])
+        col_name, col_score, col_target = st.columns([2, 1, 1])
         with col_name:
             p_name = st.text_input("役名", payout["name"], key=f"p_name_{i}")
         with col_score:
             p_score = st.number_input("スコア", value=payout["score"], min_value=0, step=1, key=f"p_score_{i}")
+        with col_target:
+            # 役の出現確率を直接指定したい場合の入力欄
+            st.session_state.slot_targets[p_name] = st.number_input(
+                "目標確率 (%)",
+                value=st.session_state.slot_targets.get(p_name, 0.0),
+                min_value=0.0,
+                max_value=100.0,
+                step=0.1,
+                key=f"p_target_{i}",
+            )
 
         col_p1, col_p2, col_p3 = st.columns(3)
         with col_p1:
@@ -162,6 +187,17 @@ with st.expander("新規追加"):
         st.success("追加しました！")
         st.rerun()
 
+# --- 確率計算ツール ---
+st.write("---")
+st.subheader("🧮 確率自動設定ツール")
+st.write("「目標確率 (%)」を入力した状態で下のボタンを押すと、その確率に近づくように図柄の重みを自動計算します。")
+if st.button("目標確率から重みを自動計算する"):
+    # 現在の入力値を使用して計算
+    updated_symbols = solve_weights_from_targets(new_symbols, new_payouts, st.session_state.slot_targets)
+    st.session_state.slot_config_edit["symbols"] = updated_symbols
+    st.success("重みを再計算しました。下のプレビューで確率を確認してください。")
+    st.rerun()
+
 # --- 確率の表示 ---
 st.write("---")
 st.subheader("📊 現在の設定での期待値と確率")
@@ -175,8 +211,6 @@ if new_symbols:
         st.metric("ハズレ確率", f"{probs['miss_rate']:.2f}%")
 
     # 各役の確率
-    import pandas as pd
-
     df_probs = pd.DataFrame(probs["hit_rates"])
     if not df_probs.empty:
         df_probs.columns = ["役名", "出現確率 (%)"]
