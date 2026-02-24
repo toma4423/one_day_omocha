@@ -273,3 +273,43 @@ def solve_weights_from_targets(
         new_symbol_data.append(new_s)
 
     return new_symbol_data
+
+
+def validate_slot_config(config: dict[str, Any]) -> tuple[bool, str]:
+    """
+    設定データの整合性をチェックします。
+    (True, "") または (False, "エラーメッセージ") を返します。
+    """
+    if not config.get("name"):
+        return False, "スロットの名前がありません。"
+
+    symbols = config.get("symbols", [])
+    if not symbols:
+        return False, "図柄が一つも登録されていません。"
+
+    # 図柄の重複チェック
+    ids = [s.get("id") for s in symbols if "id" in s]
+    if len(ids) != len(set(ids)):
+        return False, "図柄のIDが重複しています。"
+
+    chars = [s.get("char") for s in symbols if "char" in s]
+    if len(chars) != len(set(chars)):
+        return False, "図柄の管理用ラベルが重複しています。識別しやすい名前にしてください。"
+
+    payouts = config.get("payouts", [])
+    if not payouts:
+        return False, "役が一つも登録されていません。"
+
+    # 役パターンの整合性チェック
+    valid_ids = set(ids)
+    for p in payouts:
+        if not p.get("name"):
+            return False, "役名が空の項目があります。"
+        pattern = p.get("pattern", [])
+        if len(pattern) != 3:
+            return False, f"役「{p['name']}」のパターンが3リール分設定されていません。"
+        for item in pattern:
+            if item != "ANY" and item not in valid_ids:
+                return False, f"役「{p['name']}」に存在しない図柄ID({item})が使われています。"
+
+    return True, ""

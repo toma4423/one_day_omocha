@@ -12,6 +12,7 @@ from src.utils.slot import (
     get_slot_config,
     migrate_slot_config,
     solve_weights_from_targets,
+    validate_slot_config,
 )
 from src.utils.storage import SafeStorage
 from src.utils.styles import render_donation_box
@@ -46,31 +47,25 @@ slot_name = st.text_input(
 # --- サイドバー：セーブ＆ロード ---
 with st.sidebar:
     st.header("💾 セーブ & ロード")
-
-    # JSONセーブ
-    json_str = json.dumps(st.session_state.slot_config_edit, indent=2, ensure_ascii=False)
-    timestamp = get_jst_now().strftime("%Y%m%d_%H%M")
-    st.download_button(
-        label="設定をJSONで保存",
-        data=json_str,
-        file_name=f"slot_config_{timestamp}.json",
-        mime="application/json",
-        use_container_width=True,
-        help="現在のすべての設定を JSON ファイルとして自分のPC/スマホに保存します。",
-    )
+    st.write("作成したスロット設定を保存したり、ファイルから読み込んだりできます。")
 
     # JSONロード
+    st.subheader("1. 読み込み (Load)")
     uploaded_file = st.file_uploader(
-        "設定JSONを読込",
+        "設定ファイルをアップロード",
         type="json",
-        help="過去に保存した設定 JSON ファイルを読み込んで復元します。",
+        help="保存済みの JSON ファイルを選択してください。自動的に最新形式へ変換されます。",
     )
     if uploaded_file is not None:
-        if st.button("設定を復元する", use_container_width=True):
+        if st.button("🚀 設定を復元・適用する", use_container_width=True):
             try:
                 data_load = json.load(uploaded_file)
-                if "symbols" in data_load and "payouts" in data_load:
-                    migrated_config = migrate_slot_config(data_load)
+                # マイグレーション
+                migrated_config = migrate_slot_config(data_load)
+                # バリデーション
+                is_valid, error_msg = validate_slot_config(migrated_config)
+
+                if is_valid:
                     st.session_state.slot_config_edit = migrated_config
                     storage.set_item("slot_config", migrated_config)
                     if "slot_config" in st.session_state:
@@ -78,9 +73,28 @@ with st.sidebar:
                     st.success("設定を復元しました！")
                     st.rerun()
                 else:
-                    st.error("不正な設定ファイル形式です")
-            except Exception:
-                st.error("JSONの読み込みに失敗しました")
+                    st.error(f"不備があります: {error_msg}")
+            except Exception as e:
+                st.error(f"JSONの解析に失敗しました: {e}")
+
+    st.write("---")
+    st.subheader("2. 保存 (Save)")
+
+    # JSONセーブ
+    json_str = json.dumps(st.session_state.slot_config_edit, indent=2, ensure_ascii=False)
+    timestamp = get_jst_now().strftime("%Y%m%d_%H%M")
+    st.download_button(
+        label="📥 設定をファイルで保存",
+        data=json_str,
+        file_name=f"slot_config_{timestamp}.json",
+        mime="application/json",
+        use_container_width=True,
+        help="現在の設定を JSON ファイルとして保存します。",
+    )
+
+    with st.expander("JSONプレビュー"):
+        st.code(json_str, language="json")
+
     st.write("---")
 
 st.info(

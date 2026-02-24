@@ -1,4 +1,42 @@
-from src.utils.slot import evaluate_slot_spin, migrate_slot_config, resolve_pattern_to_chars, spin_reels
+from src.utils.slot import (
+    evaluate_slot_spin,
+    migrate_slot_config,
+    resolve_pattern_to_chars,
+    spin_reels,
+    validate_slot_config,
+)
+
+
+def test_validate_slot_config_success():
+    valid_config = {
+        "name": "Test",
+        "symbols": [{"id": 1, "char": "A"}],
+        "payouts": [{"name": "W", "pattern": [1, 1, 1]}],
+    }
+    is_valid, msg = validate_slot_config(valid_config)
+    assert is_valid is True
+
+
+def test_validate_slot_config_fail_duplicate():
+    invalid_config = {
+        "name": "Test",
+        "symbols": [{"id": 1, "char": "A"}, {"id": 1, "char": "B"}],
+        "payouts": [{"name": "W", "pattern": [1, 1, 1]}],
+    }
+    is_valid, msg = validate_slot_config(invalid_config)
+    assert is_valid is False
+    assert "IDが重複" in msg
+
+
+def test_validate_slot_config_fail_invalid_id():
+    invalid_config = {
+        "name": "Test",
+        "symbols": [{"id": 1, "char": "A"}],
+        "payouts": [{"name": "W", "pattern": [1, 99, 1]}],
+    }
+    is_valid, msg = validate_slot_config(invalid_config)
+    assert is_valid is False
+    assert "存在しない図柄ID" in msg
 
 
 def test_migrate_slot_config_legacy():
