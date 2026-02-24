@@ -1,6 +1,7 @@
 import streamlit as st
 import random
 import numpy as np
+from src.utils.minesweeper import create_board, reveal_tile, is_game_won
 
 st.set_page_config(page_title="マインスイーパー", page_icon="💣")
 
@@ -9,42 +10,19 @@ if 'ms_status' not in st.session_state:
     st.session_state.ms_status = "ready"
 
 def init_minesweeper(w, h, mines):
-    board = np.zeros((h, w), dtype=int)
-    mines_pos = random.sample(range(w * h), mines)
-    for p in mines_pos:
-        board[p // w, p % w] = -1
-    
-    # 周囲の爆弾数を計算
-    for r in range(h):
-        for c in range(w):
-            if board[r, c] == -1:
-                continue
-            count = 0
-            for dr in [-1, 0, 1]:
-                for dc in [-1, 0, 1]:
-                    if 0 <= r + dr < h and 0 <= c + dc < w:
-                        if board[r + dr, c + dc] == -1:
-                            count += 1
-            board[r, c] = count
-            
+    board = create_board(w, h, mines)
     st.session_state.ms_board = board
     st.session_state.ms_revealed = np.zeros((h, w), dtype=bool)
     st.session_state.ms_flags = np.zeros((h, w), dtype=bool)
     st.session_state.ms_status = "playing"
 
 def reveal(r, c, w, h):
-    if not (0 <= r < h and 0 <= c < w):
-        return
-    if st.session_state.ms_revealed[r, c] or st.session_state.ms_flags[r, c]:
-        return
-    
-    st.session_state.ms_revealed[r, c] = True
-    
-    # 0の場合は周囲も開く
-    if st.session_state.ms_board[r, c] == 0:
-        for dr in [-1, 0, 1]:
-            for dc in [-1, 0, 1]:
-                reveal(r + dr, c + dc, w, h)
+    st.session_state.ms_revealed = reveal_tile(
+        r, c, w, h,
+        st.session_state.ms_board,
+        st.session_state.ms_revealed,
+        st.session_state.ms_flags
+    )
 
 st.title("💣 マインスイーパー")
 
@@ -52,6 +30,13 @@ with st.sidebar:
     ms_w = st.number_input("幅", 4, 15, 8)
     ms_h = st.number_input("高さ", 4, 15, 8)
     ms_mines = st.number_input("爆弾の数", 1, (ms_w * ms_h) - 1, 10)
+    
+    # サイズまたは爆弾の数が変わった場合にステータスをリセット
+    if 'ms_board' in st.session_state:
+        current_mines = np.sum(st.session_state.ms_board == -1)
+        if st.session_state.ms_board.shape != (ms_h, ms_w) or current_mines != ms_mines:
+            st.session_state.ms_status = "ready"
+
     ms_mode = st.radio("操作モード", ["オープン", "フラグ 🚩"])
     if st.button("ゲームをリセット"):
         st.session_state.ms_status = "ready"
@@ -89,8 +74,7 @@ for r in range(ms_h):
                     else:
                         reveal(r, c, ms_w, ms_h)
                         # クリア判定
-                        unrevealed_safe = np.sum((st.session_state.ms_board != -1) & (~st.session_state.ms_revealed))
-                        if unrevealed_safe == 0:
+                        if is_game_won(st.session_state.ms_board, st.session_state.ms_revealed):
                             st.session_state.ms_status = "won"
                             st.balloons()
                             st.success("クリア！おめでとう！")
