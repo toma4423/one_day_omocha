@@ -120,6 +120,14 @@ def get_slot_config(storage_data: dict[str, Any] | None) -> dict[str, Any]:
     }
 
 
+def resolve_pattern_to_chars(pattern: list[Any], symbols: list[dict[str, Any]]) -> list[str]:
+    """
+    IDベースのパターンを表示用の文字リストに変換します。
+    """
+    id_to_char = {s["id"]: s["char"] for s in symbols}
+    return [id_to_char.get(item, str(item)) if item != "ANY" else "ANY" for item in pattern]
+
+
 def calculate_probabilities(symbol_data: list[dict[str, Any]], payouts: list[dict[str, Any]]) -> dict[str, Any]:
     """
     現在の設定に基づき、各役の成立確率とハズレ確率を計算します。

@@ -1,4 +1,17 @@
-from src.utils.slot import evaluate_slot_spin, spin_reels
+from src.utils.slot import evaluate_slot_spin, resolve_pattern_to_chars, spin_reels
+
+
+def test_resolve_pattern_to_chars():
+    symbols = [
+        {"id": 1, "char": "🍒"},
+        {"id": 2, "char": "🍋"},
+    ]
+    pattern = [1, 1, "ANY"]
+    resolved = resolve_pattern_to_chars(pattern, symbols)
+    assert resolved == ["🍒", "🍒", "ANY"]
+
+    # 未定義IDのフォールバック
+    assert resolve_pattern_to_chars([99], symbols) == ["99"]
 
 
 def test_spin_reels():

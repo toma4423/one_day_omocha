@@ -5,7 +5,7 @@ import pandas as pd
 import streamlit as st
 from streamlit_local_storage import LocalStorage
 
-from src.utils.slot import evaluate_slot_spin, get_slot_config, spin_reels
+from src.utils.slot import evaluate_slot_spin, get_slot_config, resolve_pattern_to_chars, spin_reels
 from src.utils.storage import SafeStorage
 from src.utils.styles import render_donation_box
 from src.utils.time import get_jst_now
@@ -191,8 +191,11 @@ with col_hist:
 with col_info:
     st.subheader("📊 役の一覧")
     payout_data = []
+    symbols = st.session_state.slot_config["symbols"]
+
     for p in st.session_state.slot_config["payouts"]:
-        payout_data.append({"役名": p["name"], "パターン": " ".join(p["pattern"]), "スコア": p["score"]})
+        char_pattern = resolve_pattern_to_chars(p["pattern"], symbols)
+        payout_data.append({"役名": p["name"], "パターン": " ".join(char_pattern), "スコア": p["score"]})
     st.table(payout_data)
 
 with st.sidebar:
