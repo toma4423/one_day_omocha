@@ -6,8 +6,9 @@ from streamlit_local_storage import LocalStorage
 
 from src.utils.image_maker import create_palmu_calendar_grid_image
 from src.utils.palmu import (
-    calculate_total_points,
+    calculate_skip_card_balance,
     evaluate_rank_status,
+    group_points_by_active_week,
     points_needed_for_rank_up,
 )
 from src.utils.storage import SafeStorage
@@ -101,7 +102,7 @@ with st.sidebar:
 # --- 基本設定 ---
 now = get_jst_now()
 st.subheader("📅 スケジュール設定")
-col_date, col_days = st.columns(2)
+col_date, col_days, col_skip = st.columns(3)
 
 with col_date:
     start_date = st.date_input("開始日", value=now.date())
@@ -110,27 +111,34 @@ with col_days:
     # 月間なので28〜31日を選択可能にする（デフォルト31）
     num_days = st.number_input("表示日数", min_value=7, max_value=MAX_MONTH_DAYS, value=31)
 
+with col_skip:
+    initial_skip_cards = st.number_input(
+        "現在のスキップカード所持枚数", min_value=0, max_value=10, value=st.session_state.palmu_month_skip_cards
+    )
+    st.session_state.palmu_month_skip_cards = initial_skip_cards
+
 st.write("---")
 
 # --- メインエリア ---
 point_options = ["スキップ", 1, 2, 4, 6]
-weekdays_jp = ["月", "火", "水", "木", "金", "土", "日"]
 weekdays_sun_start = ["日", "月", "火", "水", "木", "金", "土"]
 
-# 月間なのでグリッド表示にする
 st.subheader(f"📝 デイリーポイント入力 ({num_days}日間)")
 reset_id = st.session_state.palmu_month_reset_counter
 
+# スキップカード残高の事前計算
+daily_vals_for_balance = [st.session_state.get(f"pm_day_{i}", 1) for i in range(1, num_days + 1)]
+skip_balances = calculate_skip_card_balance(initial_skip_cards, start_date, num_days, daily_vals_for_balance)
+
 # 日曜日開始のためのパディング計算
-# weekday(): 月=0, 火=1, ..., 土=5, 日=6
-# 日曜日開始にする場合: 日=0, 月=1, ..., 土=6 としたい
-start_weekday_idx = (start_date.weekday() + 1) % 7  # 日=0, 月=1, ...
+start_weekday_idx = (start_date.weekday() + 1) % 7
 
 # カレンダー表示用のヘッダー
 cols_header = st.columns(7)
 for idx, day_name in enumerate(weekdays_sun_start):
+    color = "#FF1744" if day_name == "日" else ("#2979FF" if day_name == "土" else "inherit")
     cols_header[idx].markdown(
-        f"<div style='text-align:center; font-weight:bold;'>{day_name}</div>", unsafe_allow_html=True
+        f"<div style='text-align:center; font-weight:bold; color:{color};'>{day_name}</div>", unsafe_allow_html=True
     )
 
 # 7列のグリッドでカレンダー風に表示
@@ -146,8 +154,11 @@ for r in range(rows):
         with cols[c]:
             if 1 <= day_idx <= num_days:
                 current_date = start_date + timedelta(days=day_idx - 1)
-                # ラベルは日付のみでシンプルに
                 date_label = f"{current_date.month}/{current_date.day}"
+
+                # スキップカード残高の表示
+                balance = skip_balances[day_idx - 1]
+                st.caption(f"🎫 {balance}枚")
 
                 val = st.session_state.get(f"pm_day_{day_idx}", 1)
                 if val == 0:
@@ -167,37 +178,37 @@ for r in range(rows):
                     format_func=lambda x: f"+{x}" if isinstance(x, int) else str(x),
                 )
             else:
-                # 範囲外は空欄
                 st.write("")
 
 st.write("---")
 
-# --- 結果表示（7日間ごとのステータス） ---
+# --- 結果表示（有効な7日間ごとのステータス） ---
 st.header("📈 ランク状況分析")
-st.markdown("開始日から7日間ごとのポイント合計と判定を表示します。")
+st.markdown("スキップカードを除いた、有効な配信日7日間ごとの判定を表示します。")
 
-# 7日周期で計算
-num_weeks = (num_days + 6) // 7
-week_cols = st.columns(min(num_weeks, 4))  # 最大4週分横並び
+daily_points_all = [st.session_state[f"pm_day_{i}"] for i in range(1, num_days + 1)]
+active_weeks = group_points_by_active_week(daily_points_all)
 
-for w in range(num_weeks):
-    with week_cols[w % 4]:
-        start_idx = w * 7 + 1
-        end_idx = min(start_idx + 6, num_days)
+if not active_weeks:
+    st.info("データがありません。")
+else:
+    num_active_weeks = len(active_weeks)
+    week_cols = st.columns(min(num_active_weeks, 4))
 
-        week_points = [st.session_state[f"pm_day_{i}"] for i in range(start_idx, end_idx + 1)]
-        total = calculate_total_points(week_points)
-        status = evaluate_rank_status(total)
+    for w, week_points in enumerate(active_weeks):
+        with week_cols[w % 4]:
+            total = sum(week_points)
+            status = evaluate_rank_status(total)
 
-        st.markdown(f"**第 {w + 1} 週** ({start_idx}〜{end_idx}日目)")
+            st.markdown(f"**有効第 {w + 1} 期** (7日間分)")
 
-        color = "#2E7D32" if status == "ランクアップ" else ("#E65100" if status == "キープ" else "#C62828")
-        st.markdown(f"<h3 style='color:{color}; margin-bottom:0;'>{status}</h3>", unsafe_allow_html=True)
-        st.markdown(f"合計: **{total} pt**")
+            color = "#2E7D32" if status == "ランクアップ" else ("#E65100" if status == "キープ" else "#C62828")
+            st.markdown(f"<h3 style='color:{color}; margin-bottom:0;'>{status}</h3>", unsafe_allow_html=True)
+            st.markdown(f"合計: **{total} pt**")
 
-        if status != "ランクアップ":
-            up_need = points_needed_for_rank_up(total)
-            st.caption(f"あと {up_need}pt でランクアップ")
+            if status != "ランクアップ":
+                up_need = points_needed_for_rank_up(total)
+                st.caption(f"あと {up_need}pt でランクアップ")
 
 st.write("---")
 

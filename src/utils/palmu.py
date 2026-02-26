@@ -1,3 +1,6 @@
+from datetime import date, timedelta
+
+
 def calculate_total_points(daily_points: list[int | str]) -> int:
     """日ごとのポイント合計を計算します（'スキップ'等は0として扱う）。"""
     return sum(int(p) for p in daily_points if isinstance(p, int) or (isinstance(p, str) and p.isdigit()))
@@ -66,3 +69,47 @@ def generate_point_presets(target: int) -> list[tuple[int, ...]]:
             filtered_results = filtered_results[:6]
 
     return sorted(list(set(filtered_results)), key=lambda x: (sum(x), x.count(6), x.count(4)), reverse=True)
+
+
+def calculate_skip_card_balance(
+    initial_balance: int, start_date: date, num_days: int, daily_values: list[int | str]
+) -> list[int]:
+    """
+    日ごとのスキップカード残高を計算します。
+    - 毎週月曜日に+2枚（上限10枚）
+    - 'スキップ'を選択した日に-1枚
+    """
+    balances = []
+    current = initial_balance
+
+    for i in range(num_days):
+        current_date = start_date + timedelta(days=i)
+
+        # 月曜日になったら +2 枚 (所持上限 10 枚)
+        # ※開始日が月曜日の場合は配布タイミングによって変わるが、通常は前週の実績に対して配布される
+        # ここでは「月曜日の0時に配布される」とし、開始日が月曜日の場合はその日に配布されるものとして扱う
+        if current_date.weekday() == 0:
+            current = min(10, current + 2)
+
+        # 当日の消費
+        if daily_values[i] == "スキップ":
+            current = max(0, current - 1)
+
+        balances.append(current)
+
+    return balances
+
+
+def group_points_by_active_week(daily_values: list[int | str]) -> list[list[int]]:
+    """
+    'スキップ'を除いた有効な配信日を7日間ずつにまとめます。
+    """
+    active_points = [p for p in daily_values if p != "スキップ"]
+
+    weeks = []
+    for i in range(0, len(active_points), 7):
+        week = active_points[i : i + 7]
+        # キャスト（isdigitのチェックは呼び出し側で担保されている前提だが安全のため）
+        weeks.append([int(p) if isinstance(p, int) or (isinstance(p, str) and p.isdigit()) else 0 for p in week])
+
+    return weeks
