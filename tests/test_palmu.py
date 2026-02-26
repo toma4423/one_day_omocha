@@ -1,6 +1,7 @@
 from src.utils.palmu import (
     calculate_total_points,
     evaluate_rank_status,
+    generate_point_presets,
     points_needed_for_keep,
     points_needed_for_rank_up,
 )
@@ -9,6 +10,8 @@ from src.utils.palmu import (
 def test_calculate_total_points():
     assert calculate_total_points([6, 4, 2, 0, 0, 0, 0]) == 12
     assert calculate_total_points([1, 1, 1, 1, 1, 1, 1]) == 7
+    assert calculate_total_points(["スキップ", 4, 2, 0, 0, 0, 0]) == 6
+    assert calculate_total_points([6, "スキップ", "スキップ", 1]) == 7
     assert calculate_total_points([]) == 0
 
 
@@ -33,3 +36,17 @@ def test_points_needed_for_rank_up():
     assert points_needed_for_rank_up(12) == 6
     assert points_needed_for_rank_up(18) == 0
     assert points_needed_for_rank_up(20) == 0
+
+
+def test_generate_point_presets():
+    presets_18 = generate_point_presets(18)
+    assert len(presets_18) > 0
+    for p in presets_18:
+        assert len(p) == 7
+        assert sum(p) >= 18
+
+    presets_12 = generate_point_presets(12)
+    assert len(presets_12) > 0
+    for p in presets_12:
+        assert len(p) == 7
+        assert sum(p) >= 12
