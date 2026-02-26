@@ -226,7 +226,7 @@ with col_result:
         st.success(f"🚀 ランクアップまで: あと **{up_need}** pt")
     else:
         st.write("---")
-        st.success("🎉 ランクアップ確実です！おめでとうございます！")
+        st.success("🎉 目標のランクアップ（+18pt）に到達する予定です！")
 
 st.write("---")
 st.header("🗓️ スケジュール画像生成")
