@@ -114,22 +114,40 @@ st.write("---")
 
 # --- メインエリア ---
 point_options = ["スキップ", 1, 2, 4, 6]
-weekdays = ["月", "火", "水", "木", "金", "土", "日"]
+weekdays_jp = ["月", "火", "水", "木", "金", "土", "日"]
+weekdays_sun_start = ["日", "月", "火", "水", "木", "金", "土"]
 
 # 月間なのでグリッド表示にする
 st.subheader(f"📝 デイリーポイント入力 ({num_days}日間)")
 reset_id = st.session_state.palmu_month_reset_counter
 
+# 日曜日開始のためのパディング計算
+# weekday(): 月=0, 火=1, ..., 土=5, 日=6
+# 日曜日開始にする場合: 日=0, 月=1, ..., 土=6 としたい
+start_weekday_idx = (start_date.weekday() + 1) % 7  # 日=0, 月=1, ...
+
+# カレンダー表示用のヘッダー
+cols_header = st.columns(7)
+for idx, day_name in enumerate(weekdays_sun_start):
+    cols_header[idx].markdown(
+        f"<div style='text-align:center; font-weight:bold;'>{day_name}</div>", unsafe_allow_html=True
+    )
+
 # 7列のグリッドでカレンダー風に表示
-cols_per_row = 7
-for row_idx in range(0, num_days, cols_per_row):
-    cols = st.columns(cols_per_row)
-    for col_idx, col in enumerate(cols):
-        day_idx = row_idx + col_idx + 1
-        if day_idx <= num_days:
-            with col:
+total_slots = num_days + start_weekday_idx
+rows = (total_slots + 6) // 7
+
+for r in range(rows):
+    cols = st.columns(7)
+    for c in range(7):
+        slot_idx = r * 7 + c
+        day_idx = slot_idx - start_weekday_idx + 1
+
+        with cols[c]:
+            if 1 <= day_idx <= num_days:
                 current_date = start_date + timedelta(days=day_idx - 1)
-                date_label = f"{current_date.month}/{current_date.day}({weekdays[current_date.weekday()]})"
+                # ラベルは日付のみでシンプルに
+                date_label = f"{current_date.month}/{current_date.day}"
 
                 val = st.session_state.get(f"pm_day_{day_idx}", 1)
                 if val == 0:
@@ -148,10 +166,13 @@ for row_idx in range(0, num_days, cols_per_row):
                     on_change=save_to_storage,
                     format_func=lambda x: f"+{x}" if isinstance(x, int) else str(x),
                 )
+            else:
+                # 範囲外は空欄
+                st.write("")
 
 st.write("---")
 
-# --- 結果表示（直近7日間ごとのステータス） ---
+# --- 結果表示（7日間ごとのステータス） ---
 st.header("📈 ランク状況分析")
 st.markdown("開始日から7日間ごとのポイント合計と判定を表示します。")
 
@@ -208,14 +229,25 @@ with col_img_preview:
     st.subheader("👁️ プレビュー")
     try:
         # スケジュールデータの構築
+        # カレンダー形式に合わせるため、開始曜日までのパディングを追加
         calendar_data = []
+
+        # 1. 開始前の空欄パディング
+        for i in range(start_weekday_idx):
+            calendar_data.append({"date": "", "day": weekdays_sun_start[i], "point": ""})
+
+        # 2. 実際の日付データ
         for i in range(1, num_days + 1):
             current_date = start_date + timedelta(days=i - 1)
             pt = st.session_state[f"pm_day_{i}"]
             pt_str = "スキップ" if pt == "スキップ" else f"+{pt}pt"
 
             calendar_data.append(
-                {"date": str(current_date.day), "day": weekdays[current_date.weekday()], "point": pt_str}
+                {
+                    "date": str(current_date.day),
+                    "day": weekdays_sun_start[(start_weekday_idx + i - 1) % 7],
+                    "point": pt_str,
+                }
             )
 
         # 月間用の描画（カレンダー形式）
