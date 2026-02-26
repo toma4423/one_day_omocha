@@ -1,8 +1,10 @@
 import json
+from datetime import timedelta
 
 import streamlit as st
 from streamlit_local_storage import LocalStorage
 
+from src.utils.image_maker import create_palmu_schedule_image
 from src.utils.palmu import (
     calculate_total_points,
     evaluate_rank_status,
@@ -13,7 +15,7 @@ from src.utils.storage import SafeStorage
 from src.utils.styles import render_donation_box, render_result_box
 from src.utils.time import get_jst_now
 
-st.set_page_config(page_title="Palmuランクメーター", page_icon="📊")
+st.set_page_config(page_title="Palmuランクメーター", page_icon="📊", layout="wide")
 
 storage = SafeStorage(LocalStorage())
 PALMU_STORAGE_KEY = "palmu_data"
@@ -47,8 +49,10 @@ def init_palmu_state():
 
 init_palmu_state()
 
-st.title("📊 Palmuランクメーター")
-st.markdown("Palmuのデイリーランクポイントを入力して、ランク状況をシミュレーションします。")
+st.title("📊 Palmuランクメーター & スケジュール作成")
+st.markdown(
+    "Palmuのデイリーランクポイントを入力して、ランク状況をシミュレーションし、配信用のスケジュール画像を作成します。"
+)
 
 # --- サイドバー：セーブ＆ロード ---
 with st.sidebar:
@@ -148,5 +152,104 @@ with col_result:
     else:
         st.write("---")
         st.success("🎉 ランクアップ確実です！おめでとうございます！")
+
+st.write("---")
+st.header("🗓️ スケジュール画像生成")
+st.markdown("上記で入力したポイント予定をもとに、配信用のスケジュール画像（背景透過）を作成します。")
+
+col_img_settings, col_img_preview = st.columns([1, 1])
+
+with col_img_settings:
+    st.subheader("⚙️ 画像設定")
+    now = get_jst_now()
+
+    start_date = st.date_input("開始日", value=now.date())
+    title_text = st.text_input("タイトル", value=f"{start_date.month}月 スケジュール")
+
+    st.markdown("#### カラー設定")
+    col_color1, col_color2 = st.columns(2)
+    with col_color1:
+        img_text_color = st.color_picker("文字の色", value="#FFFFFF")
+    with col_color2:
+        img_frame_color = st.color_picker("フレームの色", value="#FF5722")
+
+    is_transparent = st.checkbox("枠内の背景を完全に透過する", value=False)
+    if is_transparent:
+        img_bg_color_rgba = "#00000000"
+    else:
+        img_bg_color = st.color_picker("枠内の背景色", value="#000000")
+        img_bg_alpha = st.slider("枠内の不透明度 (%)", min_value=0, max_value=100, value=80)
+        alpha_hex = f"{int(img_bg_alpha * 255 / 100):02X}"
+        img_bg_color_rgba = f"{img_bg_color}{alpha_hex}"
+
+    st.markdown("#### サイズ・形状設定")
+    img_frame_width = st.slider("フレームの太さ", min_value=0, max_value=30, value=8)
+    img_corner_radius = st.slider("角丸の大きさ", min_value=0, max_value=200, value=30)
+    img_width = st.number_input("画像の幅", min_value=300, max_value=1000, value=600, step=10)
+
+with col_img_preview:
+    st.subheader("👁️ プレビュー")
+    try:
+        # スケジュールデータの構築
+        weekdays = ["月", "火", "水", "木", "金", "土", "日"]
+        schedule_data = []
+        for i in range(1, 8):
+            current_date = start_date + timedelta(days=i - 1)
+            date_str = f"{current_date.month}/{current_date.day} ({weekdays[current_date.weekday()]})"
+            pt = st.session_state[f"palmu_day_{i}"]
+            pt_str = f"+{pt}pt" if pt > 0 else "0pt"
+            schedule_data.append((date_str, pt_str))
+
+        total_text = f"合計: {total}pt ({status})"
+
+        img_bytes = create_palmu_schedule_image(
+            title=title_text,
+            schedule_data=schedule_data,
+            total_text=total_text,
+            text_color=img_text_color,
+            frame_color=img_frame_color,
+            bg_color=img_bg_color_rgba,
+            frame_width=img_frame_width,
+            corner_radius=img_corner_radius,
+            width=img_width,
+        )
+
+        # 背景透過が分かりやすいようにCSSで市松模様をプレビューの背景に敷く
+        st.markdown(
+            """
+            <style>
+            .preview-container {
+                background-color: #eee;
+                background-image: linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%, #ccc),
+                                  linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%, #ccc);
+                background-size: 20px 20px;
+                background-position: 0 0, 10px 10px;
+                padding: 20px;
+                border-radius: 10px;
+                text-align: center;
+                margin-bottom: 20px;
+            }
+            </style>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        import base64
+
+        b64_img = base64.b64encode(img_bytes).decode()
+        st.markdown(
+            f'<div class="preview-container"><img src="data:image/png;base64,{b64_img}" style="max-width: 100%; height: auto;"></div>',
+            unsafe_allow_html=True,
+        )
+
+        st.download_button(
+            label="画像をダウンロード (PNG)",
+            data=img_bytes,
+            file_name=f"palmu_schedule_{start_date.strftime('%Y%m%d')}.png",
+            mime="image/png",
+            use_container_width=True,
+        )
+    except Exception as e:
+        st.error(f"画像の生成中にエラーが発生しました: {e}")
 
 render_donation_box("https://paypay.me/xxxx", is_sidebar=True)
