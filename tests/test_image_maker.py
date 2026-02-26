@@ -35,7 +35,7 @@ def test_create_palmu_schedule_image():
         ("3/4 (水)", "+4pt"),
         ("3/5 (木)", "+1pt"),
     ]
-    img_bytes = create_palmu_schedule_image("2026年 2月 スケジュール", schedule_data, "合計: 19pt (ランクアップ)")
+    img_bytes = create_palmu_schedule_image("2026年 2月 スケジュール", schedule_data)
     assert isinstance(img_bytes, bytes)
     assert len(img_bytes) > 0
     assert img_bytes.startswith(b"\x89PNG")

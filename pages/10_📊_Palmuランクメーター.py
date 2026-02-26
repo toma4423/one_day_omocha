@@ -200,12 +200,9 @@ with col_img_preview:
             pt_str = f"+{pt}pt" if pt > 0 else "0pt"
             schedule_data.append((date_str, pt_str))
 
-        total_text = f"合計: {total}pt ({status})"
-
         img_bytes = create_palmu_schedule_image(
             title=title_text,
             schedule_data=schedule_data,
-            total_text=total_text,
             text_color=img_text_color,
             frame_color=img_frame_color,
             bg_color=img_bg_color_rgba,

@@ -70,7 +70,6 @@ def create_badge_image(
 def create_palmu_schedule_image(
     title: str,
     schedule_data: list[tuple[str, str]],
-    total_text: str,
     text_color: str = "#FFFFFF",
     frame_color: str = "#FF5722",
     bg_color: str = "#000000CC",
@@ -84,12 +83,11 @@ def create_palmu_schedule_image(
     # 行の高さなどを設定
     title_height = 80
     row_height = 50
-    footer_height = 80
     padding_top = 30
     padding_bottom = 30
 
     # 画像全体の高さを計算
-    height = padding_top + title_height + (len(schedule_data) * row_height) + footer_height + padding_bottom
+    height = padding_top + title_height + (len(schedule_data) * row_height) + padding_bottom
 
     img = Image.new("RGBA", (width, height), (0, 0, 0, 0))
     draw = ImageDraw.Draw(img)
@@ -109,11 +107,9 @@ def create_palmu_schedule_image(
     try:
         title_font = ImageFont.truetype(str(FONT_PATH), 40)
         row_font = ImageFont.truetype(str(FONT_PATH), 30)
-        footer_font = ImageFont.truetype(str(FONT_PATH), 36)
     except OSError:
         title_font = ImageFont.load_default()  # type: ignore
         row_font = ImageFont.load_default()  # type: ignore
-        footer_font = ImageFont.load_default()  # type: ignore
 
     text_rgba = hex_to_rgba(text_color)
 
@@ -144,18 +140,6 @@ def create_palmu_schedule_image(
         draw.text((width * 0.85 - p_w, p_y), point_str, fill=text_rgba, font=row_font)
 
         current_y += row_height
-
-    # 4. 区切り線 (フッターの上)
-    line2_y = current_y + 10
-    draw.line([(width * 0.1, line2_y), (width * 0.9, line2_y)], fill=text_rgba, width=2)
-
-    # 5. フッター (合計) の描画
-    f_bbox = draw.textbbox((0, 0), total_text, font=footer_font)
-    f_w = f_bbox[2] - f_bbox[0]
-    f_h = f_bbox[3] - f_bbox[1]
-    f_x = (width - f_w) / 2
-    f_y = line2_y + (footer_height - f_h) / 2 - f_bbox[1]
-    draw.text((f_x, f_y), total_text, fill=text_rgba, font=footer_font)
 
     buf = BytesIO()
     img.save(buf, format="PNG")
