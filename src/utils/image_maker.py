@@ -144,6 +144,7 @@ def create_palmu_calendar_grid_image(
     frame_color: str = "#FF5722",
     bg_color: str = "#000000CC",
     width: int = 1000,
+    cell_bg_colors: list[str] | None = None,
 ) -> bytes:
     """
     Palmuの月間スケジュールを7列のグリッド形式（カレンダー風）で描画した画像を生成します。
@@ -162,7 +163,7 @@ def create_palmu_calendar_grid_image(
     draw = ImageDraw.Draw(img)
 
     outline = hex_to_rgba(frame_color)
-    fill = hex_to_rgba(bg_color)
+    default_fill = hex_to_rgba(bg_color)
     text_rgba = hex_to_rgba(text_color)
 
     # 背景と外枠
@@ -171,7 +172,7 @@ def create_palmu_calendar_grid_image(
         radius=30,
         outline=outline,
         width=8,
-        fill=fill,
+        fill=default_fill,
     )
 
     try:
@@ -200,35 +201,46 @@ def create_palmu_calendar_grid_image(
         x = start_x + (c * cell_size)
         y = start_y + (r * cell_size)
 
+        # セルの背景色（個別指定があればそれを使う）
+        current_fill = default_fill
+        if cell_bg_colors and idx < len(cell_bg_colors) and cell_bg_colors[idx]:
+            current_fill = hex_to_rgba(cell_bg_colors[idx])
+
+        if current_fill != default_fill:
+            draw.rectangle([(x, y), (x + cell_size, y + cell_size)], fill=current_fill)
+
         # セルの枠
         draw.rectangle([(x, y), (x + cell_size, y + cell_size)], outline=outline, width=2)
 
         # 日付 (左上)
         date_text = item.get("date", "")
-        draw.text((x + 8, y + 8), date_text, fill=text_rgba, font=date_font)
+        if date_text:
+            draw.text((x + 8, y + 8), date_text, fill=text_rgba, font=date_font)
 
-        # 曜日 (日付の横)
-        day_text = item.get("day", "")
-        draw.text(
-            (x + 40, y + 10),
-            f"({day_text})",
-            fill=text_rgba,
-            font=ImageFont.truetype(str(FONT_PATH), 18) if isinstance(date_font, ImageFont.FreeTypeFont) else date_font,
-        )
+            # 曜日 (日付の横)
+            day_text = item.get("day", "")
+            draw.text(
+                (x + 40, y + 10),
+                f"({day_text})",
+                fill=text_rgba,
+                font=ImageFont.truetype(str(FONT_PATH), 18)
+                if isinstance(date_font, ImageFont.FreeTypeFont)
+                else date_font,
+            )
 
-        # ポイント (中央)
-        point_text = item.get("point", "")
-        p_bbox = draw.textbbox((0, 0), point_text, font=point_font)
-        p_w = p_bbox[2] - p_bbox[0]
-        p_h = p_bbox[3] - p_bbox[1]
+            # ポイント (中央)
+            point_text = item.get("point", "")
+            p_bbox = draw.textbbox((0, 0), point_text, font=point_font)
+            p_w = p_bbox[2] - p_bbox[0]
+            p_h = p_bbox[3] - p_bbox[1]
 
-        # 中央に配置
-        draw.text(
-            (x + (cell_size - p_w) / 2, y + (cell_size - p_h) / 2 + 5 - p_bbox[1]),
-            point_text,
-            fill=text_rgba,
-            font=point_font,
-        )
+            # 中央に配置
+            draw.text(
+                (x + (cell_size - p_w) / 2, y + (cell_size - p_h) / 2 + 5 - p_bbox[1]),
+                point_text,
+                fill=text_rgba,
+                font=point_font,
+            )
 
     buf = BytesIO()
     img.save(buf, format="PNG")

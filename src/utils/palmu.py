@@ -2,7 +2,7 @@ from datetime import date, timedelta
 
 
 def calculate_total_points(daily_points: list[int | str]) -> int:
-    """日ごとのポイント合計を計算します（'スキップ'等は0として扱う）。"""
+    """日ごとのポイント合計を計算します（'SKIP'等は0として扱う）。"""
     return sum(int(p) for p in daily_points if isinstance(p, int) or (isinstance(p, str) and p.isdigit()))
 
 
@@ -77,7 +77,7 @@ def calculate_skip_card_balance(
     """
     日ごとのスキップカード残高を計算します。
     - 毎週月曜日に+2枚（上限10枚）
-    - 'スキップ'を選択した日に-1枚
+    - 'SKIP'を選択した日に-1枚
     """
     balances = []
     current = initial_balance
@@ -86,13 +86,11 @@ def calculate_skip_card_balance(
         current_date = start_date + timedelta(days=i)
 
         # 月曜日になったら +2 枚 (所持上限 10 枚)
-        # ※開始日が月曜日の場合は配布タイミングによって変わるが、通常は前週の実績に対して配布される
-        # ここでは「月曜日の0時に配布される」とし、開始日が月曜日の場合はその日に配布されるものとして扱う
         if current_date.weekday() == 0:
             current = min(10, current + 2)
 
         # 当日の消費
-        if daily_values[i] == "スキップ":
+        if daily_values[i] == "SKIP":
             current = max(0, current - 1)
 
         balances.append(current)
@@ -102,14 +100,34 @@ def calculate_skip_card_balance(
 
 def group_points_by_active_week(daily_values: list[int | str]) -> list[list[int]]:
     """
-    'スキップ'を除いた有効な配信日を7日間ずつにまとめます。
+    'SKIP'を除いた有効な配信日を7日間ずつにまとめます。
     """
-    active_points = [p for p in daily_values if p != "スキップ"]
+    active_points = [p for p in daily_values if p != "SKIP"]
 
     weeks = []
     for i in range(0, len(active_points), 7):
         week = active_points[i : i + 7]
-        # キャスト（isdigitのチェックは呼び出し側で担保されている前提だが安全のため）
+        # キャスト
         weeks.append([int(p) if isinstance(p, int) or (isinstance(p, str) and p.isdigit()) else 0 for p in week])
 
     return weeks
+
+
+def get_day_period_assignments(daily_values: list[int | str]) -> list[int]:
+    """
+    各日付が「第何期（ランク判定周期）」に属するかを返します。
+    - SKIPの日は 0
+    - 配信日は 1, 1, 1... (7日間分), 2, 2, 2... と割り当て
+    """
+    assignments = []
+    active_count = 0
+
+    for val in daily_values:
+        if val == "SKIP":
+            assignments.append(0)
+        else:
+            period = (active_count // 7) + 1
+            assignments.append(period)
+            active_count += 1
+
+    return assignments

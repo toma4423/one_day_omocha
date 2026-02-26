@@ -8,6 +8,7 @@ from src.utils.image_maker import create_palmu_calendar_grid_image
 from src.utils.palmu import (
     calculate_skip_card_balance,
     evaluate_rank_status,
+    get_day_period_assignments,
     group_points_by_active_week,
     points_needed_for_rank_up,
 )
@@ -130,18 +131,30 @@ st.write("---")
 point_options = ["SKIP", 1, 2, 4, 6]
 weekdays_sun_start = ["日", "月", "火", "水", "木", "金", "土"]
 
-# 月間なのでグリッド表示にする
+# 期間ごとの色設定（背景色）
+PERIOD_COLORS = [
+    "#F5F5F5",  # 0: SKIP/休み (薄グレー)
+    "#E3F2FD",  # 1: 青系
+    "#E8F5E9",  # 2: 緑系
+    "#FFF3E0",  # 3: オレンジ系
+    "#F3E5F5",  # 4: 紫系
+    "#FFFDE7",  # 5: 黄色系
+]
+
 st.subheader(f"📝 デイリーポイント入力 ({num_days}日間)")
 reset_id = st.session_state.palmu_month_reset_counter
 
-# スキップカード残高の事前計算
-daily_vals_for_balance = [st.session_state.get(f"pm_day_{i}", 1) for i in range(1, num_days + 1)]
-# 互換性チェック
-for i in range(len(daily_vals_for_balance)):
-    if daily_vals_for_balance[i] == "スキップ":
-        daily_vals_for_balance[i] = "SKIP"
+# ランク周期の割り当て計算
+daily_vals_for_analysis = [st.session_state.get(f"pm_day_{i}", 1) for i in range(1, num_days + 1)]
+# 互換性
+for i in range(len(daily_vals_for_analysis)):
+    if daily_vals_for_analysis[i] == "スキップ":
+        daily_vals_for_analysis[i] = "SKIP"
 
-skip_balances = calculate_skip_card_balance(initial_skip_cards, start_date, num_days, daily_vals_for_balance)
+period_assignments = get_day_period_assignments(daily_vals_for_analysis)
+
+# スキップカード残高の事前計算
+skip_balances = calculate_skip_card_balance(initial_skip_cards, start_date, num_days, daily_vals_for_analysis)
 
 # 日曜日開始のためのパディング計算
 start_weekday_idx = (start_date.weekday() + 1) % 7
@@ -168,6 +181,17 @@ for r in range(rows):
             if 1 <= day_idx <= num_days:
                 current_date = start_date + timedelta(days=day_idx - 1)
                 date_label = f"{current_date.month}/{current_date.day}"
+
+                # ランク周期の表示
+                p_idx = period_assignments[day_idx - 1]
+                p_text = f"第{p_idx}期" if p_idx > 0 else "休み"
+                p_color = PERIOD_COLORS[p_idx % len(PERIOD_COLORS)]
+
+                # UI上で色分けを表現 (コンテナの背景色として疑似的に表現)
+                st.markdown(
+                    f"<div style='background-color:{p_color}; padding:2px; border-radius:5px; font-size:12px; text-align:center; border:1px solid #ddd; margin-bottom:5px;'>{p_text}</div>",
+                    unsafe_allow_html=True,
+                )
 
                 # スキップカード残高の表示
                 balance = skip_balances[day_idx - 1]
@@ -257,18 +281,33 @@ with col_img_preview:
     st.subheader("👁️ プレビュー")
     try:
         # スケジュールデータの構築
-        # カレンダー形式に合わせるため、開始曜日までのパディングを追加
         calendar_data = []
+        cell_bg_colors = []
+
+        # 画像用の周期色（背景透過度を考慮した半透明色）
+        IMG_PERIOD_COLORS = [
+            "#F5F5F544",  # SKIP (薄いグレー)
+            "#1976D244",  # 第1期 (青・半透明)
+            "#388E3C44",  # 第2期 (緑・半透明)
+            "#F57C0044",  # 第3期 (オレンジ・半透明)
+            "#7B1FA244",  # 第4期 (紫・半透明)
+            "#FBC02D44",  # 第5期 (黄色・半透明)
+        ]
 
         # 1. 開始前の空欄パディング
         for i in range(start_weekday_idx):
             calendar_data.append({"date": "", "day": weekdays_sun_start[i], "point": ""})
+            cell_bg_colors.append("")
 
         # 2. 実際の日付データ
         for i in range(1, num_days + 1):
             current_date = start_date + timedelta(days=i - 1)
             pt = st.session_state[f"pm_day_{i}"]
             pt_str = "SKIP" if pt == "SKIP" else f"+{pt}pt"
+
+            # 周期に基づく色割り当て
+            p_idx = period_assignments[i - 1]
+            bg_col = IMG_PERIOD_COLORS[p_idx % len(IMG_PERIOD_COLORS)] if p_idx > 0 else IMG_PERIOD_COLORS[0]
 
             calendar_data.append(
                 {
@@ -277,6 +316,7 @@ with col_img_preview:
                     "point": pt_str,
                 }
             )
+            cell_bg_colors.append(bg_col)
 
         # 月間用の描画（カレンダー形式）
         img_bytes = create_palmu_calendar_grid_image(
@@ -286,6 +326,7 @@ with col_img_preview:
             frame_color=img_frame_color,
             bg_color=img_bg_color_rgba,
             width=img_width,
+            cell_bg_colors=cell_bg_colors,
         )
 
         import base64

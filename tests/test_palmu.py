@@ -5,6 +5,7 @@ from src.utils.palmu import (
     calculate_total_points,
     evaluate_rank_status,
     generate_point_presets,
+    get_day_period_assignments,
     group_points_by_active_week,
     points_needed_for_keep,
     points_needed_for_rank_up,
@@ -14,8 +15,8 @@ from src.utils.palmu import (
 def test_calculate_total_points():
     assert calculate_total_points([6, 4, 2, 0, 0, 0, 0]) == 12
     assert calculate_total_points([1, 1, 1, 1, 1, 1, 1]) == 7
-    assert calculate_total_points(["スキップ", 4, 2, 0, 0, 0, 0]) == 6
-    assert calculate_total_points([6, "スキップ", "スキップ", 1]) == 7
+    assert calculate_total_points(["SKIP", 4, 2, 0, 0, 0, 0]) == 6
+    assert calculate_total_points([6, "SKIP", "SKIP", 1]) == 7
     assert calculate_total_points([]) == 0
 
 
@@ -59,7 +60,7 @@ def test_generate_point_presets():
 def test_calculate_skip_card_balance():
     # 2/23(月) 開始とする
     start = date(2026, 2, 23)
-    daily = [1, "スキップ", 1, 1, 1, 1, 1, 1, 1]  # 9日間
+    daily = [1, "SKIP", 1, 1, 1, 1, 1, 1, 1]  # 9日間
     # 初日(月)に+2、翌日(火)にスキップで-1
     balances = calculate_skip_card_balance(2, start, 9, daily)
     assert balances[0] == 4  # 2+2
@@ -75,10 +76,18 @@ def test_calculate_skip_card_balance():
 
 
 def test_group_points_by_active_week():
-    daily = [6, 4, "スキップ", 4, 1, 1, 1, 1, 2, 2]
+    daily = [6, 4, "SKIP", 4, 1, 1, 1, 1, 2, 2]
     # スキップ除外: [6, 4, 4, 1, 1, 1, 1, 2, 2]
     # 7日ごと: [[6, 4, 4, 1, 1, 1, 1], [2, 2]]
     weeks = group_points_by_active_week(daily)
     assert len(weeks) == 2
     assert sum(weeks[0]) == 18
     assert sum(weeks[1]) == 4
+
+
+def test_get_day_period_assignments():
+    daily = [1, 1, "SKIP", 1, 1, 1, 1, 1, 4, 4]
+    # 配信日: [1, 2, skip, 3, 4, 5, 6, 7, 8, 9] (active count)
+    # 期: [1, 1, 0, 1, 1, 1, 1, 1, 2, 2]
+    assigns = get_day_period_assignments(daily)
+    assert assigns == [1, 1, 0, 1, 1, 1, 1, 1, 2, 2]
