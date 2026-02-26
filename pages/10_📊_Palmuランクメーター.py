@@ -49,9 +49,9 @@ def init_palmu_state():
 
 init_palmu_state()
 
-st.title("📊 Palmuランクメーター & スケジュール作成")
+st.title("📊 Palmu週間予定表 (ランクメーター)")
 st.markdown(
-    "Palmuのデイリーランクポイントを入力して、ランク状況をシミュレーションし、配信用のスケジュール画像を作成します。"
+    "Palmuのデイリーランクポイントを入力して、ランク状況をシミュレーションし、配信用の1週間のスケジュール画像を作成します。"
 )
 
 # --- サイドバー：セーブ＆ロード ---
@@ -90,6 +90,14 @@ with st.sidebar:
         storage.delete_item(PALMU_STORAGE_KEY)
         st.rerun()
 
+# --- 共通設定（開始日） ---
+now = get_jst_now()
+st.subheader("📅 スケジュール開始日設定")
+start_date = st.date_input("開始日を選択してください", value=now.date())
+weekdays = ["月", "火", "水", "木", "金", "土", "日"]
+
+st.write("---")
+
 # --- メインエリア ---
 point_options = [0, 1, 2, 4, 6]
 
@@ -99,10 +107,13 @@ reset_id = st.session_state.palmu_reset_counter
 with col_input:
     st.subheader("📝 デイリーポイント入力")
     for i in range(1, 8):
+        current_date = start_date + timedelta(days=i - 1)
+        date_label = f"{current_date.month}/{current_date.day} ({weekdays[current_date.weekday()]})"
+
         val = st.session_state[f"palmu_day_{i}"]
         index = point_options.index(val) if val in point_options else 0
         st.session_state[f"palmu_day_{i}"] = st.selectbox(
-            f"{i}日目",
+            date_label,
             options=point_options,
             index=index,
             key=f"p_day_{i}_{reset_id}",
@@ -161,9 +172,7 @@ col_img_settings, col_img_preview = st.columns([1, 1])
 
 with col_img_settings:
     st.subheader("⚙️ 画像設定")
-    now = get_jst_now()
 
-    start_date = st.date_input("開始日", value=now.date())
     title_text = st.text_input("タイトル", value=f"{start_date.month}月 スケジュール")
 
     st.markdown("#### カラー設定")
