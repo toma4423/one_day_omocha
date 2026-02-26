@@ -281,33 +281,18 @@ with col_img_preview:
     st.subheader("👁️ プレビュー")
     try:
         # スケジュールデータの構築
+        # カレンダー形式に合わせるため、開始曜日までのパディングを追加
         calendar_data = []
-        cell_bg_colors = []
-
-        # 画像用の周期色（背景透過度を考慮した半透明色 - 視認性向上のためアルファ値を上げ、色を濃く設定）
-        IMG_PERIOD_COLORS = [
-            "#9E9E9E80",  # SKIP (グレー)
-            "#2196F380",  # 第1期 (青)
-            "#4CAF5080",  # 第2期 (緑)
-            "#FF980080",  # 第3期 (オレンジ)
-            "#9C27B080",  # 第4期 (紫)
-            "#FDD83580",  # 第5期 (黄色)
-        ]
 
         # 1. 開始前の空欄パディング
         for i in range(start_weekday_idx):
             calendar_data.append({"date": "", "day": weekdays_sun_start[i], "point": ""})
-            cell_bg_colors.append("")
 
         # 2. 実際の日付データ
         for i in range(1, num_days + 1):
             current_date = start_date + timedelta(days=i - 1)
             pt = st.session_state[f"pm_day_{i}"]
             pt_str = "SKIP" if pt == "SKIP" else f"+{pt}pt"
-
-            # 周期に基づく色割り当て
-            p_idx = period_assignments[i - 1]
-            bg_col = IMG_PERIOD_COLORS[p_idx % len(IMG_PERIOD_COLORS)] if p_idx > 0 else IMG_PERIOD_COLORS[0]
 
             calendar_data.append(
                 {
@@ -316,7 +301,6 @@ with col_img_preview:
                     "point": pt_str,
                 }
             )
-            cell_bg_colors.append(bg_col)
 
         # 月間用の描画（カレンダー形式）
         img_bytes = create_palmu_calendar_grid_image(
@@ -326,7 +310,6 @@ with col_img_preview:
             frame_color=img_frame_color,
             bg_color=img_bg_color_rgba,
             width=img_width,
-            cell_bg_colors=cell_bg_colors,
         )
 
         import base64
