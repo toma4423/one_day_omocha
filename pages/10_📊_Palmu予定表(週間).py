@@ -41,7 +41,12 @@ def load_from_storage():
     if data:
         for i in range(1, MAX_DAYS + 1):
             val = data.get(f"day_{i}", 1)
-            st.session_state[f"palmu_day_{i}"] = 1 if val == 0 else val
+            # 0は1に、"スキップ"は"SKIP"に変換
+            if val == 0:
+                val = 1
+            elif val == "スキップ":
+                val = "SKIP"
+            st.session_state[f"palmu_day_{i}"] = val
         st.session_state.palmu_skip_cards = data.get("skip_cards", 0)
         return True
     return False
@@ -84,7 +89,10 @@ with st.sidebar:
             try:
                 data_load = json.load(uploaded_file)
                 for i in range(1, MAX_DAYS + 1):
-                    st.session_state[f"palmu_day_{i}"] = data_load.get(f"day_{i}", 0)
+                    val = data_load.get(f"day_{i}", 1)
+                    if val == "スキップ":
+                        val = "SKIP"
+                    st.session_state[f"palmu_day_{i}"] = val
                 st.session_state.palmu_skip_cards = data_load.get("skip_cards", 0)
                 save_to_storage()
                 st.success("復元しました！")
@@ -140,21 +148,21 @@ with st.expander("💡 おすすめのポイント取得パターンを見る（
             st.caption(f"[{p_str}]")
 
             if st.button("適用", key=f"apply_preset_{target_val}_{idx}"):
-                # 適用時、先頭から順にプリセットを入れ、残りのスキップ分を末尾に「スキップ」として設定
+                # 適用時、先頭から順にプリセットを入れ、残りのスキップ分を末尾に「SKIP」として設定
                 for i in range(1, MAX_DAYS + 1):
                     if i <= 7:
                         st.session_state[f"palmu_day_{i}"] = p[i - 1]
                     elif i <= total_days:
-                        st.session_state[f"palmu_day_{i}"] = "スキップ"
+                        st.session_state[f"palmu_day_{i}"] = "SKIP"
                     else:
-                        st.session_state[f"palmu_day_{i}"] = 0
+                        st.session_state[f"palmu_day_{i}"] = 1
                 save_to_storage()
                 st.rerun()
 
 st.write("---")
 
 # --- メインエリア ---
-point_options = ["スキップ", 1, 2, 4, 6]
+point_options = ["SKIP", 1, 2, 4, 6]
 weekdays = ["月", "火", "水", "木", "金", "土", "日"]
 
 col_input, col_space, col_result = st.columns([2, 0.5, 2])
@@ -167,9 +175,11 @@ with col_input:
         date_label = f"{current_date.month}/{current_date.day} ({weekdays[current_date.weekday()]})"
 
         val = st.session_state.get(f"palmu_day_{i}", 1)
-        # 以前のバージョンで保存された0が読み込まれた場合、1に変換する
+        # 以前のバージョンで保存された値の互換性
         if val == 0:
             val = 1
+        elif val == "スキップ":
+            val = "SKIP"
             st.session_state[f"palmu_day_{i}"] = val
 
         index = point_options.index(val) if val in point_options else 1  # デフォルトは1
@@ -270,8 +280,8 @@ with col_img_preview:
             date_str = f"{current_date.month}/{current_date.day} ({weekdays[current_date.weekday()]})"
             pt = st.session_state[f"palmu_day_{i}"]
 
-            if pt == "スキップ":
-                pt_str = "スキップ"
+            if pt == "SKIP":
+                pt_str = "SKIP"
             else:
                 pt_str = f"+{pt}pt" if pt > 0 else "0pt"
 

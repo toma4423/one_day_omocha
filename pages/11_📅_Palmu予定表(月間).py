@@ -41,7 +41,11 @@ def load_from_storage():
     if data:
         for i in range(1, MAX_MONTH_DAYS + 1):
             val = data.get(f"day_{i}", 1)
-            st.session_state[f"pm_day_{i}"] = 1 if val == 0 else val
+            if val == 0:
+                val = 1
+            elif val == "スキップ":
+                val = "SKIP"
+            st.session_state[f"pm_day_{i}"] = val
         st.session_state.palmu_month_skip_cards = data.get("skip_cards", 0)
         return True
     return False
@@ -82,7 +86,10 @@ with st.sidebar:
             try:
                 data_load = json.load(uploaded_file)
                 for i in range(1, MAX_MONTH_DAYS + 1):
-                    st.session_state[f"pm_day_{i}"] = data_load.get(f"day_{i}", 1)
+                    val = data_load.get(f"day_{i}", 1)
+                    if val == "スキップ":
+                        val = "SKIP"
+                    st.session_state[f"pm_day_{i}"] = val
                 st.session_state.palmu_month_skip_cards = data_load.get("skip_cards", 0)
                 save_to_storage()
                 st.success("復元しました！")
@@ -120,14 +127,20 @@ with col_skip:
 st.write("---")
 
 # --- メインエリア ---
-point_options = ["スキップ", 1, 2, 4, 6]
+point_options = ["SKIP", 1, 2, 4, 6]
 weekdays_sun_start = ["日", "月", "火", "水", "木", "金", "土"]
 
+# 月間なのでグリッド表示にする
 st.subheader(f"📝 デイリーポイント入力 ({num_days}日間)")
 reset_id = st.session_state.palmu_month_reset_counter
 
 # スキップカード残高の事前計算
 daily_vals_for_balance = [st.session_state.get(f"pm_day_{i}", 1) for i in range(1, num_days + 1)]
+# 互換性チェック
+for i in range(len(daily_vals_for_balance)):
+    if daily_vals_for_balance[i] == "スキップ":
+        daily_vals_for_balance[i] = "SKIP"
+
 skip_balances = calculate_skip_card_balance(initial_skip_cards, start_date, num_days, daily_vals_for_balance)
 
 # 日曜日開始のためのパディング計算
@@ -163,6 +176,9 @@ for r in range(rows):
                 val = st.session_state.get(f"pm_day_{day_idx}", 1)
                 if val == 0:
                     val = 1
+                elif val == "スキップ":
+                    val = "SKIP"
+                    st.session_state[f"pm_day_{day_idx}"] = val
 
                 try:
                     index = point_options.index(val)
@@ -178,6 +194,7 @@ for r in range(rows):
                     format_func=lambda x: f"+{x}" if isinstance(x, int) else str(x),
                 )
             else:
+                # 範囲外は空欄
                 st.write("")
 
 st.write("---")
@@ -251,7 +268,7 @@ with col_img_preview:
         for i in range(1, num_days + 1):
             current_date = start_date + timedelta(days=i - 1)
             pt = st.session_state[f"pm_day_{i}"]
-            pt_str = "スキップ" if pt == "スキップ" else f"+{pt}pt"
+            pt_str = "SKIP" if pt == "SKIP" else f"+{pt}pt"
 
             calendar_data.append(
                 {
