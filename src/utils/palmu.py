@@ -25,7 +25,7 @@ def points_needed_for_rank_up(total_points: int) -> int:
 
 def generate_point_presets(target: int) -> list[tuple[int, ...]]:
     """目標ポイント（12または18）を達成するための7日間のポイント構成例を生成します。"""
-    options = [6, 4, 2, 1, 0]
+    options = [6, 4, 2, 1]
     results = []
 
     def backtrack(current_combination: list[int], current_sum: int, start_idx: int) -> None:
