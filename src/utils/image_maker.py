@@ -32,7 +32,6 @@ def create_badge_image(
     """
     指定されたパラメータで透過背景のバッジ画像を生成します。
     """
-    # 背景全体は完全に透過
     img = Image.new("RGBA", (width, height), (0, 0, 0, 0))
     draw = ImageDraw.Draw(img)
 
@@ -78,15 +77,13 @@ def create_palmu_schedule_image(
     width: int = 600,
 ) -> bytes:
     """
-    Palmuの7日間のスケジュールとポイントを描画したカレンダー画像を生成します。
+    Palmuのスケジュールを描画したリスト形式の画像を生成します。
     """
-    # 行の高さなどを設定
     title_height = 80
     row_height = 50
     padding_top = 30
     padding_bottom = 30
 
-    # 画像全体の高さを計算
     height = padding_top + title_height + (len(schedule_data) * row_height) + padding_bottom
 
     img = Image.new("RGBA", (width, height), (0, 0, 0, 0))
@@ -113,7 +110,6 @@ def create_palmu_schedule_image(
 
     text_rgba = hex_to_rgba(text_color)
 
-    # 1. タイトルの描画
     bbox = draw.textbbox((0, 0), title, font=title_font)
     t_w = bbox[2] - bbox[0]
     t_h = bbox[3] - bbox[1]
@@ -121,25 +117,118 @@ def create_palmu_schedule_image(
     t_y = padding_top + (title_height - t_h) / 2 - bbox[1]
     draw.text((t_x, t_y), title, fill=text_rgba, font=title_font)
 
-    # 2. 区切り線 (タイトルの下)
     line_y = padding_top + title_height
     draw.line([(width * 0.1, line_y), (width * 0.9, line_y)], fill=text_rgba, width=2)
 
-    # 3. スケジュール行の描画
     current_y = line_y + 10
     for date_str, point_str in schedule_data:
-        # 日付 (左側)
         d_bbox = draw.textbbox((0, 0), date_str, font=row_font)
         d_y = current_y + (row_height - (d_bbox[3] - d_bbox[1])) / 2 - d_bbox[1]
         draw.text((width * 0.15, d_y), date_str, fill=text_rgba, font=row_font)
 
-        # ポイント (右側)
         p_bbox = draw.textbbox((0, 0), point_str, font=row_font)
         p_w = p_bbox[2] - p_bbox[0]
         p_y = current_y + (row_height - (p_bbox[3] - p_bbox[1])) / 2 - p_bbox[1]
         draw.text((width * 0.85 - p_w, p_y), point_str, fill=text_rgba, font=row_font)
-
         current_y += row_height
+
+    buf = BytesIO()
+    img.save(buf, format="PNG")
+    return buf.getvalue()
+
+
+def create_palmu_calendar_grid_image(
+    title: str,
+    calendar_data: list[dict[str, str]],
+    text_color: str = "#FFFFFF",
+    frame_color: str = "#FF5722",
+    bg_color: str = "#000000CC",
+    width: int = 1000,
+) -> bytes:
+    """
+    Palmuの月間スケジュールを7列のグリッド形式（カレンダー風）で描画した画像を生成します。
+    """
+    cols = 7
+    rows = (len(calendar_data) + cols - 1) // cols
+
+    # 1セルのサイズ
+    cell_size = (width - 100) // cols
+    title_height = 100
+    padding = 50
+
+    height = title_height + (rows * cell_size) + (padding * 2)
+
+    img = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(img)
+
+    outline = hex_to_rgba(frame_color)
+    fill = hex_to_rgba(bg_color)
+    text_rgba = hex_to_rgba(text_color)
+
+    # 背景と外枠
+    draw.rounded_rectangle(
+        [(10, 10), (width - 11, height - 11)],
+        radius=30,
+        outline=outline,
+        width=8,
+        fill=fill,
+    )
+
+    try:
+        title_font = ImageFont.truetype(str(FONT_PATH), 50)
+        date_font = ImageFont.truetype(str(FONT_PATH), 24)
+        point_font = ImageFont.truetype(str(FONT_PATH), 28)
+    except OSError:
+        title_font = ImageFont.load_default()  # type: ignore
+        date_font = ImageFont.load_default()  # type: ignore
+        point_font = ImageFont.load_default()  # type: ignore
+
+    # タイトル
+    bbox = draw.textbbox((0, 0), title, font=title_font)
+    t_w = bbox[2] - bbox[0]
+    t_y = padding + (title_height - (bbox[3] - bbox[1])) / 2 - bbox[1]
+    draw.text(((width - t_w) / 2, t_y), title, fill=text_rgba, font=title_font)
+
+    # グリッド描画
+    start_y = padding + title_height
+    start_x = (width - (cell_size * cols)) / 2
+
+    for idx, item in enumerate(calendar_data):
+        r = idx // cols
+        c = idx % cols
+
+        x = start_x + (c * cell_size)
+        y = start_y + (r * cell_size)
+
+        # セルの枠
+        draw.rectangle([(x, y), (x + cell_size, y + cell_size)], outline=outline, width=2)
+
+        # 日付 (左上)
+        date_text = item.get("date", "")
+        draw.text((x + 8, y + 8), date_text, fill=text_rgba, font=date_font)
+
+        # 曜日 (日付の横)
+        day_text = item.get("day", "")
+        draw.text(
+            (x + 40, y + 10),
+            f"({day_text})",
+            fill=text_rgba,
+            font=ImageFont.truetype(str(FONT_PATH), 18) if isinstance(date_font, ImageFont.FreeTypeFont) else date_font,
+        )
+
+        # ポイント (中央)
+        point_text = item.get("point", "")
+        p_bbox = draw.textbbox((0, 0), point_text, font=point_font)
+        p_w = p_bbox[2] - p_bbox[0]
+        p_h = p_bbox[3] - p_bbox[1]
+
+        # 中央に配置
+        draw.text(
+            (x + (cell_size - p_w) / 2, y + (cell_size - p_h) / 2 + 5 - p_bbox[1]),
+            point_text,
+            fill=text_rgba,
+            font=point_font,
+        )
 
     buf = BytesIO()
     img.save(buf, format="PNG")

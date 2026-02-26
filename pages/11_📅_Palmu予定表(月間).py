@@ -4,7 +4,7 @@ from datetime import timedelta
 import streamlit as st
 from streamlit_local_storage import LocalStorage
 
-from src.utils.image_maker import create_palmu_schedule_image
+from src.utils.image_maker import create_palmu_calendar_grid_image
 from src.utils.palmu import (
     calculate_total_points,
     evaluate_rank_status,
@@ -208,23 +208,24 @@ with col_img_preview:
     st.subheader("👁️ プレビュー")
     try:
         # スケジュールデータの構築
-        schedule_data = []
+        calendar_data = []
         for i in range(1, num_days + 1):
             current_date = start_date + timedelta(days=i - 1)
-            date_str = f"{current_date.month}/{current_date.day}({weekdays[current_date.weekday()]})"
             pt = st.session_state[f"pm_day_{i}"]
             pt_str = "スキップ" if pt == "スキップ" else f"+{pt}pt"
-            schedule_data.append((date_str, pt_str))
 
-        # 月間用の描画（長くなるため、image_maker側の関数を再利用しつつ適切なサイズで）
-        img_bytes = create_palmu_schedule_image(
+            calendar_data.append(
+                {"date": str(current_date.day), "day": weekdays[current_date.weekday()], "point": pt_str}
+            )
+
+        # 月間用の描画（カレンダー形式）
+        img_bytes = create_palmu_calendar_grid_image(
             title=title_text,
-            schedule_data=schedule_data,
+            calendar_data=calendar_data,
             text_color=img_text_color,
             frame_color=img_frame_color,
             bg_color=img_bg_color_rgba,
             width=img_width,
-            # 月間は項目が多いので角丸やフレームは固定気味でも良いが、image_maker側のデフォルトを使用
         )
 
         import base64
