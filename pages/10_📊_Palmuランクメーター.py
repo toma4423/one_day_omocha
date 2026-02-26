@@ -31,7 +31,7 @@ if "palmu_skip_cards" not in st.session_state:
 
 
 def save_to_storage():
-    data = {f"day_{i}": st.session_state.get(f"palmu_day_{i}", 0) for i in range(1, MAX_DAYS + 1)}
+    data = {f"day_{i}": st.session_state.get(f"palmu_day_{i}", 1) for i in range(1, MAX_DAYS + 1)}
     data["skip_cards"] = st.session_state.get("palmu_skip_cards", 0)
     storage.set_item(PALMU_STORAGE_KEY, data)
 
@@ -40,7 +40,8 @@ def load_from_storage():
     data = storage.get_item(PALMU_STORAGE_KEY, is_json=True)
     if data:
         for i in range(1, MAX_DAYS + 1):
-            st.session_state[f"palmu_day_{i}"] = data.get(f"day_{i}", 0)
+            val = data.get(f"day_{i}", 1)
+            st.session_state[f"palmu_day_{i}"] = 1 if val == 0 else val
         st.session_state.palmu_skip_cards = data.get("skip_cards", 0)
         return True
     return False
@@ -50,7 +51,7 @@ def init_palmu_state():
     if "palmu_day_1" not in st.session_state:
         if not load_from_storage():
             for i in range(1, MAX_DAYS + 1):
-                st.session_state[f"palmu_day_{i}"] = 0
+                st.session_state[f"palmu_day_{i}"] = 1
             st.session_state.palmu_skip_cards = 0
 
 
@@ -94,7 +95,7 @@ with st.sidebar:
     st.write("---")
     if st.button("全ての入力をリセット", use_container_width=True):
         for i in range(1, MAX_DAYS + 1):
-            st.session_state[f"palmu_day_{i}"] = 0
+            st.session_state[f"palmu_day_{i}"] = 1
         st.session_state.palmu_skip_cards = 0
         st.session_state.palmu_reset_counter += 1
         storage.delete_item(PALMU_STORAGE_KEY)
@@ -153,7 +154,7 @@ with st.expander("💡 おすすめのポイント取得パターンを見る（
 st.write("---")
 
 # --- メインエリア ---
-point_options = ["スキップ", 0, 1, 2, 4, 6]
+point_options = ["スキップ", 1, 2, 4, 6]
 weekdays = ["月", "火", "水", "木", "金", "土", "日"]
 
 col_input, col_space, col_result = st.columns([2, 0.5, 2])
@@ -165,8 +166,13 @@ with col_input:
         current_date = start_date + timedelta(days=i - 1)
         date_label = f"{current_date.month}/{current_date.day} ({weekdays[current_date.weekday()]})"
 
-        val = st.session_state[f"palmu_day_{i}"]
-        index = point_options.index(val) if val in point_options else 1  # デフォルトは0
+        val = st.session_state.get(f"palmu_day_{i}", 1)
+        # 以前のバージョンで保存された0が読み込まれた場合、1に変換する
+        if val == 0:
+            val = 1
+            st.session_state[f"palmu_day_{i}"] = val
+
+        index = point_options.index(val) if val in point_options else 1  # デフォルトは1
 
         st.session_state[f"palmu_day_{i}"] = st.selectbox(
             date_label,
