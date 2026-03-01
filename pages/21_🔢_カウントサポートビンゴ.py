@@ -17,34 +17,28 @@ render_page_header()
 st.markdown(
     """
     <style>
-    /* コンテナのパディングを最小限に */
     [data-testid="stVerticalBlock"] > div > div > div[data-testid="stVerticalBlock"] {
         padding: 4px !important;
         gap: 4px !important;
     }
-    /* 枠付きコンテナの余白調整 */
     .st-emotion-cache-16idsys, .st-emotion-cache-1r6slb0 {
         padding: 6px !important;
         margin-bottom: 0px !important;
     }
-    /* 入力フィールドの共通設定 */
     .stTextInput input, .stNumberInput input {
         height: 32px !important;
         padding: 2px !important;
         text-align: center !important;
     }
-    /* ラベル用テキスト（小さく） */
     .stTextInput input {
         font-size: 12px !important;
         opacity: 0.7;
     }
-    /* 数値用テキスト（大きく太く） */
     .stNumberInput input {
         font-size: 20px !important;
         font-weight: 900 !important;
         color: #007bff !important;
     }
-    /* スピンボタンを隠す */
     input::-webkit-outer-spin-button,
     input::-webkit-inner-spin-button {
         -webkit-appearance: none;
@@ -116,11 +110,11 @@ def load_from_storage():
         return False
 
 
-# 初期化
-if "csb_ready" not in st.session_state:
+# 初期化ロジックの強化
+if "csb_rows" not in st.session_state:
     if not load_from_storage():
-        st.session_state.csb_rows, st.session_state.csb_cols = 5, 5
-    st.session_state.csb_ready = True
+        st.session_state.csb_rows = 5
+        st.session_state.csb_cols = 5
 
 
 def on_change():
@@ -128,9 +122,13 @@ def on_change():
 
 
 # --- メイングリッド ---
-for r in range(st.session_state.csb_rows):
-    cols_ui = st.columns(st.session_state.csb_cols)
-    for c in range(st.session_state.csb_cols):
+# range の引数を安全に取得
+current_rows = st.session_state.get("csb_rows", 5)
+current_cols = st.session_state.get("csb_cols", 5)
+
+for r in range(current_rows):
+    cols_ui = st.columns(current_cols)
+    for c in range(current_cols):
         lk, ck = f"csb_label_{r}_{c}", f"csb_count_{r}_{c}"
         if lk not in st.session_state:
             st.session_state[lk] = f"項目 {r + 1}-{c + 1}"
@@ -163,10 +161,10 @@ with st.container(border=True):
         }
         json_str = json.dumps(current_state, indent=2, ensure_ascii=False)
         st.download_button(
-            "📥 JSONを保存",
-            json_str,
-            f"bingo_{get_jst_now().strftime('%Y%m%d')}.json",
-            "application/json",
+            label="📥 JSONを保存",
+            data=json_str,
+            file_name=f"bingo_{get_jst_now().strftime('%Y%m%d')}.json",
+            mime="application/json",
             use_container_width=True,
         )
     with c2:
@@ -194,7 +192,13 @@ with st.sidebar:
     st.number_input("列数", 1, 15, key="csb_cols", on_change=on_change)
     st.write("---")
     if st.button("🚨 全てリセット", use_container_width=True):
+        # LocalStorage 削除
         storage.delete_item(get_data_key())
+        # SessionState の徹底クリア
+        for k in list(st.session_state.keys()):
+            if k.startswith("csb_"):
+                del st.session_state[k]
+        # バージョン更新による強制リセット
         current_v = int(get_current_version())
         new_v = 1 if current_v >= 100 else current_v + 1
         storage.set_item("csb_ver", str(new_v))
