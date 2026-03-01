@@ -78,7 +78,15 @@ with st.container(border=True):
 
 # --- 入力グリッド ---
 point_options = ["SKIP", 1, 2, 4, 6]
-PERIOD_COLORS = ["#E0E0E0", "#E3F2FD", "#F1F8E9", "#FFF3E0", "#F3E5F5", "#EFEBE9"]
+# 視認性の高い配色
+PERIOD_COLORS = [
+    "#F5F5F5",  # 0: SKIP/休み (ライトグレー)
+    "#BBDEFB",  # 1: 青
+    "#C8E6C9",  # 2: 緑
+    "#FFE0B2",  # 3: オレンジ
+    "#E1BEE7",  # 4: 紫
+    "#FFF9C4",  # 5: 黄色
+]
 weekdays_sun = ["日", "月", "火", "水", "木", "金", "土"]
 
 st.subheader(f"📝 デイリーポイント入力 ({num_days}日間)")
@@ -111,8 +119,9 @@ for r in range(rows):
                 p_idx = period_assigns[day_idx - 1]
                 p_color = PERIOD_COLORS[p_idx % len(PERIOD_COLORS)]
                 with st.container(border=True):
+                    # 期バッジの視認性改善 (文字色を濃く、太字に)
                     st.markdown(
-                        f"<div style='background-color:{p_color}; border-radius:4px; font-size:10px; text-align:center; border:1px solid #ddd; margin-bottom:4px;'>第{p_idx if p_idx > 0 else '休'}期</div>",
+                        f"<div style='background-color:{p_color}; border-radius:4px; font-size:10px; text-align:center; border:1px solid #ccc; margin-bottom:4px; color:#333; font-weight:bold;'>第{p_idx if p_idx > 0 else '休'}期</div>",
                         unsafe_allow_html=True,
                     )
                     st.caption(f"🎫{skip_balances[day_idx - 1]} {curr_d.month}/{curr_d.day}")
