@@ -121,9 +121,10 @@ with col_main:
         items = st.session_state.roulette_config["items"]
         winner = pick_roulette_winner(items)
 
+        # ID でインデックスを特定
         winner_idx = 0
         for i, item in enumerate(items):
-            if item["label"] == winner["label"]:
+            if item["id"] == winner["id"]:
                 winner_idx = i
                 break
 
@@ -201,26 +202,27 @@ with col_sidebar:
 
         items = st.session_state.roulette_config["items"]
         new_items = []
-        to_delete = None
+        to_delete_id = None
 
-        for i, item in enumerate(items):
+        for _, item in enumerate(items):
+            item_id = item["id"]
             # 上段：名称と確率
             c1, c2 = st.columns([3, 1])
             with c1:
                 label = st.text_input(
-                    f"名前 {i + 1}",
+                    "名前",
                     value=item["label"],
-                    key=f"label_{i}",
+                    key=f"label_{item_id}",
                     label_visibility="collapsed",
                     placeholder="項目名",
                 )
             with c2:
                 weight = st.number_input(
-                    f"重み {i + 1}",
+                    "重み",
                     value=float(item.get("weight", 1.0)),
                     min_value=0.0,
                     step=0.1,
-                    key=f"weight_{i}",
+                    key=f"weight_{item_id}",
                     label_visibility="collapsed",
                 )
 
@@ -228,18 +230,18 @@ with col_sidebar:
             c3, c4 = st.columns([3, 1])
             with c3:
                 color = st.color_picker(
-                    f"色 {i + 1}", value=item.get("color", "#CCCCCC"), key=f"color_{i}", label_visibility="collapsed"
+                    "色", value=item.get("color", "#CCCCCC"), key=f"color_{item_id}", label_visibility="collapsed"
                 )
             with c4:
-                if st.button("🗑️ 削除", key=f"del_{i}", use_container_width=True):
-                    to_delete = i
+                if st.button("🗑️ 削除", key=f"del_{item_id}", use_container_width=True):
+                    to_delete_id = item_id
 
-            new_items.append({"label": label, "weight": weight, "color": color})
+            new_items.append({"id": item_id, "label": label, "weight": weight, "color": color})
             st.markdown("<hr>", unsafe_allow_html=True)
 
         # 削除処理
-        if to_delete is not None:
-            new_items.pop(to_delete)
+        if to_delete_id:
+            new_items = [it for it in new_items if it["id"] != to_delete_id]
             st.session_state.roulette_config["items"] = new_items
             storage.set_item("roulette_config", st.session_state.roulette_config)
             st.rerun()
@@ -248,7 +250,10 @@ with col_sidebar:
         with col_add:
             if st.button("➕ 項目を追加", use_container_width=True):
                 rand_color = f"#{random.randint(0, 0xFFFFFF):06x}"
-                new_items.append({"label": f"項目 {len(new_items) + 1}", "weight": 1.0, "color": rand_color})
+                new_id = f"item_{int(time.time() * 1000)}"
+                new_items.append(
+                    {"id": new_id, "label": f"項目 {len(new_items) + 1}", "weight": 1.0, "color": rand_color}
+                )
                 st.session_state.roulette_config["items"] = new_items
                 storage.set_item("roulette_config", st.session_state.roulette_config)
                 st.rerun()

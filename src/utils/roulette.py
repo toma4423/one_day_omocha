@@ -1,8 +1,10 @@
 import random
+import time
 from typing import Any, TypedDict
 
 
 class RouletteItem(TypedDict):
+    id: str
     label: str
     weight: float
     color: str
@@ -17,14 +19,21 @@ class RouletteConfig(TypedDict):
 DEFAULT_ROULETTE_CONFIG: RouletteConfig = {
     "title": "カスタムルーレット",
     "items": [
-        {"label": "大吉", "weight": 10.0, "color": "#FF4B4B"},
-        {"label": "吉", "weight": 30.0, "color": "#FF8F8F"},
-        {"label": "中吉", "weight": 20.0, "color": "#FFD700"},
-        {"label": "小吉", "weight": 20.0, "color": "#6ED3FF"},
-        {"label": "末吉", "weight": 15.0, "color": "#A0A0A0"},
-        {"label": "凶", "weight": 5.0, "color": "#333333"},
+        {"id": "item_1", "label": "大吉", "weight": 10.0, "color": "#FF4B4B"},
+        {"id": "item_2", "label": "吉", "weight": 30.0, "color": "#FF8F8F"},
+        {"id": "item_3", "label": "中吉", "weight": 20.0, "color": "#FFD700"},
+        {"id": "item_4", "label": "小吉", "weight": 20.0, "color": "#6ED3FF"},
+        {"id": "item_5", "label": "末吉", "weight": 15.0, "color": "#A0A0A0"},
+        {"id": "item_6", "label": "凶", "weight": 5.0, "color": "#333333"},
     ],
     "sound_enabled": True,
+}
+
+COLOR_PRESETS = {
+    "ビビッド": ["#FF4B4B", "#FFD700", "#6ED3FF", "#4CAF50", "#9C27B0", "#FF9800"],
+    "パステル": ["#FFB7B2", "#FFDAC1", "#E2F0CB", "#B5EAD7", "#C7CEEA", "#F3B0C3"],
+    "モノトーン": ["#333333", "#666666", "#999999", "#CCCCCC", "#EEEEEE", "#F5F5F5"],
+    "和風": ["#D75455", "#EAB333", "#4B61BA", "#567835", "#7051AA", "#4A4B4D"],
 }
 
 
@@ -38,14 +47,13 @@ def pick_roulette_winner(items: list[RouletteItem]) -> RouletteItem:
 
 
 def normalize_weights(items: list[RouletteItem]) -> list[RouletteItem]:
-    """重みの合計が100%になるように調整します。"""
+    """重みの合計が100%になるように調整します。IDは維持します。"""
     if not items:
         return []
 
     new_items = []
     for item in items:
         new_item = item.copy()
-        # 確実に float にキャスト
         try:
             new_item["weight"] = float(item.get("weight", 0.0))
         except (ValueError, TypeError):
@@ -80,14 +88,6 @@ def equalize_weights(items: list[RouletteItem]) -> list[RouletteItem]:
         new_items.append(new_item)
 
     return new_items
-
-
-COLOR_PRESETS = {
-    "ビビッド": ["#FF4B4B", "#FFD700", "#6ED3FF", "#4CAF50", "#9C27B0", "#FF9800"],
-    "パステル": ["#FFB7B2", "#FFDAC1", "#E2F0CB", "#B5EAD7", "#C7CEEA", "#F3B0C3"],
-    "モノトーン": ["#333333", "#666666", "#999999", "#CCCCCC", "#EEEEEE", "#F5F5F5"],
-    "和風": ["#D75455", "#EAB333", "#4B61BA", "#567835", "#7051AA", "#4A4B4D"],
-}
 
 
 def apply_color_preset(items: list[RouletteItem], preset_name: str) -> list[RouletteItem]:
@@ -125,7 +125,7 @@ def validate_roulette_config(config: dict[str, Any]) -> tuple[bool, str]:
 
 
 def migrate_roulette_config(config: dict[str, Any]) -> RouletteConfig:
-    """古い形式や不完全なデータから設定を最新の形式に復元します。"""
+    """古い形式や不完全なデータから設定を最新の形式に復元します。IDがない場合は生成します。"""
     new_config = DEFAULT_ROULETTE_CONFIG.copy()
 
     if not config:
@@ -137,9 +137,10 @@ def migrate_roulette_config(config: dict[str, Any]) -> RouletteConfig:
     items = config.get("items", [])
     if isinstance(items, list) and items:
         new_items = []
-        for item in items:
+        for i, item in enumerate(items):
             if isinstance(item, dict):
                 new_item: RouletteItem = {
+                    "id": str(item.get("id", f"item_{int(time.time() * 1000)}_{i}")),
                     "label": str(item.get("label", "項目")),
                     "weight": float(item.get("weight", 1.0)),
                     "color": str(item.get("color", "#CCCCCC")),
