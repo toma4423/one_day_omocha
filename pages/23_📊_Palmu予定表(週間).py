@@ -1,109 +1,273 @@
+import base64
+import json
+from datetime import timedelta
+
 import streamlit as st
+from PIL import Image
 from streamlit_local_storage import LocalStorage
 
-from src.utils.image_maker import create_palmu_schedule_image
+from src.utils.image_maker import composite_images, create_palmu_schedule_image
 from src.utils.palmu import (
     calculate_skip_card_balance,
     calculate_total_points,
     evaluate_rank_status,
+    generate_point_presets,
+    get_day_period_assignments,
     points_needed_for_keep,
     points_needed_for_rank_up,
 )
 from src.utils.storage import SafeStorage
-from src.utils.styles import render_donation_box, render_page_header
+from src.utils.styles import (
+    render_donation_box,
+    render_page_header,
+    render_result_box,
+)
 from src.utils.time import get_jst_now
 
-st.set_page_config(page_title="Palmu予定表(週間)", page_icon="📊", layout="wide")
+st.set_page_config(page_title="Palmu週間予定表", page_icon="📊", layout="wide")
 
 # グローバルスタイルの適用
 render_page_header()
 
-# SafeStorage の初期化
+# ストレージ設定
 storage = SafeStorage(LocalStorage())
+PALMU_STORAGE_KEY = "palmu_data"
+MAX_DAYS = 14
 
 # セッション状態の初期化
-if "pw_start_date" not in st.session_state:
-    st.session_state.pw_start_date = get_jst_now().date()
-if "pw_initial_cards" not in st.session_state:
-    st.session_state.pw_initial_cards = 0
-if "pw_daily_points" not in st.session_state:
-    st.session_state.pw_daily_points = [1] * 7
+if "palmu_reset_counter" not in st.session_state:
+    st.session_state.palmu_reset_counter = 0
+if "palmu_skip_cards" not in st.session_state:
+    st.session_state.palmu_skip_cards = 0
 
-st.title("📊 Palmu 週間予定表マネージャー")
 
-# --- 設定セクション ---
-with st.container(border=True):
-    col_date, col_card = st.columns(2)
-    with col_date:
-        st.session_state.pw_start_date = st.date_input("開始日", st.session_state.pw_start_date)
-    with col_card:
-        st.session_state.pw_initial_cards = st.number_input(
-            "初期スキップカード枚数", 0, 10, st.session_state.pw_initial_cards
-        )
+def save_to_storage():
+    data = {f"day_{i}": st.session_state.get(f"palmu_day_{i}", 1) for i in range(1, MAX_DAYS + 1)}
+    data["skip_cards"] = st.session_state.get("palmu_skip_cards", 0)
+    storage.set_item(PALMU_STORAGE_KEY, data)
 
-# --- 予定入力セクション ---
-st.subheader("📝 配信予定の入力")
-with st.container(border=True):
-    point_options = ["SKIP", 0, 1, 2, 4, 6]
-    cols = st.columns(7)
-    for i in range(7):
-        curr_date = st.session_state.pw_start_date + __import__("datetime").timedelta(days=i)
-        with cols[i]:
-            st.markdown(
-                f"**{curr_date.strftime('%m/%d')}**\n({['月', '火', '水', '木', '金', '土', '日'][curr_date.weekday()]})"
-            )
-            st.session_state.pw_daily_points[i] = st.selectbox(
-                f"P{i}",
-                point_options,
-                index=point_options.index(st.session_state.pw_daily_points[i]),
-                key=f"pw_p_{i}",
-                label_visibility="collapsed",
-            )
 
-# --- 計算・解析 ---
-total_pts = calculate_total_points(st.session_state.pw_daily_points)
-rank_status = evaluate_rank_status(total_pts)
-skip_balances = calculate_skip_card_balance(
-    st.session_state.pw_initial_cards, st.session_state.pw_start_date, 7, st.session_state.pw_daily_points
+def load_from_storage():
+    data = storage.get_item(PALMU_STORAGE_KEY, is_json=True)
+    if data:
+        for i in range(1, MAX_DAYS + 1):
+            val = data.get(f"day_{i}", 1)
+            if val == 0:
+                val = 1
+            elif val == "スキップ":
+                val = "SKIP"
+            st.session_state[f"palmu_day_{i}"] = val
+        st.session_state.palmu_skip_cards = data.get("skip_cards", 0)
+        return True
+    return False
+
+
+def init_palmu_state():
+    if "palmu_day_1" not in st.session_state:
+        if not load_from_storage():
+            for i in range(1, MAX_DAYS + 1):
+                st.session_state[f"palmu_day_{i}"] = 1
+            st.session_state.palmu_skip_cards = 0
+
+
+init_palmu_state()
+
+st.title("📊 Palmu週間予定表 (ランクメーター)")
+st.markdown(
+    "Palmuのデイリーランクポイントを入力して、ランク状況をシミュレーションし、配信用のスケジュール画像を作成します。"
 )
 
-st.write("")
-col_res1, col_res2 = st.columns(2)
-with col_res1:
-    with st.container(border=True):
-        st.metric("合計ポイント", f"{total_pts} pt")
-        st.subheader(f"判定: {rank_status}")
-        if rank_status != "ランクアップ":
-            st.write(f"ランクアップまであと **{points_needed_for_rank_up(total_pts)} pt**")
-        if rank_status == "ランクダウン":
-            st.write(f"キープまであと **{points_needed_for_keep(total_pts)} pt**")
+# --- サイドバー：セーブ＆ロード ---
+with st.sidebar:
+    st.header("💾 セーブ & ロード")
+    current_data = {f"day_{i}": st.session_state[f"palmu_day_{i}"] for i in range(1, MAX_DAYS + 1)}
+    current_data["skip_cards"] = st.session_state.palmu_skip_cards
+    json_str = json.dumps(current_data, indent=2)
+    st.download_button(
+        label="📥 JSON保存",
+        data=json_str,
+        file_name=f"palmu_rank_{get_jst_now().strftime('%Y%m%d')}.json",
+        mime="application/json",
+        use_container_width=True,
+    )
+    uploaded_file = st.file_uploader("📤 JSON読込", type="json")
+    if uploaded_file and st.button("復元する", use_container_width=True):
+        try:
+            data_load = json.load(uploaded_file)
+            for i in range(1, MAX_DAYS + 1):
+                val = data_load.get(f"day_{i}", 1)
+                if val == "スキップ":
+                    val = "SKIP"
+                st.session_state[f"palmu_day_{i}"] = val
+            st.session_state.palmu_skip_cards = data_load.get("skip_cards", 0)
+            save_to_storage()
+            st.rerun()
+        except Exception:
+            st.error("読込失敗")
 
-with col_res2:
+    if st.button("🚨 全入力をリセット", use_container_width=True):
+        for i in range(1, MAX_DAYS + 1):
+            st.session_state[f"palmu_day_{i}"] = 1
+        st.session_state.palmu_skip_cards = 0
+        st.session_state.palmu_reset_counter += 1
+        storage.delete_item(PALMU_STORAGE_KEY)
+        st.rerun()
+
+# --- 基本設定 ---
+with st.container(border=True):
+    st.subheader("📅 スケジュール基本設定")
+    col_date, col_target, col_skip = st.columns(3)
+    with col_date:
+        start_date = st.date_input("開始日", value=get_jst_now().date())
+    with col_target:
+        target_goal = st.selectbox("目標", options=["ランクアップ (+18pt)", "ランクキープ (+12pt)"])
+        target_val = 18 if "アップ" in target_goal else 12
+    with col_skip:
+        st.session_state.palmu_skip_cards = st.number_input(
+            "現在のスキップカード所持数", 0, 10, value=st.session_state.palmu_skip_cards, on_change=save_to_storage
+        )
+
+# --- おすすめプリセット ---
+with st.expander("💡 おすすめのポイント取得パターンを見る"):
+    st.markdown("目標を達成するための効率的な構成例です。適用すると入力欄に反映されます。")
+    presets = generate_point_presets(target_val)
+    cols_preset = st.columns(len(presets))
+    for idx, (p, col) in enumerate(zip(presets, cols_preset, strict=False)):
+        with col:
+            with st.container(border=True):
+                st.markdown(f"**案 {idx + 1}**")
+                st.markdown(f"**{sum(p)} pt**")
+                p_str = "/".join([str(x) for x in p])
+                st.caption(f"[{p_str}]")
+                if st.button("適用", key=f"apply_{target_val}_{idx}", use_container_width=True):
+                    for i in range(1, MAX_DAYS + 1):
+                        st.session_state[f"palmu_day_{i}"] = p[i - 1] if i <= 7 else 1
+                    save_to_storage()
+                    st.rerun()
+
+# --- 入力と計算 ---
+point_options = ["SKIP", 1, 2, 4, 6]
+PERIOD_COLORS = ["#E0E0E0", "#E3F2FD", "#F1F8E9", "#FFF3E0"]
+daily_vals = [st.session_state.get(f"palmu_day_{i}", 1) for i in range(1, MAX_DAYS + 1)]
+skip_balances = calculate_skip_card_balance(st.session_state.palmu_skip_cards, start_date, MAX_DAYS, daily_vals)
+period_assigns = get_day_period_assignments(daily_vals)
+
+active_period1 = [i for i, p in enumerate(period_assigns) if p == 1]
+display_days = active_period1[-1] + 1 if active_period1 else 7
+
+col_input, col_result = st.columns([1.2, 1])
+
+with col_input:
+    st.subheader(f"📝 ポイント入力 ({display_days}日間)")
+    reset_id = st.session_state.palmu_reset_counter
+    for i in range(1, display_days + 1):
+        curr_d = start_date + timedelta(days=i - 1)
+        p_idx = period_assigns[i - 1]
+        p_color = PERIOD_COLORS[p_idx % len(PERIOD_COLORS)]
+
+        with st.container(border=True):
+            c_sel, c_info = st.columns([3, 1])
+            with c_info:
+                st.markdown(
+                    f"<div style='background-color:{p_color}; border-radius:8px; padding:4px; text-align:center; font-size:12px; border:1px solid #ddd;'>第{p_idx if p_idx > 0 else '休'}期</div>",
+                    unsafe_allow_html=True,
+                )
+                st.caption(f"🎫 {skip_balances[i - 1]}枚")
+            with c_sel:
+                st.session_state[f"palmu_day_{i}"] = st.selectbox(
+                    f"{curr_d.strftime('%m/%d')} ({['月', '火', '水', '木', '金', '土', '日'][curr_d.weekday()]})",
+                    options=point_options,
+                    index=point_options.index(st.session_state[f"palmu_day_{i}"])
+                    if st.session_state[f"palmu_day_{i}"] in point_options
+                    else 1,
+                    key=f"p_day_{i}_{reset_id}",
+                    on_change=save_to_storage,
+                    format_func=lambda x: f"+{x} pt" if isinstance(x, int) else str(x),
+                )
+
+with col_result:
+    st.subheader("📈 第1期の解析結果")
+    p1_points = [st.session_state[f"palmu_day_{i + 1}"] for i, p in enumerate(period_assigns) if p == 1]
+    total = calculate_total_points(p1_points)
+    status = evaluate_rank_status(total)
+
+    colors = {
+        "ランクアップ": ("#E8F5E9", "#2E7D32"),
+        "キープ": ("#FFF3E0", "#E65100"),
+        "ランクダウン": ("#FFEBEE", "#C62828"),
+    }
+    bg, fg = colors.get(status, ("#F5F5F5", "#333333"))
+
+    render_result_box("現在の判定", status, bg_color=bg, border_color=fg, text_color=fg, font_size=40)
+
     with st.container(border=True):
-        st.subheader("🃏 スキップカード推移")
-        bal_str = " → ".join([str(b) for b in skip_balances])
-        st.markdown(f"**{bal_str}**")
-        st.caption("※月曜に+2枚(上限10)、SKIP日に-1枚で計算")
+        st.metric("有効7日間の合計", f"{total} pt")
+        if status != "ランクアップ":
+            st.write("---")
+            if status == "ランクダウン":
+                st.info(f"🛡️ キープまで: あと **{points_needed_for_keep(total)}** pt")
+            st.success(f"🚀 ランクアップまで: あと **{points_needed_for_rank_up(total)}** pt")
+        else:
+            st.success("🎉 目標達成予定です！")
 
 # --- 画像生成 ---
-st.write("")
-st.subheader("🖼️ 画像として保存")
+st.write("---")
+st.header("🗓️ 画像生成 & 合成")
 with st.container(border=True):
-    if st.button("予定表画像を生成する", use_container_width=True, type="primary"):
-        sched_data = []
-        for i in range(7):
-            curr_date = st.session_state.pw_start_date + __import__("datetime").timedelta(days=i)
-            p = st.session_state.pw_daily_points[i]
-            val_str = "SKIP" if p == "SKIP" else f"+{p}pt"
-            sched_data.append((curr_date.strftime("%m/%d"), val_str))
+    bg_file = st.file_uploader("🖼️ 背景画像をアップロード", type=["jpg", "png"], key="weekly_bg")
+    col_s1, col_style = st.columns([1, 2])
 
-        img_bytes = create_palmu_schedule_image("WEEKLY SCHEDULE", sched_data)
-        st.image(img_bytes, use_container_width=True)
+    with col_s1:
+        title_text = st.text_input("タイトル", value=f"{start_date.month}/{start_date.day}〜 予定")
+        img_width = st.number_input("幅", 300, 1000, 600, 10)
+        img_text_color = st.color_picker("文字色", "#FFFFFF")
+        img_frame_color = st.color_picker("枠色", "#FF5722")
+
+    with col_style:
+        is_trans = st.checkbox("枠内を完全に透過する", False)
+        img_bg_rgba = (
+            "#00000000"
+            if is_trans
+            else f"{st.color_picker('枠内色', '#000000')}{int(st.slider('不透明度', 0, 100, 80) * 255 / 100):02X}"
+        )
+        img_f_width = st.slider("枠の太さ", 0, 30, 8)
+        img_radius = st.slider("角丸", 0, 200, 30)
+
+    if bg_file:
+        st.subheader("📍 配置設定")
+        bg_img_p = Image.open(bg_file)
+        c_pos, c_scale = st.columns(2)
+        with c_pos:
+            anchor = st.selectbox("基準点", ["左上", "中央", "右上", "左下", "右下"])
+            px = st.number_input("Xズレ", value=st.session_state.get("w_x", 0), key="w_x_in")
+            py = st.number_input("Yズレ", value=st.session_state.get("w_y", 0), key="w_y_in")
+            st.session_state.w_x, st.session_state.w_y = px, py
+        with c_scale:
+            scale = st.slider("スケール", 0.1, 2.0, 1.0, 0.05)
+    else:
+        anchor, px, py, scale = "左上", 0, 0, 1.0
+
+    if st.button("画像を生成する", use_container_width=True, type="primary"):
+        sched_data = []
+        for i in range(1, display_days + 1):
+            curr_d = start_date + timedelta(days=i - 1)
+            p = st.session_state[f"palmu_day_{i}"]
+            sched_data.append((f"{curr_d.month}/{curr_d.day}", "SKIP" if p == "SKIP" else f"+{p}pt"))
+
+        fg_bytes = create_palmu_schedule_image(
+            title_text, sched_data, img_text_color, img_frame_color, img_bg_rgba, img_f_width, img_radius, img_width
+        )
+        final_bytes = composite_images(bg_file.getvalue(), fg_bytes, px, py, scale, anchor) if bg_file else fg_bytes
+
+        st.markdown(
+            f'<div style="text-align:center; background:#eee; padding:20px; border-radius:16px;"><img src="data:image/png;base64,{base64.b64encode(final_bytes).decode()}" style="max-width:100%;"></div>',
+            unsafe_allow_html=True,
+        )
         st.download_button(
-            "画像を保存",
-            img_bytes,
-            file_name=f"palmu_week_{get_jst_now().strftime('%Y%m%d')}.png",
-            mime="image/png",
+            "📥 ダウンロード",
+            final_bytes,
+            f"palmu_week_{get_jst_now().strftime('%Y%m%d')}.png",
+            "image/png",
             use_container_width=True,
         )
 
