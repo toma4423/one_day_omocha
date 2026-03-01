@@ -56,7 +56,7 @@ with col_main:
     def render_roulette_canvas(items, sound_enabled, spin_trigger, winner_index):
         # 描画前の正規化
         norm_items = normalize_weights(items)
-        items_json = json.dumps(norm_items, ensure_ascii=True)  # ASCII固定でシリアライズエラーを防止
+        items_json = json.dumps(norm_items, ensure_ascii=True)
 
         # テンプレート
         html_template = """
@@ -75,6 +75,7 @@ with col_main:
             };
             setupWheel(config);
         </script>
+        <!-- refresh_key: __TRIGGER__ -->
         """
 
         # 確実に str 型に変換して置換
@@ -88,9 +89,10 @@ with col_main:
             .replace("__WINNER__", json.dumps(winner_index))
         )
 
-        # 引数を完全にキャストして渡す
+        # key 引数が一部環境でエラーを引き起こすため削除。
+        # 代わりに full_html 内のコメントを変更することで再描画を促す。
         try:
-            st.components.v1.html(str(full_html), height=550, key=f"roulette_comp_{int(spin_trigger)}")
+            st.components.v1.html(str(full_html), height=550)
         except Exception as e:
             st.error(f"コンポーネントの表示中にエラーが発生しました: {e}")
 
@@ -132,6 +134,7 @@ with col_main:
         st.rerun()
 
     if st.session_state.roulette_last_winner and st.session_state.roulette_spin_trigger > 0:
+        time.sleep(0.5)
         st.success(f"結果：{st.session_state.roulette_last_winner['label']}")
         st.balloons()
 
