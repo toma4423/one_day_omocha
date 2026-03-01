@@ -1,0 +1,77 @@
+/* 🎁 今日のおもちゃ箱 - 共通グローバルスタイル (2026-03-02) */
+
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700;900&display=swap');
+
+body {
+    font-family: 'Noto Sans JP', sans-serif !important;
+    background-color: #f7f9fc !important;
+}
+
+/* 共通カードコンテナ */
+.st-emotion-cache-16idsys, .st-emotion-cache-1r6slb0 { /* st.container(border=True) などのベース */
+    border-radius: 16px !important;
+    border: 1px solid #eeeeee !important;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.06) !important;
+    background: #ffffff !important;
+    padding: 20px !important;
+    transition: transform 0.2s ease, box-shadow 0.2s ease !important;
+}
+
+.card-hover:hover {
+    transform: translateY(-4px) !important;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.1) !important;
+}
+
+/* 共通ボタンスタイル (Streamlit標準の上書き) */
+.stButton > button {
+    border-radius: 12px !important;
+    font-weight: 700 !important;
+    transition: all 0.2s ease !important;
+    height: 48px !important;
+}
+
+.stButton > button:hover {
+    transform: translateY(-2px) !important;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important;
+}
+
+/* メインアクション用 (primary) */
+.stButton button[kind="primary"] {
+    background-color: #007bff !important;
+    color: white !important;
+    border: none !important;
+}
+
+.stButton button[kind="primary"]:hover {
+    background-color: #0056b3 !important;
+}
+
+/* 強調される数値 (Large Value) */
+.large-value {
+    font-weight: 900 !important;
+    font-size: 56px !important;
+    color: #333333 !important;
+    text-align: center !important;
+    line-height: 1.2 !important;
+}
+
+/* パルスアニメーション */
+@keyframes pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.1); color: #007bff; }
+    100% { transform: scale(1); }
+}
+
+.pulse {
+    animation: pulse 0.3s ease-out;
+}
+
+/* サイドバーの donation box をより綺麗に */
+.donation-box {
+    background: #fff3f3;
+    border: 1px dashed #ff4b4b;
+    border-radius: 12px;
+    padding: 12px;
+    text-align: center;
+    margin-top: 10px;
+}

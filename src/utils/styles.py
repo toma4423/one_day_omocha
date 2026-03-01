@@ -6,6 +6,18 @@ import streamlit as st
 from src.utils.dice import DICE_EMOJI, roll_dice
 
 
+def render_page_header() -> None:
+    """
+    全ページ共通のグローバル CSS を読み込み、デザインを統一します。
+    """
+    try:
+        with open("src/assets/global_style.css", encoding="utf-8") as f:
+            global_css = f.read()
+        st.markdown(f"<style>{global_css}</style>", unsafe_allow_html=True)
+    except Exception:
+        pass
+
+
 def display_dice_html(dice: list[int], size: int = 100) -> str:
     """
     サイコロの絵文字を含むHTMLを生成します。
@@ -52,9 +64,9 @@ def render_styled_number(
     """
     st.markdown(
         f"""
-        <div style='background-color:{bg_color}; padding:20px; border-radius:10px; text-align:center; margin-bottom:20px; border:2px solid {border_color};'>
-            <span style='font-size:20px; color:{text_color};'>{label}:</span>
-            <span style='font-size:{font_size}px; font-weight:bold; color:{text_color}; margin-left:20px;'>{value}</span>
+        <div style='background-color:{bg_color}; padding:20px; border-radius:16px; text-align:center; margin-bottom:20px; border:1px solid {border_color}; box-shadow: 0 4px 12px rgba(0,0,0,0.05);'>
+            <span style='font-size:18px; font-weight:700; color:{text_color}; opacity: 0.8;'>{label}</span>
+            <div style='font-size:{font_size}px; font-weight:900; color:{text_color}; line-height:1.2;'>{value}</div>
         </div>
         """,
         unsafe_allow_html=True,
@@ -75,7 +87,7 @@ def render_result_box(
     st.markdown(f"### {title}")
     st.markdown(
         f"""
-        <div style='background-color:{bg_color}; padding:20px; border-radius:10px; text-align:center; font-size:{font_size}px; font-weight:bold; color:{text_color}; border:2px solid {border_color};'>
+        <div style='background-color:{bg_color}; padding:20px; border-radius:16px; text-align:center; font-size:{font_size}px; font-weight:900; color:{text_color}; box-shadow: 0 8px 24px rgba(0,0,0,0.12);'>
             {value}
         </div>
         """,
@@ -85,36 +97,31 @@ def render_result_box(
 
 def apply_global_styles() -> None:
     """
-    アプリケーション全体に適用する共通スタイルを定義します。
+    (Deprecated) 代わりに render_page_header() を使用してください。
     """
+    render_page_header()
 
 
 def render_donation_box(paypay_url: str, is_sidebar: bool = False) -> None:
     """
     開発を応援するための募金箱をレンダリングします。
-    is_sidebar=True の場合はサイドバーに、False の場合はメインエリアに表示します。
     """
     target = st.sidebar if is_sidebar else st
 
+    html = f"""
+    <div style='background-color:#fff3f3; padding:20px; border-radius:16px; border:1px dashed #ff4b4b; text-align:center; margin: 20px 0;'>
+        <h3 style='margin-top:0; color:#ff4b4b; font-size:18px;'>🎁 開発を応援する</h3>
+        <p style='margin-bottom:15px; font-size:14px; color:#555;'>
+            このアプリが役に立ったら、開発を支援していただけると嬉しいです！
+        </p>
+        <a href='{paypay_url}' target='_blank' style='text-decoration:none;'>
+            <div style='background-color:#ff4b4b; color:white; padding:10px 24px; border-radius:30px; font-weight:bold; font-size:16px; box-shadow: 0 4px 10px rgba(255,75,75,0.3); display:inline-block; transition: transform 0.2s;'>
+                PayPayで送る 💸
+            </div>
+        </a>
+    </div>
+    """
     if is_sidebar:
         target.write("---")
-        target.subheader("☕ 開発を応援する")
 
-    target.markdown(
-        f"""
-        <div style='background-color:#FFF3E0; padding:20px; border-radius:15px; border:2px solid #FFB74D; text-align:center; margin: 20px 0;'>
-            <h3 style='margin-top:0; color:#E65100;'>☕ 開発を応援する</h3>
-            <p style='margin-bottom:15px; font-size:16px; color:#5D4037;'>
-                このアプリが役に立ったら、コーヒー一杯分のご支援をいただけると嬉しいです！<br>
-                新しいおもちゃの開発やサーバー維持の励みになります。
-            </p>
-            <a href='{paypay_url}' target='_blank' style='text-decoration:none;'>
-                <div style='background-color:#ff0033; color:white; padding:12px 30px; border-radius:30px; font-weight:bold; font-size:20px; box-shadow: 0 4px 10px rgba(0,0,0,0.2); display:inline-block;'>
-                    PayPayで送金する 💸
-                </div>
-            </a>
-            <p style='margin-top:10px; font-size:12px; color:#A1887F;'>※送金は任意です。いつもありがとうございます！</p>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+    target.markdown(html, unsafe_allow_html=True)
