@@ -43,14 +43,18 @@ col_main, col_sidebar = st.columns([2, 1])
 
 with col_main:
     # 外部 JS/CSS を読み込む
+    wheel_js = ""
+    wheel_css = ""
     try:
+        # 本番環境でのパスの整合性を考慮し、確実に読み込む
         with open("src/assets/roulette/wheel.js", encoding="utf-8") as f:
             wheel_js = f.read()
         with open("src/assets/roulette/style.css", encoding="utf-8") as f:
             wheel_css = f.read()
-    except Exception:
-        wheel_js = ""
-        wheel_css = ""
+    except Exception as e:
+        # 開発中のデバッグ用（本番ではエラー表示を避けるが、型エラー防止のため空文字をセット）
+        wheel_js = f"console.error('Failed to load wheel.js: {e}');"
+        wheel_css = "/* Failed to load style.css */"
 
     # ルーレット描画用のコンポーネント
     def render_roulette_canvas(items, sound_enabled, spin_trigger, winner_index):
@@ -59,32 +63,37 @@ with col_main:
         items_json = json.dumps(normalized_items, ensure_ascii=False)
         sound_enabled_js = "true" if sound_enabled else "false"
         status_text = "抽選中..." if spin_trigger > 0 else ""
+        winner_index_json = json.dumps(winner_index)
 
-        # f-string の中でのブレース問題を避けるため、CSSとJSは分割して結合する
-        html_head = "<style>" + wheel_css + "</style>"
-        html_body = f"""
-        <div id="container">
-            <canvas id="wheel" width="450" height="450"></canvas>
-            <div id="status">{status_text}</div>
-        </div>
-        """
-        html_script = f"""
-        <script>
-            {wheel_js}
-            const config = {{
-                items: {items_json},
-                soundEnabled: {sound_enabled_js},
-                spinTrigger: {spin_trigger},
-                winnerIndex: {json.dumps(winner_index)}
-            }};
-            setupWheel(config);
-        </script>
-        """
+        # TypeError 防止のため、すべてのパーツを確実に文字列として結合する
+        # f-string 内での JavaScript コードの展開はブレース問題を招くため避ける
+        html_parts = [
+            "<style>",
+            wheel_css,
+            "</style>",
+            '<div id="container">',
+            '    <canvas id="wheel" width="450" height="450"></canvas>',
+            f'    <div id="status">{status_text}</div>',
+            "</div>",
+            "<script>",
+            wheel_js,
+            "\n",
+            "const config = {",
+            f"    items: {items_json},",
+            f"    soundEnabled: {sound_enabled_js},",
+            f"    spinTrigger: {spin_trigger},",
+            f"    winnerIndex: {winner_index_json}",
+            "};",
+            "setupWheel(config);",
+            "</script>",
+        ]
 
-        full_html = html_head + html_body + html_script
+        full_html = "\n".join(html_parts)
 
         # key を指定することで、毎回 iframe が作り直され、アニメーションが確実に最初から走る
-        st.components.v1.html(full_html, height=550, key=f"roulette_comp_{spin_trigger}")
+        # key は必ず文字列にする
+        comp_key = f"roulette_comp_{spin_trigger}"
+        st.components.v1.html(full_html, height=550, key=comp_key)
 
     # 描画 (trigger が 0 より大きければアニメーション開始)
     render_roulette_canvas(
@@ -99,8 +108,7 @@ with col_main:
         items = st.session_state.roulette_config["items"]
         winner = pick_roulette_winner(items)
 
-        # IDや一意の識別子がないため、名前で一致を確認
-        # 本来はID管理が望ましいが、現状のデータ構造に合わせる
+        # 名前で一致を確認
         winner_idx = 0
         for i, item in enumerate(items):
             if item["label"] == winner["label"]:
@@ -110,7 +118,7 @@ with col_main:
         # 2. セッション状態を更新 (Trigger を変えることで JS が動く)
         st.session_state.roulette_last_winner = winner
         st.session_state.roulette_winner_index = winner_idx
-        st.session_state.roulette_spin_trigger += 1  # 毎回違う値にする
+        st.session_state.roulette_spin_trigger += 1
 
         # 3. 履歴追加
         history_entry = {"time": time.strftime("%H:%M:%S"), "label": winner["label"], "color": winner["color"]}
@@ -121,7 +129,6 @@ with col_main:
         st.rerun()
 
     if st.session_state.roulette_last_winner and st.session_state.roulette_spin_trigger > 0:
-        # アニメーションが終わるまで少し待つ演出
         time.sleep(0.5)
         st.success(f"結果：{st.session_state.roulette_last_winner['label']}")
         st.balloons()
