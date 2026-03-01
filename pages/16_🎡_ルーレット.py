@@ -1,5 +1,4 @@
 import json
-import random
 import time
 
 import streamlit as st
@@ -30,6 +29,10 @@ if "roulette_history" not in st.session_state:
 
 if "roulette_last_winner" not in st.session_state:
     st.session_state.roulette_last_winner = None
+if "roulette_spin_trigger" not in st.session_state:
+    st.session_state.roulette_spin_trigger = 0
+if "roulette_winner_index" not in st.session_state:
+    st.session_state.roulette_winner_index = None
 
 st.title("🎡 カスタムルーレット")
 
@@ -37,178 +40,68 @@ st.title("🎡 カスタムルーレット")
 col_main, col_sidebar = st.columns([2, 1])
 
 with col_main:
+    # 外部 JS/CSS を読み込む
+    try:
+        with open("src/assets/roulette/wheel.js") as f:
+            wheel_js = f.read()
+        with open("src/assets/roulette/style.css") as f:
+            wheel_css = f.read()
+    except Exception:
+        wheel_js = ""
+        wheel_css = ""
+
     # ルーレット描画用のコンポーネント
-    def render_roulette_canvas(items, sound_enabled, spin_trigger=None):
-        # データを JS 向けに JSON 文字列化
+    def render_roulette_canvas(items, sound_enabled, spin_trigger, winner_index):
         items_json = json.dumps(items, ensure_ascii=False)
-
-        # キャンバス、描画ロジック、音響効果を含む HTML/JS
-        # 物理シミュレーション (friction, velocity) と AudioContext
         html_code = f"""
-        <div id="container" style="display: flex; flex-direction: column; align-items: center; justify-content: center; width: 100%; height: 500px; font-family: sans-serif;">
-            <canvas id="wheel" width="450" height="450" style="max-width: 100%; height: auto;"></canvas>
-            <div id="winner-display" style="margin-top: 20px; font-size: 24px; font-weight: bold; height: 30px; color: #FF4B4B;"></div>
+        <style>{wheel_css}</style>
+        <div id="container">
+            <canvas id="wheel" width="450" height="450"></canvas>
+            <div id="status">{"抽選中..." if spin_trigger > 0 else ""}</div>
         </div>
-
         <script>
-            const items = {items_json};
-            const soundEnabled = {str(sound_enabled).lower()};
-            const canvas = document.getElementById('wheel');
-            const ctx = canvas.getContext('2d');
-            const width = canvas.width;
-            const height = canvas.height;
-            const centerX = width / 2;
-            const centerY = height / 2;
-            const radius = width / 2 - 20;
-
-            let currentAngle = 0;
-            let isSpinning = false;
-            let velocity = 0;
-            let friction = 0.985;
-            let totalWeight = items.reduce((sum, item) => sum + item.weight, 0);
-
-            // 音響効果 (AudioContext)
-            let audioCtx = null;
-            function playClickSound() {{
-                if (!soundEnabled) return;
-                if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-                
-                const osc = audioCtx.createOscillator();
-                const gain = audioCtx.createGain();
-                
-                osc.type = 'sine';
-                osc.frequency.setValueAtTime(800, audioCtx.currentTime);
-                osc.frequency.exponentialRampToValueAtTime(100, audioCtx.currentTime + 0.05);
-                
-                gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
-                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.05);
-                
-                osc.connect(gain);
-                gain.connect(audioCtx.destination);
-                
-                osc.start();
-                osc.stop(audioCtx.currentTime + 0.05);
-            }}
-
-            function drawWheel() {{
-                ctx.clearRect(0, 0, width, height);
-                let startAngle = currentAngle;
-
-                items.forEach((item, i) => {{
-                    const sliceAngle = (item.weight / totalWeight) * 2 * Math.PI;
-                    ctx.beginPath();
-                    ctx.fillStyle = item.color;
-                    ctx.moveTo(centerX, centerY);
-                    ctx.arc(centerX, centerY, radius, startAngle, startAngle + sliceAngle);
-                    ctx.fill();
-                    ctx.stroke();
-
-                    // テキスト描画
-                    ctx.save();
-                    ctx.translate(centerX, centerY);
-                    ctx.rotate(startAngle + sliceAngle / 2);
-                    ctx.textAlign = "right";
-                    ctx.fillStyle = "#fff";
-                    ctx.font = "bold 16px sans-serif";
-                    ctx.shadowBlur = 4;
-                    ctx.shadowColor = "rgba(0,0,0,0.5)";
-                    // 短いラベルのみ表示
-                    const label = item.label.length > 10 ? item.label.substring(0, 8) + '..' : item.label;
-                    ctx.fillText(label, radius - 10, 5);
-                    ctx.restore();
-
-                    startAngle += sliceAngle;
-                }});
-
-                // センターポインタ (外側の針)
-                ctx.fillStyle = "#333";
-                ctx.beginPath();
-                ctx.moveTo(width - 10, centerY);
-                ctx.lineTo(width - 30, centerY - 15);
-                ctx.lineTo(width - 30, centerY + 15);
-                ctx.closePath();
-                ctx.fill();
-
-                // 中心円
-                ctx.beginPath();
-                ctx.arc(centerX, centerY, 15, 0, 2 * Math.PI);
-                ctx.fillStyle = "#fff";
-                ctx.fill();
-                ctx.stroke();
-            }}
-
-            let lastSliceIndex = -1;
-            function update() {{
-                if (isSpinning) {{
-                    currentAngle += velocity;
-                    velocity *= friction;
-
-                    // カチカチ音判定 (現在の角度からどのスライスにいるか計算)
-                    // 針の位置 (右端 = 0rad) に対する現在のスライスインデックス
-                    let needlePos = (2 * Math.PI - (currentAngle % (2 * Math.PI))) % (2 * Math.PI);
-                    let tempAngle = 0;
-                    let currentSliceIndex = 0;
-                    for (let i = 0; i < items.length; i++) {{
-                        tempAngle += (items[i].weight / totalWeight) * 2 * Math.PI;
-                        if (needlePos < tempAngle) {{
-                            currentSliceIndex = i;
-                            break;
-                        }}
-                    }}
-
-                    if (currentSliceIndex !== lastSliceIndex) {{
-                        playClickSound();
-                        lastSliceIndex = currentSliceIndex;
-                    }}
-
-                    if (velocity < 0.002) {{
-                        isSpinning = false;
-                        velocity = 0;
-                        const winner = items[currentSliceIndex].label;
-                        document.getElementById('winner-display').innerText = "当選： " + winner;
-                    }}
-                }}
-                drawWheel();
-                requestAnimationFrame(update);
-            }}
-
-            window.addEventListener('message', (event) => {{
-                if (event.data.type === 'SPIN') {{
-                    if (!isSpinning) {{
-                        isSpinning = true;
-                        velocity = Math.random() * 0.4 + 0.3; // 初速
-                        document.getElementById('winner-display').innerText = "抽選中...";
-                    }}
-                }}
-            }});
-
-            update();
+            {wheel_js}
+            const config = {{
+                items: {items_json},
+                soundEnabled: {str(sound_enabled).lower()},
+                spinTrigger: {spin_trigger},
+                winnerIndex: {json.dumps(winner_index)}
+            }};
+            setupWheel(config);
         </script>
         """
         st.components.v1.html(html_code, height=550)
 
-    # 描画
-    render_roulette_canvas(st.session_state.roulette_config["items"], st.session_state.roulette_config["sound_enabled"])
+    # 描画 (trigger が 0 より大きければアニメーション開始)
+    render_roulette_canvas(
+        st.session_state.roulette_config["items"],
+        st.session_state.roulette_config["sound_enabled"],
+        st.session_state.roulette_spin_trigger,
+        st.session_state.roulette_winner_index,
+    )
 
     if st.button("🚀 ルーレットを回す！", use_container_width=True, type="primary"):
-        # JSにメッセージを送る仕組みはStreamlit標準では困難なため、
-        # 簡易的に Python 側で抽選して結果を通知しつつ、
-        # コンポーネント側でアニメーションを開始させるためのトリガーとして st.rerun を利用するなどの工夫が必要
-        # ここでは「抽選」は Python で行い、アニメーション完了を待たずに履歴に追加する
-        winner = pick_roulette_winner(st.session_state.roulette_config["items"])
-        st.session_state.roulette_last_winner = winner
+        # 1. Python で先に結果を出す
+        items = st.session_state.roulette_config["items"]
+        winner = pick_roulette_winner(items)
+        winner_idx = next(i for i, item in enumerate(items) if item == winner)
 
-        # 履歴追加
+        # 2. セッション状態を更新 (Trigger を変えることで JS が動く)
+        st.session_state.roulette_last_winner = winner
+        st.session_state.roulette_winner_index = winner_idx
+        st.session_state.roulette_spin_trigger += 1  # 毎回違う値にする
+
+        # 3. 履歴追加
         history_entry = {"time": time.strftime("%H:%M:%S"), "label": winner["label"], "color": winner["color"]}
         st.session_state.roulette_history.insert(0, history_entry)
         st.session_state.roulette_history = st.session_state.roulette_history[:50]
         storage.set_item("roulette_history", st.session_state.roulette_history)
 
-        # JS 側に「回せ」という合図を送るための仕組み：
-        # コンポーネントを再レンダリングする際に、初期速度を与えるフラグを渡すなどの手法が取れる。
-        # ここでは簡易化のため st.balloons で祝う
+        st.rerun()
+
+    if st.session_state.roulette_last_winner and st.session_state.roulette_spin_trigger > 0:
+        st.success(f"結果：{st.session_state.roulette_last_winner['label']}")
         st.balloons()
-        st.success(f"結果：{winner['label']}")
 
     # 履歴表示
     st.subheader("📜 履歴")
@@ -240,6 +133,8 @@ with col_sidebar:
                     # 削除処理（リストから除外）
                     continue
             new_items.append({"label": label, "weight": weight, "color": color})
+
+        import random
 
         if st.button("➕ 項目を追加"):
             # デフォルト色をランダムに
@@ -294,4 +189,4 @@ with col_sidebar:
         storage.set_item("roulette_history", [])
         st.rerun()
 
-render_donation_box("https://paypay.me/xxxx", is_sidebar=True)
+render_donation_box("https://qr.paypay.ne.jp/p2p01_jsHjvMAenqfvI10s", is_sidebar=True)
