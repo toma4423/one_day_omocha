@@ -81,7 +81,7 @@ point_options = ["SKIP", 1, 2, 4, 6]
 PERIOD_COLORS = ["#E0E0E0", "#E3F2FD", "#F1F8E9", "#FFF3E0", "#F3E5F5", "#EFEBE9"]
 weekdays_sun = ["日", "月", "火", "水", "木", "金", "土"]
 
-st.subheader(f"📝 ポイント入力 ({num_days}日間)")
+st.subheader(f"📝 デイリーポイント入力 ({num_days}日間)")
 daily_vals = [st.session_state.get(f"pm_day_{i}", 1) for i in range(1, num_days + 1)]
 period_assigns = get_day_period_assignments(daily_vals)
 skip_balances = calculate_skip_card_balance(st.session_state.palmu_month_skip_cards, start_date, num_days, daily_vals)
@@ -180,11 +180,11 @@ with st.container(border=True):
                 anchor = st.selectbox("基準点", ["左上", "中央", "右上", "左下", "右下"], key="pm_anchor")
                 c1, c2 = st.columns(2)
                 with c1:
-                    px = st.number_input("Xズレ", value=st.session_state.get("p_x", 0), key="p_x_in")
+                    px = st.number_input("Xズレ (＋右 / －左)", value=st.session_state.get("p_x", 0), key="p_x_in")
                 with c2:
-                    py = st.number_input("Yズレ", value=st.session_state.get("p_y", 0), key="p_y_in")
+                    py = st.number_input("Yズレ (＋下 / －上)", value=st.session_state.get("p_y", 0), key="p_y_in")
                 st.session_state.p_x, st.session_state.p_y = px, py
-                scale = st.slider("スケール", 0.1, 2.0, 1.0, 0.05, key="pm_scale")
+                scale = st.number_input("スケール", value=1.0, min_value=0.1, max_value=2.0, step=0.05, key="pm_scale")
         else:
             anchor, px, py, scale = "左上", 0, 0, 1.0
 

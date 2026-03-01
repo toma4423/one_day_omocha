@@ -214,11 +214,11 @@ with st.container(border=True):
                 anchor = st.selectbox("基準点", ["左上", "中央", "右上", "左下", "右下"])
                 c1, c2 = st.columns(2)
                 with c1:
-                    px = st.number_input("Xズレ", value=st.session_state.get("w_x", 0), key="w_x_in")
+                    px = st.number_input("Xズレ (＋右 / －左)", value=st.session_state.get("w_x", 0), key="w_x_in")
                 with c2:
-                    py = st.number_input("Yズレ", value=st.session_state.get("w_y", 0), key="w_y_in")
+                    py = st.number_input("Yズレ (＋下 / －上)", value=st.session_state.get("w_y", 0), key="w_y_in")
                 st.session_state.w_x, st.session_state.w_y = px, py
-                scale = st.slider("スケール", 0.1, 2.0, 1.0, 0.05)
+                scale = st.number_input("スケール", value=1.0, min_value=0.1, max_value=2.0, step=0.05)
         else:
             anchor, px, py, scale = "左上", 0, 0, 1.0
 
@@ -283,7 +283,7 @@ with st.container(border=True):
                 d = json.load(uploaded_file)
                 for i in range(1, MAX_DAYS + 1):
                     v = d.get(f"day_{i}", 1)
-                    st.session_state[f"pm_day_{i}"] = "SKIP" if v == "スキップ" else v
+                    st.session_state[f"palmu_day_{i}"] = "SKIP" if v == "スキップ" else v
                     st.session_state[f"palmu_plan_{i}"] = d.get(f"plan_{i}", "")
                 st.session_state.palmu_skip_cards = d.get("skip_cards", 0)
                 save_to_storage()
