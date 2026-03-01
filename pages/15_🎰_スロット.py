@@ -1,4 +1,3 @@
-import json
 import time
 
 import pandas as pd
@@ -8,7 +7,6 @@ from streamlit_local_storage import LocalStorage
 from src.utils.slot import (
     evaluate_slot_spin,
     get_slot_config,
-    migrate_slot_config,
     resolve_pattern_to_chars,
     spin_reels,
 )
@@ -25,34 +23,20 @@ render_page_header()
 st.markdown(
     """
     <style>
-    .reel-container {
-        display: flex;
-        justify-content: center;
-        gap: 20px;
-        margin: 20px 0;
-    }
+    .reel-container { display: flex; justify-content: center; gap: 20px; margin: 20px 0; }
     .reel {
-        width: 120px;
-        height: 120px;
-        background: #fdfdfd;
-        border: 4px solid #333;
-        border-radius: 15px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 60px;
-        box-shadow: inset 0 0 10px rgba(0,0,0,0.2);
+        width: 120px; height: 120px; background: #fdfdfd; border: 4px solid #333;
+        border-radius: 15px; display: flex; align-items: center; justify-content: center;
+        font-size: 60px; box-shadow: inset 0 0 10px rgba(0,0,0,0.2);
     }
-    .spin-animation {
-        animation: spin 0.1s infinite linear;
-    }
+    .spin-animation { animation: spin 0.1s infinite linear; }
     @keyframes spin {
         0% { transform: translateY(0); opacity: 0.5; }
         50% { transform: translateY(-10px); opacity: 0.8; }
         100% { transform: translateY(0); opacity: 0.5; }
     }
     </style>
-""",
+    """,
     unsafe_allow_html=True,
 )
 
@@ -66,11 +50,7 @@ if "slot_config" not in st.session_state:
 
 # セッション状態の初期化
 if "slot_reels" not in st.session_state:
-    st.session_state.slot_reels = [
-        {"char": "7️⃣", "image_url": None},
-        {"char": "7️⃣", "image_url": None},
-        {"char": "7️⃣", "image_url": None},
-    ]
+    st.session_state.slot_reels = [{"char": "7️⃣", "image_url": None}] * 3
 if "slot_history" not in st.session_state:
     saved_history = storage.get_item("slot_history", is_json=True)
     st.session_state.slot_history = saved_history if saved_history else []
@@ -99,18 +79,17 @@ st.write("")
 
 # --- メインエリア ---
 col1, col2 = st.columns([2, 1])
-
 with col1:
     with st.container(border=True):
-        # リール表示用プレースホルダー
         reel_placeholder = st.empty()
 
         def render_symbol_html(symbol_obj):
-            char = symbol_obj["char"]
             url = symbol_obj.get("image_url")
-            if url:
-                return f'<img src="{url}" style="width: 100px; height: 100px; object-fit: contain;" alt="{char}">'
-            return char
+            return (
+                f'<img src="{url}" style="width: 100px; height: 100px; object-fit: contain;">'
+                if url
+                else symbol_obj["char"]
+            )
 
         def render_reels(reels, spinning=False):
             cls = "reel spin-animation" if spinning else "reel"
@@ -124,29 +103,23 @@ with col1:
             reel_placeholder.markdown(html, unsafe_allow_html=True)
 
         render_reels(st.session_state.slot_reels)
-
         if st.button("🔥 レバーを叩く！", use_container_width=True, type="primary"):
             for _ in range(10):
                 temp_reels = spin_reels(st.session_state.slot_config["symbols"])
                 render_reels(temp_reels, spinning=True)
                 time.sleep(0.05)
-
             final_reels = spin_reels(st.session_state.slot_config["symbols"])
             st.session_state.slot_reels = final_reels
             render_reels(final_reels)
-
             result = evaluate_slot_spin(final_reels, st.session_state.slot_config["payouts"])
             st.session_state.slot_result = result
-
             st.session_state.slot_spins += 1
             storage.set_item("slot_spins", st.session_state.slot_spins)
             if result:
                 st.session_state.slot_total_score += result["score"]
                 storage.set_item("slot_total_score", st.session_state.slot_total_score)
-
             res_name = result["name"] if result else "ハズレ"
-            new_record = {"time": get_jst_now().strftime("%H:%M:%S"), "result": res_name}
-            st.session_state.slot_history.insert(0, new_record)
+            st.session_state.slot_history.insert(0, {"time": get_jst_now().strftime("%H:%M:%S"), "result": res_name})
             st.session_state.slot_history = st.session_state.slot_history[:50]
             storage.set_item("slot_history", st.session_state.slot_history)
             st.rerun()
@@ -161,13 +134,8 @@ with col2:
                 unsafe_allow_html=True,
             )
             st.balloons()
-        elif (
-            st.session_state.slot_result is None
-            and "slot_history" in st.session_state
-            and len(st.session_state.slot_history) > 0
-        ):
-            if st.session_state.slot_history[0]["result"] == "ハズレ":
-                st.info("残念！もう一回！")
+        elif st.session_state.slot_history and st.session_state.slot_history[0]["result"] == "ハズレ":
+            st.info("残念！もう一回！")
         else:
             st.markdown(
                 "<div style='height:150px; display:flex; align-items:center; justify-content:center; color:gray;'>レバーを叩いてね！</div>",
@@ -175,10 +143,7 @@ with col2:
             )
 
 st.write("")
-
-# --- 下部エリア ---
-col_hist, col_info = st.columns([1, 1])
-
+col_hist, col_info = st.columns(2)
 with col_hist:
     st.subheader("📜 履歴")
     if st.session_state.slot_history:
@@ -187,7 +152,6 @@ with col_hist:
         st.table(df)
     else:
         st.write("履歴はありません。")
-
 with col_info:
     st.subheader("📊 役の一覧")
     payout_data = []
@@ -197,31 +161,19 @@ with col_info:
         payout_data.append({"役名": p["name"], "パターン": " ".join(char_pattern), "スコア": p["score"]})
     st.table(payout_data)
 
+# サイドバー
 with st.sidebar:
-    st.header("⚙️ オプション")
-    with st.expander("ℹ️ 現在の設定情報"):
-        st.write(f"**台名:** {st.session_state.slot_config.get('name')}")
-        st.write(f"**図柄数:** {len(st.session_state.slot_config.get('symbols', []))}")
-
-    uploaded_file = st.file_uploader("設定JSONを読込", type="json")
-    if uploaded_file is not None:
-        if st.button("設定を反映する", use_container_width=True):
-            try:
-                data_load = json.load(uploaded_file)
-                if "symbols" in data_load and "payouts" in data_load:
-                    migrated_config = migrate_slot_config(data_load)
-                    st.session_state.slot_config = migrated_config
-                    storage.set_item("slot_config", migrated_config)
-                    st.success("設定を反映しました！")
-                    st.rerun()
-            except Exception:
-                st.error("読込失敗")
-
+    st.header("⚙️ 設定")
+    st.info("詳細な設定は『スロット作成』ページから行えます。")
     if st.button("統計をリセット"):
         st.session_state.slot_spins = 0
         st.session_state.slot_total_score = 0
         storage.set_item("slot_spins", 0)
         storage.set_item("slot_total_score", 0)
+        st.rerun()
+    if st.button("履歴をクリア"):
+        st.session_state.slot_history = []
+        storage.set_item("slot_history", [])
         st.rerun()
 
 render_donation_box("https://qr.paypay.ne.jp/p2p01_jsHjvMAenqfvI10s", is_sidebar=True)

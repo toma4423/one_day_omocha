@@ -118,28 +118,31 @@ with col_main2:
         font_size=64,
     )
 
-# --- サイドバー：セーブ＆ロード ---
-with st.sidebar:
-    st.header("💾 データ管理")
-    current_data = {
-        "x": st.session_state.cs_x,
-        "y": st.session_state.cs_y,
-        "z": st.session_state.cs_z,
-        "weight_x": st.session_state.cs_weight_x,
-        "weight_y": st.session_state.cs_weight_y,
-        "weight_z": st.session_state.cs_weight_z,
-    }
-    json_str = json.dumps(current_data, indent=2)
-    st.download_button(
-        label="📥 JSON保存",
-        data=json_str,
-        file_name=f"cs_{get_jst_now().strftime('%Y%m%d')}.json",
-        mime="application/json",
-        use_container_width=True,
-    )
-    uploaded_file = st.file_uploader("📤 JSON読込", type="json")
-    if uploaded_file is not None:
-        if st.button("復元する", use_container_width=True):
+# --- データの保存と読み込み ---
+st.write("---")
+with st.container(border=True):
+    st.subheader("📁 データの保存と読み込み")
+    c1, c2 = st.columns(2)
+    with c1:
+        current_data = {
+            "x": st.session_state.cs_x,
+            "y": st.session_state.cs_y,
+            "z": st.session_state.cs_z,
+            "weight_x": st.session_state.cs_weight_x,
+            "weight_y": st.session_state.cs_weight_y,
+            "weight_z": st.session_state.cs_weight_z,
+        }
+        json_str = json.dumps(current_data, indent=2)
+        st.download_button(
+            "📥 JSONを保存",
+            json_str,
+            f"cs_{get_jst_now().strftime('%Y%m%d')}.json",
+            "application/json",
+            use_container_width=True,
+        )
+    with c2:
+        uploaded_file = st.file_uploader("📤 JSONを読み込む", type="json", label_visibility="collapsed")
+        if uploaded_file and st.button("反映実行", use_container_width=True):
             try:
                 data_load = json.load(uploaded_file)
                 st.session_state.cs_x = data_load.get("x", 0)
@@ -149,10 +152,14 @@ with st.sidebar:
                 st.session_state.cs_weight_y = data_load.get("weight_y", 1.0)
                 st.session_state.cs_weight_z = data_load.get("weight_z", 1.0)
                 save_to_storage()
+                st.success("反映しました！")
                 st.rerun()
             except Exception:
                 st.error("読込失敗")
-    st.write("---")
+
+# --- サイドバー ---
+with st.sidebar:
+    st.header("⚙️ 設定")
     if st.button("全てリセット", use_container_width=True):
         st.session_state.cs_x = 0
         st.session_state.cs_y = 0

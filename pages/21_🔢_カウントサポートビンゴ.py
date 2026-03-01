@@ -44,7 +44,7 @@ st.markdown(
         font-weight: 900 !important;
         color: #007bff !important;
     }
-    /* スピンボタン（増減矢印）を隠す（直接入力を優先しつつスペース確保） */
+    /* スピンボタンを隠す */
     input::-webkit-outer-spin-button,
     input::-webkit-inner-spin-button {
         -webkit-appearance: none;
@@ -53,7 +53,6 @@ st.markdown(
     input[type=number] {
         -moz-appearance: textfield;
     }
-    /* ラベルの非表示を徹底 */
     label { display: none !important; }
     </style>
 """,
@@ -128,55 +127,6 @@ def on_change():
     validate_and_save()
 
 
-# --- サイドバー ---
-with st.sidebar:
-    st.header("⚙️ 設定")
-    rows = st.number_input("行数", 1, 15, key="csb_rows", on_change=on_change)
-    cols = st.number_input("列数", 1, 15, key="csb_cols", on_change=on_change)
-    st.write("---")
-    st.subheader("💾 データ管理")
-    current_state = {
-        "rows": st.session_state.csb_rows,
-        "cols": st.session_state.csb_cols,
-        "cells": {
-            f"{r}_{c}": {
-                "label": st.session_state.get(f"csb_label_{r}_{c}"),
-                "count": st.session_state.get(f"csb_count_{r}_{c}"),
-            }
-            for r in range(rows)
-            for c in range(cols)
-        },
-    }
-    json_str = json.dumps(current_state, indent=2, ensure_ascii=False)
-    st.download_button(
-        label="📥 JSON保存",
-        data=json_str,
-        file_name=f"bingo_{get_jst_now().strftime('%Y%m%d')}.json",
-        mime="application/json",
-        use_container_width=True,
-    )
-    uploaded_file = st.file_uploader("📤 JSON読込", type="json")
-    if uploaded_file and st.button("復元実行", use_container_width=True):
-        try:
-            d = json.load(uploaded_file)
-            st.session_state.csb_rows, st.session_state.csb_cols = d["rows"], d["cols"]
-            for pos, cell in d["cells"].items():
-                r, c = pos.split("_")
-                st.session_state[f"csb_label_{r}_{c}"] = cell["label"]
-                st.session_state[f"csb_count_{r}_{c}"] = cell["count"]
-            validate_and_save()
-            st.rerun()
-        except Exception:
-            st.error("不正な形式です")
-    st.write("---")
-    if st.button("🚨 全てリセット", use_container_width=True):
-        storage.delete_item(get_data_key())
-        current_v = int(get_current_version())
-        new_v = 1 if current_v >= 100 else current_v + 1
-        storage.set_item("csb_ver", str(new_v))
-        st.query_params["v"] = str(new_v)
-        st.rerun()
-
 # --- メイングリッド ---
 for r in range(st.session_state.csb_rows):
     cols_ui = st.columns(st.session_state.csb_cols)
@@ -188,11 +138,67 @@ for r in range(st.session_state.csb_rows):
             st.session_state[ck] = 0
         with cols_ui[c]:
             with st.container(border=True):
-                # テキスト入力（ラベル）
                 st.text_input(
                     f"L{r}{c}", key=lk, label_visibility="collapsed", on_change=on_change, placeholder="項目名"
                 )
-                # 数値入力（カウント）
                 st.number_input(f"N{r}{c}", key=ck, label_visibility="collapsed", step=1, on_change=on_change)
+
+# --- データの保存と読み込み ---
+st.write("---")
+with st.container(border=True):
+    st.subheader("📁 データの保存と読み込み")
+    c1, c2 = st.columns(2)
+    with c1:
+        current_state = {
+            "rows": st.session_state.csb_rows,
+            "cols": st.session_state.csb_cols,
+            "cells": {
+                f"{r}_{c}": {
+                    "label": st.session_state.get(f"csb_label_{r}_{c}"),
+                    "count": st.session_state.get(f"csb_count_{r}_{c}"),
+                }
+                for r in range(st.session_state.csb_rows)
+                for c in range(st.session_state.csb_cols)
+            },
+        }
+        json_str = json.dumps(current_state, indent=2, ensure_ascii=False)
+        st.download_button(
+            "📥 JSONを保存",
+            json_str,
+            f"bingo_{get_jst_now().strftime('%Y%m%d')}.json",
+            "application/json",
+            use_container_width=True,
+        )
+    with c2:
+        uploaded_file = st.file_uploader("📤 JSONを読み込む", type="json", label_visibility="collapsed")
+        if uploaded_file and st.button("反映実行", use_container_width=True):
+            try:
+                d = json.load(uploaded_file)
+                st.session_state.csb_rows, st.session_state.csb_cols = d["rows"], d["cols"]
+                for k in list(st.session_state.keys()):
+                    if k.startswith("csb_label_") or k.startswith("csb_count_"):
+                        del st.session_state[k]
+                for pos, cell in d["cells"].items():
+                    r, c = pos.split("_")
+                    st.session_state[f"csb_label_{r}_{c}"] = cell["label"]
+                    st.session_state[f"csb_count_{r}_{c}"] = cell["count"]
+                validate_and_save()
+                st.rerun()
+            except Exception:
+                st.error("不正な形式です")
+
+# --- サイドバー ---
+with st.sidebar:
+    st.header("⚙️ 設定")
+    st.number_input("行数", 1, 15, key="csb_rows", on_change=on_change)
+    st.number_input("列数", 1, 15, key="csb_cols", on_change=on_change)
+    st.write("---")
+    if st.button("🚨 全てリセット", use_container_width=True):
+        storage.delete_item(get_data_key())
+        current_v = int(get_current_version())
+        new_v = 1 if current_v >= 100 else current_v + 1
+        storage.set_item("csb_ver", str(new_v))
+        st.query_params["v"] = str(new_v)
+        st.rerun()
 
 render_donation_box("https://qr.paypay.ne.jp/p2p01_jsHjvMAenqfvI10s", is_sidebar=True)

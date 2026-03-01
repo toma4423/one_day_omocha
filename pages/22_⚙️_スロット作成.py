@@ -53,7 +53,6 @@ st.write("")
 # --- 図柄の編集 ---
 st.subheader("🖼️ 図柄（シンボル）の編集")
 with st.container(border=True):
-    # ヘッダー説明
     hc1, hc2, hc3, hc4 = st.columns([1, 2, 4, 1])
     hc1.caption("ID")
     hc2.caption("管理用ラベル")
@@ -104,7 +103,6 @@ with st.container(border=True):
     st.session_state.slot_target_hit_rate = st.slider(
         "全体の合算当り確率 (%)", 0.1, 95.0, float(st.session_state.slot_target_hit_rate), step=0.1
     )
-
     new_payouts = []
     symbol_options_map = {s["id"]: f"{s['id']}: {s['char']}" for s in new_symbols}
     symbol_ids = ["ANY"] + sorted(list(symbol_options_map.keys()))
@@ -199,10 +197,40 @@ with st.container(border=True):
         df_probs.columns = ["役名", "出現確率 (%)"]
         st.table(df_probs)
 
+# --- データの保存と読み込み ---
+st.write("---")
+with st.container(border=True):
+    st.subheader("📁 データの保存と読み込み")
+    c1, c2 = st.columns(2)
+    with c1:
+        json_str = json.dumps(st.session_state.slot_config_edit, indent=2, ensure_ascii=False)
+        st.download_button(
+            "📥 設定をJSONで保存",
+            json_str,
+            f"slot_{get_jst_now().strftime('%Y%m%d')}.json",
+            "application/json",
+            use_container_width=True,
+        )
+    with c2:
+        uploaded_file = st.file_uploader("📤 設定JSONを読み込む", type="json", label_visibility="collapsed")
+        if uploaded_file and st.button("反映実行", use_container_width=True):
+            try:
+                data = migrate_slot_config(json.load(uploaded_file))
+                valid, msg = validate_slot_config(data)
+                if valid:
+                    st.session_state.slot_config_edit = data
+                    storage.set_item("slot_config", data)
+                    st.success("反映しました！")
+                    st.rerun()
+                else:
+                    st.error(msg)
+            except Exception as e:
+                st.error(f"失敗: {e}")
+
 st.write("---")
 col_save, col_reset = st.columns(2)
 with col_save:
-    if st.button("💾 設定を保存して反映", use_container_width=True, type="primary"):
+    if st.button("💾 現在の設定をスロット本体に反映", use_container_width=True, type="primary"):
         if not slot_name:
             st.error("名前を入力してください")
         else:
@@ -213,39 +241,19 @@ with col_save:
             }
             storage.set_item("slot_config", final_config)
             st.session_state.slot_config = final_config
-            st.success("保存しました！")
+            st.success("反映しました！")
             st.balloons()
-            if st.button("🎰 スロットページへ移動", use_container_width=True):
-                st.switch_page("pages/15_🎰_スロット.py")
 
 with col_reset:
     if st.button("🚨 デフォルトに戻す", use_container_width=True):
         default_config = {"name": DEFAULT_SLOT_NAME, "symbols": DEFAULT_SYMBOLS, "payouts": DEFAULT_PAYOUTS}
+        st.session_state.slot_config_edit = default_config
         storage.set_item("slot_config", default_config)
         st.rerun()
 
 # サイドバー
 with st.sidebar:
-    st.header("💾 データ管理")
-    json_str = json.dumps(st.session_state.slot_config_edit, indent=2, ensure_ascii=False)
-    st.download_button(
-        "📥 JSON保存",
-        data=json_str,
-        file_name=f"slot_{get_jst_now().strftime('%Y%m%d')}.json",
-        mime="application/json",
-        use_container_width=True,
-    )
-    uploaded_file = st.file_uploader("📤 JSON読込", type="json")
-    if uploaded_file and st.button("🚀 適用", use_container_width=True):
-        try:
-            data = migrate_slot_config(json.load(uploaded_file))
-            valid, msg = validate_slot_config(data)
-            if valid:
-                storage.set_item("slot_config", data)
-                st.rerun()
-            else:
-                st.error(msg)
-        except Exception as e:
-            st.error(f"失敗: {e}")
+    st.header("⚙️ 管理")
+    st.info("設定はメインエリアの『保存と読み込み』から行えます。")
 
 render_donation_box("https://qr.paypay.ne.jp/p2p01_jsHjvMAenqfvI10s", is_sidebar=True)

@@ -19,7 +19,7 @@ st.set_page_config(page_title="ルーレット", page_icon="🎡", layout="wide"
 # グローバルスタイルの適用
 render_page_header()
 
-# 強力な遅延表示用 CSS (アニメーション中は完全に消去)
+# 強力な遅延表示用 CSS
 st.markdown(
     """
 <style>
@@ -140,15 +140,33 @@ with col_main:
 
         st.rerun()
 
-    # --- 履歴セクション（回している間は CSS で完全に隠す） ---
-    # Python 側の即時結果表示（st.success等）は廃止し、JS 側での表示のみとする
+    # --- データの保存と読み込み (JSON) ---
+    st.write("")
+    with st.container(border=True):
+        st.subheader("📁 データの保存と読み込み")
+        c1, c2 = st.columns(2)
+        with c1:
+            json_data = json.dumps(st.session_state.roulette_config, ensure_ascii=False, indent=2)
+            st.download_button(
+                "📥 設定をJSONで保存", json_data, "roulette_config.json", "application/json", use_container_width=True
+            )
+        with c2:
+            uploaded_file = st.file_uploader("📤 設定JSONを読み込む", type="json", label_visibility="collapsed")
+            if uploaded_file and st.button("反映実行", use_container_width=True):
+                try:
+                    data = json.load(uploaded_file)
+                    migrated = migrate_roulette_config(data)
+                    st.session_state.roulette_config = migrated
+                    storage.set_item("roulette_config", migrated)
+                    st.success("反映しました！")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"読込失敗: {e}")
 
+    # --- 履歴セクション ---
     container_class = "strictly-delayed" if st.session_state.roulette_spin_trigger > 0 else ""
-
     with st.container():
         st.markdown(f'<div class="{container_class}">', unsafe_allow_html=True)
-
-        # 履歴をデフォルトで閉じた Expander に入れる
         with st.expander("📜 抽選履歴を表示する"):
             if st.session_state.roulette_history:
                 for entry in st.session_state.roulette_history[:15]:
@@ -158,7 +176,6 @@ with col_main:
                     )
             else:
                 st.info("履歴はまだありません。")
-
         st.markdown("</div>", unsafe_allow_html=True)
 
 # --- サイドバー ---
@@ -195,24 +212,6 @@ with col_sidebar:
     st.session_state.roulette_config["sound_enabled"] = st.toggle(
         "🔊 カチカチ音を有効にする", value=st.session_state.roulette_config.get("sound_enabled", True)
     )
-
-    st.write("---")
-    st.subheader("📁 共有と管理")
-
-    json_data = json.dumps(st.session_state.roulette_config, ensure_ascii=False, indent=2)
-    st.download_button("📥 JSON保存", json_data, "roulette_config.json", "application/json", use_container_width=True)
-
-    uploaded_file = st.file_uploader("📤 JSON読込", type="json")
-    if uploaded_file and st.button("設定を反映", use_container_width=True):
-        try:
-            data = json.load(uploaded_file)
-            migrated = migrate_roulette_config(data)
-            st.session_state.roulette_config = migrated
-            storage.set_item("roulette_config", migrated)
-            st.success("反映しました！")
-            st.rerun()
-        except Exception as e:
-            st.error(f"読込失敗: {e}")
 
     if st.button("🗑️ 履歴をクリア", use_container_width=True):
         st.session_state.roulette_history = []

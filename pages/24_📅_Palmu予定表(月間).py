@@ -62,40 +62,6 @@ def init_palmu_month_state():
 init_palmu_month_state()
 
 st.title("📅 Palmu月間予定表マネージャー")
-st.markdown("1ヶ月間のランクポイント予定を管理し、配信用のスケジュール画像を作成します。")
-
-# --- サイドバー：セーブ＆ロード ---
-with st.sidebar:
-    st.header("💾 セーブ & ロード")
-    current_data = {f"day_{i}": st.session_state[f"pm_day_{i}"] for i in range(1, MAX_MONTH_DAYS + 1)}
-    current_data["skip_cards"] = st.session_state.palmu_month_skip_cards
-    json_str = json.dumps(current_data, indent=2)
-    st.download_button(
-        "📥 JSON保存",
-        json_str,
-        f"palmu_month_{get_jst_now().strftime('%Y%m%d')}.json",
-        "application/json",
-        use_container_width=True,
-    )
-    uploaded_file = st.file_uploader("📤 JSON読込", type="json")
-    if uploaded_file and st.button("復元する", use_container_width=True):
-        try:
-            d = json.load(uploaded_file)
-            for i in range(1, MAX_MONTH_DAYS + 1):
-                v = d.get(f"day_{i}", 1)
-                st.session_state[f"pm_day_{i}"] = "SKIP" if v == "スキップ" else v
-            st.session_state.palmu_month_skip_cards = d.get("skip_cards", 0)
-            save_to_storage()
-            st.rerun()
-        except Exception:
-            st.error("読込失敗")
-    if st.button("🚨 全リセット", use_container_width=True):
-        for i in range(1, MAX_MONTH_DAYS + 1):
-            st.session_state[f"pm_day_{i}"] = 1
-        st.session_state.palmu_month_skip_cards = 0
-        st.session_state.palmu_month_reset_counter += 1
-        storage.delete_item(PALMU_MONTH_STORAGE_KEY)
-        st.rerun()
 
 # --- 基本設定 ---
 with st.container(border=True):
@@ -180,27 +146,24 @@ if active_weeks:
                 if status != "ランクアップ":
                     st.caption(f"あと {points_needed_for_rank_up(total)}pt でアップ")
 
-# --- 画像生成（ライブプレビュー） ---
+# --- 画像生成 ---
 st.write("---")
 st.header("🗓️ 画像生成 & ライブプレビュー")
 with st.container(border=True):
     bg_file = st.file_uploader("🖼️ 背景アップロード", type=["jpg", "png"], key="pm_bg")
     col_cfg, col_prev = st.columns([1, 1.5])
-
     with col_cfg:
         st.subheader("🎨 デザイン設定")
         title_text = st.text_input("タイトル", value=f"{start_date.month}月 スケジュール", key="pm_title")
         img_width = st.number_input("幅", 400, 1200, 800, 10, key="pm_width")
         img_text_color = st.color_picker("文字色", "#FFFFFF", key="pm_txt_c")
         img_frame_color = st.color_picker("枠色", "#FF5722", key="pm_frm_c")
-
         is_trans = st.checkbox("枠内を完全に透過する", False, key="pm_trans")
         img_bg_rgba = (
             "#00000000"
             if is_trans
             else f"{st.color_picker('枠内色', '#000000', key='pm_bg_c')}{int(st.slider('不透明度', 0, 100, 80, key='pm_a') * 255 / 100):02X}"
         )
-
         if bg_file:
             st.write("---")
             st.subheader("📍 配置設定")
@@ -226,16 +189,10 @@ with st.container(border=True):
                         "point": "SKIP" if p == "SKIP" else f"+{p}pt",
                     }
                 )
-
             fg_bytes = create_palmu_calendar_grid_image(
                 title_text, cal_data, img_text_color, img_frame_color, img_bg_rgba, img_width
             )
-
-            if bg_file:
-                final_bytes = composite_images(bg_file.getvalue(), fg_bytes, px, py, scale, anchor)
-            else:
-                final_bytes = fg_bytes
-
+            final_bytes = composite_images(bg_file.getvalue(), fg_bytes, px, py, scale, anchor) if bg_file else fg_bytes
             st.markdown(
                 f'<div style="text-align:center; background:#eee; padding:10px; border-radius:12px; border:1px solid #ddd;"><img src="data:image/png;base64,{base64.b64encode(final_bytes).decode()}" style="max-width:100%; height:auto;"></div>',
                 unsafe_allow_html=True,
@@ -249,6 +206,47 @@ with st.container(border=True):
                 use_container_width=True,
             )
         except Exception as e:
-            st.error(f"プレビュー生成エラー: {e}")
+            st.error(f"エラー: {e}")
+
+# --- データの保存と読み込み ---
+st.write("---")
+with st.container(border=True):
+    st.subheader("📁 データの保存と読み込み")
+    c1, c2 = st.columns(2)
+    with c1:
+        current_data = {f"day_{i}": st.session_state[f"pm_day_{i}"] for i in range(1, MAX_MONTH_DAYS + 1)}
+        current_data["skip_cards"] = st.session_state.palmu_month_skip_cards
+        json_str = json.dumps(current_data, indent=2, ensure_ascii=False)
+        st.download_button(
+            "📥 JSONを保存",
+            json_str,
+            f"palmu_month_{get_jst_now().strftime('%Y%m%d')}.json",
+            "application/json",
+            use_container_width=True,
+        )
+    with c2:
+        uploaded_file = st.file_uploader("📤 JSONを読み込む", type="json", label_visibility="collapsed")
+        if uploaded_file and st.button("反映実行", use_container_width=True):
+            try:
+                d = json.load(uploaded_file)
+                for i in range(1, MAX_MONTH_DAYS + 1):
+                    v = d.get(f"day_{i}", 1)
+                    st.session_state[f"pm_day_{i}"] = "SKIP" if v == "スキップ" else v
+                st.session_state.palmu_month_skip_cards = d.get("skip_cards", 0)
+                save_to_storage()
+                st.rerun()
+            except Exception:
+                st.error("読込失敗")
+
+# --- サイドバー ---
+with st.sidebar:
+    st.header("⚙️ 設定")
+    if st.button("🚨 全リセット", use_container_width=True):
+        for i in range(1, MAX_MONTH_DAYS + 1):
+            st.session_state[f"pm_day_{i}"] = 1
+        st.session_state.palmu_month_skip_cards = 0
+        st.session_state.palmu_month_reset_counter += 1
+        storage.delete_item(PALMU_MONTH_STORAGE_KEY)
+        st.rerun()
 
 render_donation_box("https://qr.paypay.ne.jp/p2p01_jsHjvMAenqfvI10s", is_sidebar=True)
