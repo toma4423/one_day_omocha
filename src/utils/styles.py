@@ -33,7 +33,7 @@ def render_dice_animation(placeholder: Any, size: int = 100, iterations: int = 1
     """
     for _ in range(iterations):
         temp_dice = roll_dice(3)
-        html = f"<div style='text-align: center;'>{display_dice_html(temp_dice, size)}</div>"
+        html = f"<div style='text-align: center; background-color: #1a1c23; border-radius: 16px; padding: 20px; margin-bottom: 10px;'>{display_dice_html(temp_dice, size)}</div>"
         placeholder.markdown(html, unsafe_allow_html=True)
         time.sleep(0.05)
 

@@ -79,7 +79,7 @@ with col_roll:
 
         # 現在のサイコロ表示
         html = f"""
-        <div style='text-align: center; background-color: #f0f2f6; padding: 30px; border-radius: 16px; margin-top: 10px; border: 1px solid #ddd;'>
+        <div style='text-align: center; background-color: #1a1c23; color: white; padding: 30px; border-radius: 16px; margin-top: 10px; border: 1px solid #333;'>
             {display_dice_html(st.session_state.cc_dice, size=80)}
         </div>
         """
