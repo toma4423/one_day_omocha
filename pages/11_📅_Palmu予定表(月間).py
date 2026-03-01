@@ -4,7 +4,7 @@ from datetime import timedelta
 import streamlit as st
 from streamlit_local_storage import LocalStorage
 
-from src.utils.image_maker import create_palmu_calendar_grid_image
+from src.utils.image_maker import composite_images, create_palmu_calendar_grid_image
 from src.utils.palmu import (
     calculate_skip_card_balance,
     evaluate_rank_status,
@@ -254,13 +254,13 @@ else:
 st.write("---")
 
 # --- 画像生成 ---
-st.header("🗓️ 月間スケジュール画像生成")
-st.markdown("入力したポイント予定をもとに、配信用のスケジュール画像（背景透過）を作成します。")
+st.header("🗓️ 月間スケジュール画像生成 & 合成")
+st.markdown("ポイント予定をカレンダー画像化し、お好みの背景画像と合成できます。")
 
 col_img_settings, col_img_preview = st.columns([1, 1.5])
 
 with col_img_settings:
-    st.subheader("⚙️ 画像設定")
+    st.subheader("⚙️ 1. カレンダー画像設定")
     title_text = st.text_input("タイトル", value=f"{start_date.month}月 スケジュール")
 
     img_text_color = st.color_picker("文字の色", value="#FFFFFF")
@@ -277,11 +277,20 @@ with col_img_settings:
 
     img_width = st.number_input("画像の幅", min_value=400, max_value=1200, value=800, step=10, key="pm_width")
 
+    st.write("---")
+    st.subheader("背景画像と合成 (オプション)")
+    bg_file = st.file_uploader("背景画像をアップロード (JPG/PNG)", type=["jpg", "jpeg", "png"], key="pm_bg_upload")
+
+    if bg_file:
+        st.markdown("#### 合成位置・サイズ調整")
+        pos_x = st.slider("左右位置 (X)", min_value=0, max_value=2000, value=50, key="pm_x")
+        pos_y = st.slider("上下位置 (Y)", min_value=0, max_value=2000, value=50, key="pm_y")
+        overlay_scale = st.slider("スケール", min_value=0.1, max_value=2.0, value=1.0, step=0.05, key="pm_scale")
+
 with col_img_preview:
     st.subheader("👁️ プレビュー")
     try:
         # スケジュールデータの構築
-        # カレンダー形式に合わせるため、開始曜日までのパディングを追加
         calendar_data = []
 
         # 1. 開始前の空欄パディング
@@ -302,8 +311,8 @@ with col_img_preview:
                 }
             )
 
-        # 月間用の描画（カレンダー形式）
-        img_bytes = create_palmu_calendar_grid_image(
+        # カレンダー画像の生成
+        fg_bytes = create_palmu_calendar_grid_image(
             title=title_text,
             calendar_data=calendar_data,
             text_color=img_text_color,
@@ -312,18 +321,33 @@ with col_img_preview:
             width=img_width,
         )
 
+        final_bytes = fg_bytes
+        display_img = fg_bytes
+
+        # 背景画像がある場合は合成
+        if bg_file:
+            bg_bytes = bg_file.read()
+            final_bytes = composite_images(
+                bg_bytes=bg_bytes,
+                fg_bytes=fg_bytes,
+                x=pos_x,
+                y=pos_y,
+                scale=overlay_scale,
+            )
+            display_img = final_bytes
+
         import base64
 
-        b64_img = base64.b64encode(img_bytes).decode()
+        b64_img = base64.b64encode(display_img).decode()
         st.markdown(
             f'<div style="background-color:#eee; background-image:linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%, #ccc), linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%, #ccc); background-size:20px 20px; background-position:0 0, 10px 10px; padding:20px; border-radius:10px; text-align:center;"><img src="data:image/png;base64,{b64_img}" style="max-width:100%; height:auto;"></div>',
             unsafe_allow_html=True,
         )
 
         st.download_button(
-            label="月間スケジュールをダウンロード (PNG)",
-            data=img_bytes,
-            file_name=f"palmu_monthly_{start_date.strftime('%Y%m')}.png",
+            label="完成した画像をダウンロード (PNG)",
+            data=final_bytes,
+            file_name=f"palmu_monthly_final_{get_jst_now().strftime('%Y%m%d_%H%M')}.png",
             mime="image/png",
             use_container_width=True,
         )

@@ -245,3 +245,35 @@ def create_palmu_calendar_grid_image(
     buf = BytesIO()
     img.save(buf, format="PNG")
     return buf.getvalue()
+
+
+def composite_images(
+    bg_bytes: bytes,
+    fg_bytes: bytes,
+    x: int,
+    y: int,
+    scale: float = 1.0,
+) -> bytes:
+    """
+    背景画像の上に前景画像を合成します。
+    """
+    bg = Image.open(BytesIO(bg_bytes)).convert("RGBA")
+    fg = Image.open(BytesIO(fg_bytes)).convert("RGBA")
+
+    if scale != 1.0:
+        new_w = int(fg.width * scale)
+        new_h = int(fg.height * scale)
+        if new_w > 0 and new_h > 0:
+            fg = fg.resize((new_w, new_h), Image.Resampling.LANCZOS)
+
+    # 合成用のキャンバス（背景と同じサイズ）
+    canvas = Image.new("RGBA", bg.size, (0, 0, 0, 0))
+    canvas.paste(fg, (x, y), fg)
+
+    # アルファブレンドで合成
+    result = Image.alpha_composite(bg, canvas)
+
+    buf = BytesIO()
+    # JPEGだと透過が消えるため、PNGで出力（最終出力用）
+    result.save(buf, format="PNG")
+    return buf.getvalue()
