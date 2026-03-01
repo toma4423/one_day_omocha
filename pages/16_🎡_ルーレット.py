@@ -20,16 +20,16 @@ st.set_page_config(page_title="ルーレット", page_icon="🎡", layout="wide"
 # グローバルスタイルの適用
 render_page_header()
 
-# 結果表示を遅らせるための CSS
+# 結果と履歴を遅らせるための CSS
 st.markdown(
     """
 <style>
 @keyframes delayedReveal {
-    0% { opacity: 0; max-height: 0; overflow: hidden; margin: 0; padding: 0; }
-    90% { opacity: 0; max-height: 0; overflow: hidden; margin: 0; padding: 0; }
-    100% { opacity: 1; max-height: 200px; overflow: visible; }
+    0% { opacity: 0; filter: blur(5px); pointer-events: none; }
+    95% { opacity: 0; filter: blur(5px); pointer-events: none; }
+    100% { opacity: 1; filter: blur(0); pointer-events: auto; }
 }
-.reveal-result {
+.reveal-area {
     animation: delayedReveal 4.8s forwards;
 }
 </style>
@@ -72,13 +72,10 @@ with col_main:
         wheel_js = f"console.error('Asset Load Error: {e}');"
         wheel_css = ""
 
-    # ルーレット描画用のコンポーネント (TypeError 防止のテンプレート方式)
+    # ルーレット描画用のコンポーネント
     def render_roulette_canvas(items, sound_enabled, spin_trigger, winner_index):
-        # 描画前の正規化
         norm_items = normalize_weights(items)
         items_json = json.dumps(norm_items, ensure_ascii=True)
-
-        # テンプレート
         html_template = """
         <style> __CSS__ </style>
         <div id="container">
@@ -97,8 +94,6 @@ with col_main:
         </script>
         <!-- refresh_key: __TRIGGER__ -->
         """
-
-        # 確実に str 型に変換して置換
         full_html = (
             html_template.replace("__CSS__", str(wheel_css))
             .replace("__JS__", str(wheel_js))
@@ -108,11 +103,7 @@ with col_main:
             .replace("__TRIGGER__", str(int(spin_trigger)))
             .replace("__WINNER__", json.dumps(winner_index))
         )
-
-        try:
-            st.components.v1.html(str(full_html), height=550)
-        except Exception as e:
-            st.error(f"コンポーネントの表示中にエラーが発生しました: {e}")
+        st.components.v1.html(str(full_html), height=550)
 
     # 描画実行
     render_roulette_canvas(
@@ -150,26 +141,34 @@ with col_main:
 
         st.rerun()
 
-    # 結果表示エリア（CSS アニメーションで遅延させる）
+    # --- 演出エリア（ここ全体を遅延表示させる） ---
     if st.session_state.roulette_last_winner and st.session_state.roulette_spin_trigger > 0:
-        st.markdown('<div class="reveal-result">', unsafe_allow_html=True)
+        # この div 内にあるものは 4.8 秒後に表示される
+        st.markdown('<div class="reveal-area">', unsafe_allow_html=True)
+
         st.success(f"結果：{st.session_state.roulette_last_winner['label']}")
-        st.markdown("</div>", unsafe_allow_html=True)
-        # バルーンは即座に飛ぶが、テキストが出るタイミングとズレるため
-        # 演出として許容するか、あるいは JS 側で balloons を呼び出す仕組みが必要。
-        # 現状はテキストの遅延表示で対応。
         st.balloons()
 
-    # 履歴表示
-    st.subheader("📜 履歴")
-    if st.session_state.roulette_history:
-        for entry in st.session_state.roulette_history[:10]:
-            st.markdown(
-                f"- **{entry['time']}**: <span style='color:{entry['color']}'>●</span> {entry['label']}",
-                unsafe_allow_html=True,
-            )
+        # 履歴も同じタイミングで表示
+        st.subheader("📜 履歴")
+        if st.session_state.roulette_history:
+            for entry in st.session_state.roulette_history[:10]:
+                st.markdown(
+                    f"- **{entry['time']}**: <span style='color:{entry['color']}'>●</span> {entry['label']}",
+                    unsafe_allow_html=True,
+                )
+        st.markdown("</div>", unsafe_allow_html=True)
     else:
-        st.info("履歴はまだありません。")
+        # 初回表示時やリセット時
+        st.subheader("📜 履歴")
+        if st.session_state.roulette_history:
+            for entry in st.session_state.roulette_history[:10]:
+                st.markdown(
+                    f"- **{entry['time']}**: <span style='color:{entry['color']}'>●</span> {entry['label']}",
+                    unsafe_allow_html=True,
+                )
+        else:
+            st.info("履歴はまだありません。")
 
 # --- サイドバー ---
 with col_sidebar:
@@ -212,7 +211,7 @@ with col_sidebar:
     # JSON出力
     json_data = json.dumps(st.session_state.roulette_config, ensure_ascii=False, indent=2)
     st.download_button(
-        label="📥 設定をJSONで保存",
+        label="📥 JSON保存",
         data=json_data,
         file_name="roulette_config.json",
         mime="application/json",
@@ -220,7 +219,7 @@ with col_sidebar:
     )
 
     # JSON読込
-    uploaded_file = st.file_uploader("📤 設定JSONを読み込む", type="json")
+    uploaded_file = st.file_uploader("📤 JSON読込", type="json")
     if uploaded_file is not None:
         if st.button("設定を反映", use_container_width=True):
             try:
