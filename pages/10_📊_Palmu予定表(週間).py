@@ -187,6 +187,7 @@ else:
     display_days = 7
 
 col_input, col_space, col_result = st.columns([2, 0.5, 2])
+
 reset_id = st.session_state.palmu_reset_counter
 
 with col_input:
@@ -277,18 +278,22 @@ st.write("---")
 st.header("🗓️ スケジュール画像生成 & 合成")
 st.markdown("ポイント予定を画像化し、お好みの背景画像と合成できます。")
 
-col_img_settings, col_img_preview = st.columns([1, 1])
+# 1. 背景アップローダーを最上部に（横長に）
+bg_file = st.file_uploader("🖼️ 背景画像をアップロード (JPG/PNG)", type=["jpg", "jpeg", "png"], key="weekly_bg_upload")
 
-with col_img_settings:
-    st.subheader("⚙️ 1. スケジュール画像設定")
+# 2. デザイン設定を集約
+st.subheader("🎨 カレンダーのデザイン設定")
+col_style1, col_style2, col_style3 = st.columns(3)
+
+with col_style1:
     title_text = st.text_input("タイトル", value=f"{start_date.month}/{start_date.day}〜 週間予定")
+    img_width = st.number_input("画像自体の幅", min_value=300, max_value=1000, value=600, step=10)
 
-    col_color1, col_color2 = st.columns(2)
-    with col_color1:
-        img_text_color = st.color_picker("文字の色", value="#FFFFFF")
-    with col_color2:
-        img_frame_color = st.color_picker("フレームの色", value="#FF5722")
+with col_style2:
+    img_text_color = st.color_picker("文字の色", value="#FFFFFF")
+    img_frame_color = st.color_picker("フレームの色", value="#FF5722")
 
+with col_style3:
     is_transparent = st.checkbox("枠内の背景を完全に透過する", value=False)
     if is_transparent:
         img_bg_color_rgba = "#00000000"
@@ -298,65 +303,62 @@ with col_img_settings:
         alpha_hex = f"{int(img_bg_alpha * 255 / 100):02X}"
         img_bg_color_rgba = f"{img_bg_color}{alpha_hex}"
 
-    img_frame_width = st.slider("フレームの太さ", min_value=0, max_value=30, value=8)
-    img_corner_radius = st.slider("角丸の大きさ", min_value=0, max_value=200, value=30)
-    img_width = st.number_input("画像の幅", min_value=300, max_value=1000, value=600, step=10)
+img_frame_width = st.slider("フレームの太さ", min_value=0, max_value=30, value=8)
+img_corner_radius = st.slider("角丸の大きさ", min_value=0, max_value=200, value=30)
 
-    st.write("---")
-    st.subheader("背景画像と合成 (オプション)")
-    bg_file = st.file_uploader("背景画像をアップロード (JPG/PNG)", type=["jpg", "jpeg", "png"])
+st.write("---")
 
-    if bg_file:
-        # 画像サイズを取得するために一度開く
-        from PIL import Image
+# 3. 配置とプレビューを統合
+st.subheader("📍 配置とプレビュー")
 
-        bg_img_tmp = Image.open(bg_file)
-        bg_w, bg_h = bg_img_tmp.size
-        st.caption(f"背景サイズ: {bg_w} x {bg_h} px")
+# 背景がある場合のみ配置設定を表示
+if bg_file:
+    from PIL import Image
 
-        st.markdown("#### 合成位置・サイズ調整")
+    bg_img_tmp = Image.open(bg_file)
+    bg_w, bg_h = bg_img_tmp.size
 
-        # 位置プリセット
-        st.markdown("快速配置:")
-        col_pre1, col_pre2, col_pre3 = st.columns(3)
-        if col_pre1.button("左上", use_container_width=True):
-            st.session_state.weekly_x, st.session_state.weekly_y = 50, 50
-            st.rerun()
-        if col_pre2.button("中央", use_container_width=True):
-            st.session_state.weekly_x, st.session_state.weekly_y = (bg_w - int(img_width)) // 2, (bg_h - 400) // 2
-            st.rerun()
-        if col_pre3.button("右下", use_container_width=True):
-            st.session_state.weekly_x, st.session_state.weekly_y = bg_w - int(img_width) - 50, bg_h - 400 - 50
-            st.rerun()
+    col_pos, col_prev = st.columns([1, 1.5])
 
-        col_pos_x, col_pos_y = st.columns(2)
-        with col_pos_x:
+    with col_pos:
+        st.markdown(f"**背景サイズ:** {bg_w} x {bg_h} px")
+
+        # アンカー（基準点）の選択
+        anchor = st.selectbox("配置の基準点", options=["左上", "中央", "右上", "左下", "右下"], index=0)
+        st.caption("基準点からの距離(px)を指定してください。中央の場合は中心からのズレになります。")
+
+        col_x, col_y = st.columns(2)
+        with col_x:
             pos_x = st.number_input(
-                "左右位置 (X)",
-                min_value=-2000,
-                max_value=bg_w + 2000,
-                value=st.session_state.get("weekly_x", 50),
-                key="weekly_x_input",
+                "基準からの左右(X)", value=st.session_state.get("weekly_x", 0), key="weekly_x_input"
             )
-            # 入力値をstateに反映（循環参照を避けるための工夫）
             st.session_state.weekly_x = pos_x
-
-        with col_pos_y:
+        with col_y:
             pos_y = st.number_input(
-                "上下位置 (Y)",
-                min_value=-2000,
-                max_value=bg_h + 2000,
-                value=st.session_state.get("weekly_y", 50),
-                key="weekly_y_input",
+                "基準からの上下(Y)", value=st.session_state.get("weekly_y", 0), key="weekly_y_input"
             )
             st.session_state.weekly_y = pos_y
 
         overlay_scale = st.slider("スケール", min_value=0.1, max_value=2.0, value=1.0, step=0.05)
-    else:
-        pos_x, pos_y, overlay_scale = 50, 50, 1.0
 
-with col_img_preview:
-    st.subheader("👁️ プレビュー")
+        # 快速配置（セッションステートを書き換えて再描画）
+        st.markdown("クイック配置:")
+        cq1, cq2, cq3 = st.columns(3)
+        if cq1.button("リセット(0,0)", use_container_width=True):
+            st.session_state.weekly_x, st.session_state.weekly_y = 0, 0
+            st.rerun()
+        if cq2.button("中央へ", use_container_width=True):
+            st.session_state.weekly_x, st.session_state.weekly_y = 0, 0
+            # アンカーを中央にするのが一番手っ取り早い
+            # (ただしselectboxのindexを変える必要があるのでここでは座標リセットのみ)
+            st.info("基準点を『中央』にして(0,0)にすると真ん中になります")
+            st.rerun()
+else:
+    col_prev = st.container()
+    anchor = "左上"
+    pos_x, pos_y, overlay_scale = 0, 0, 1.0
+
+with col_prev:
     try:
         # スケジュールデータの構築
         schedule_data = []
@@ -364,15 +366,10 @@ with col_img_preview:
             current_date = start_date + timedelta(days=i - 1)
             date_str = f"{current_date.month}/{current_date.day} ({weekdays[current_date.weekday()]})"
             pt = st.session_state[f"palmu_day_{i}"]
-
-            if pt == "SKIP":
-                pt_str = "SKIP"
-            else:
-                pt_str = f"+{pt}pt" if pt > 0 else "0pt"
-
+            pt_str = "SKIP" if pt == "SKIP" else f"+{pt}pt"
             schedule_data.append((date_str, pt_str))
 
-        # 前景（スケジュール）画像の生成
+        # 前景画像の生成
         fg_bytes = create_palmu_schedule_image(
             title=title_text,
             schedule_data=schedule_data,
@@ -384,24 +381,22 @@ with col_img_preview:
             width=img_width,
         )
 
-        final_bytes = fg_bytes
-        display_img = fg_bytes
-
-        # 背景画像がある場合は合成
         if bg_file:
             bg_bytes = bg_file.getvalue()
             final_bytes = composite_images(
                 bg_bytes=bg_bytes,
                 fg_bytes=fg_bytes,
-                x=pos_x,
-                y=pos_y,
+                offset_x=pos_x,
+                offset_y=pos_y,
                 scale=overlay_scale,
+                anchor=anchor,
             )
-            display_img = final_bytes
+        else:
+            final_bytes = fg_bytes
 
         import base64
 
-        b64_img = base64.b64encode(display_img).decode()
+        b64_img = base64.b64encode(final_bytes).decode()
         st.markdown(
             f'<div style="background-color:#eee; background-image:linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%, #ccc), linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%, #ccc); background-size:20px 20px; background-position:0 0, 10px 10px; padding:20px; border-radius:10px; text-align:center;"><img src="data:image/png;base64,{b64_img}" style="max-width:100%; height:auto;"></div>',
             unsafe_allow_html=True,
@@ -410,11 +405,11 @@ with col_img_preview:
         st.download_button(
             label="完成した画像をダウンロード (PNG)",
             data=final_bytes,
-            file_name=f"palmu_schedule_final_{get_jst_now().strftime('%Y%m%d_%H%M')}.png",
+            file_name=f"palmu_weekly_final_{get_jst_now().strftime('%Y%m%d_%H%M')}.png",
             mime="image/png",
             use_container_width=True,
         )
     except Exception as e:
-        st.error(f"画像の生成中にエラーが発生しました: {e}")
+        st.error(f"エラー: {e}")
 
 render_donation_box("https://paypay.me/xxxx", is_sidebar=True)

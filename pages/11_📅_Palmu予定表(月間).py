@@ -131,7 +131,7 @@ st.write("---")
 point_options = ["SKIP", 1, 2, 4, 6]
 weekdays_sun_start = ["日", "月", "火", "水", "木", "金", "土"]
 
-# 期間ごとの色設定（背景色 - 視認性向上のため少し濃いめに設定）
+# 期間ごとの色設定
 PERIOD_COLORS = [
     "#E0E0E0",  # 0: SKIP/休み (グレー)
     "#90CAF9",  # 1: 青系
@@ -146,14 +146,11 @@ reset_id = st.session_state.palmu_month_reset_counter
 
 # ランク周期の割り当て計算
 daily_vals_for_analysis = [st.session_state.get(f"pm_day_{i}", 1) for i in range(1, num_days + 1)]
-# 互換性
 for i in range(len(daily_vals_for_analysis)):
     if daily_vals_for_analysis[i] == "スキップ":
         daily_vals_for_analysis[i] = "SKIP"
 
 period_assignments = get_day_period_assignments(daily_vals_for_analysis)
-
-# スキップカード残高の事前計算
 skip_balances = calculate_skip_card_balance(initial_skip_cards, start_date, num_days, daily_vals_for_analysis)
 
 # 日曜日開始のためのパディング計算
@@ -182,18 +179,15 @@ for r in range(rows):
                 current_date = start_date + timedelta(days=day_idx - 1)
                 date_label = f"{current_date.month}/{current_date.day}"
 
-                # ランク周期の表示
                 p_idx = period_assignments[day_idx - 1]
                 p_text = f"第{p_idx}期" if p_idx > 0 else "休み"
                 p_color = PERIOD_COLORS[p_idx % len(PERIOD_COLORS)]
 
-                # UI上で色分けを表現 (コンテナの背景色として疑似的に表現)
                 st.markdown(
                     f"<div style='background-color:{p_color}; padding:2px; border-radius:5px; font-size:12px; text-align:center; border:1px solid #ddd; margin-bottom:5px;'>{p_text}</div>",
                     unsafe_allow_html=True,
                 )
 
-                # スキップカード残高の表示
                 balance = skip_balances[day_idx - 1]
                 st.caption(f"🎫 {balance}枚")
 
@@ -202,13 +196,8 @@ for r in range(rows):
                     val = 1
                 elif val == "スキップ":
                     val = "SKIP"
-                    st.session_state[f"pm_day_{day_idx}"] = val
 
-                try:
-                    index = point_options.index(val)
-                except ValueError:
-                    index = 1  # デフォルト+1
-
+                index = point_options.index(val) if val in point_options else 1
                 st.session_state[f"pm_day_{day_idx}"] = st.selectbox(
                     date_label,
                     options=point_options,
@@ -218,12 +207,11 @@ for r in range(rows):
                     format_func=lambda x: f"+{x}" if isinstance(x, int) else str(x),
                 )
             else:
-                # 範囲外は空欄
                 st.write("")
 
 st.write("---")
 
-# --- 結果表示（有効な7日間ごとのステータス） ---
+# --- 分析結果 ---
 st.header("📈 ランク状況分析")
 st.markdown("スキップカードを除いた、有効な配信日7日間ごとの判定を表示します。")
 
@@ -240,32 +228,36 @@ else:
         with week_cols[w % 4]:
             total = sum(week_points)
             status = evaluate_rank_status(total)
-
             st.markdown(f"**有効第 {w + 1} 期** (7日間分)")
-
             color = "#2E7D32" if status == "ランクアップ" else ("#E65100" if status == "キープ" else "#C62828")
             st.markdown(f"<h3 style='color:{color}; margin-bottom:0;'>{status}</h3>", unsafe_allow_html=True)
             st.markdown(f"合計: **{total} pt**")
-
             if status != "ランクアップ":
                 up_need = points_needed_for_rank_up(total)
                 st.caption(f"あと {up_need}pt でランクアップ")
 
 st.write("---")
 
-# --- 画像生成 ---
+# --- 画像生成 & 合成 ---
 st.header("🗓️ 月間スケジュール画像生成 & 合成")
 st.markdown("ポイント予定をカレンダー画像化し、お好みの背景画像と合成できます。")
 
-col_img_settings, col_img_preview = st.columns([1, 1.5])
+# 1. 背景アップローダーを最上部に
+bg_file = st.file_uploader("🖼️ 背景画像をアップロード (JPG/PNG)", type=["jpg", "jpeg", "png"], key="pm_bg_upload")
 
-with col_img_settings:
-    st.subheader("⚙️ 1. カレンダー画像設定")
+# 2. デザイン設定
+st.subheader("🎨 カレンダーのデザイン設定")
+col_style1, col_style2, col_style3 = st.columns(3)
+
+with col_style1:
     title_text = st.text_input("タイトル", value=f"{start_date.month}月 スケジュール")
+    img_width = st.number_input("カレンダー自体の幅", min_value=400, max_value=1200, value=800, step=10)
 
+with col_style2:
     img_text_color = st.color_picker("文字の色", value="#FFFFFF")
     img_frame_color = st.color_picker("フレームの色", value="#FF5722")
 
+with col_style3:
     is_transparent = st.checkbox("枠内の背景を完全に透過する", value=False, key="pm_trans")
     if is_transparent:
         img_bg_color_rgba = "#00000000"
@@ -275,75 +267,60 @@ with col_img_settings:
         alpha_hex = f"{int(img_bg_alpha * 255 / 100):02X}"
         img_bg_color_rgba = f"{img_bg_color}{alpha_hex}"
 
-    img_width = st.number_input("画像の幅", min_value=400, max_value=1200, value=800, step=10, key="pm_width")
+st.write("---")
 
-    st.write("---")
-    st.subheader("背景画像と合成 (オプション)")
-    bg_file = st.file_uploader("背景画像をアップロード (JPG/PNG)", type=["jpg", "jpeg", "png"], key="pm_bg_upload")
+# 3. 配置とプレビュー
+st.subheader("📍 配置とプレビュー")
 
-    if bg_file:
-        # 画像サイズを取得するために一度開く
-        from PIL import Image
+if bg_file:
+    from PIL import Image
 
-        bg_img_tmp = Image.open(bg_file)
-        bg_w, bg_h = bg_img_tmp.size
-        st.caption(f"背景サイズ: {bg_w} x {bg_h} px")
+    bg_img_tmp = Image.open(bg_file)
+    bg_w, bg_h = bg_img_tmp.size
 
-        st.markdown("#### 合成位置・サイズ調整")
+    col_pos, col_prev = st.columns([1, 1.5])
 
-        # 位置プリセット
-        st.markdown("快速配置:")
-        col_pre1, col_pre2, col_pre3 = st.columns(3)
-        if col_pre1.button("左上", use_container_width=True, key="pm_pre_tl"):
-            st.session_state.pm_x, st.session_state.pm_y = 50, 50
-            st.rerun()
-        if col_pre2.button("中央", use_container_width=True, key="pm_pre_c"):
-            st.session_state.pm_x, st.session_state.pm_y = (bg_w - int(img_width)) // 2, (bg_h - 600) // 2
-            st.rerun()
-        if col_pre3.button("右下", use_container_width=True, key="pm_pre_br"):
-            st.session_state.pm_x, st.session_state.pm_y = bg_w - int(img_width) - 50, bg_h - 600 - 50
-            st.rerun()
+    with col_pos:
+        st.markdown(f"**背景サイズ:** {bg_w} x {bg_h} px")
+        anchor = st.selectbox(
+            "配置の基準点", options=["左上", "中央", "右上", "左下", "右下"], index=0, key="pm_anchor"
+        )
 
-        col_pos_x, col_pos_y = st.columns(2)
-        with col_pos_x:
-            pos_x = st.number_input(
-                "左右位置 (X)",
-                min_value=-2000,
-                max_value=bg_w + 2000,
-                value=st.session_state.get("pm_x", 50),
-                key="pm_x_input",
-            )
+        col_x, col_y = st.columns(2)
+        with col_x:
+            pos_x = st.number_input("基準からの左右(X)", value=st.session_state.get("pm_x", 0), key="pm_x_input")
             st.session_state.pm_x = pos_x
-        with col_pos_y:
-            pos_y = st.number_input(
-                "上下位置 (Y)",
-                min_value=-2000,
-                max_value=bg_h + 2000,
-                value=st.session_state.get("pm_y", 50),
-                key="pm_y_input",
-            )
+        with col_y:
+            pos_y = st.number_input("基準からの上下(Y)", value=st.session_state.get("pm_y", 0), key="pm_y_input")
             st.session_state.pm_y = pos_y
 
         overlay_scale = st.slider("スケール", min_value=0.1, max_value=2.0, value=1.0, step=0.05, key="pm_scale")
-    else:
-        pos_x, pos_y, overlay_scale = 50, 50, 1.0
 
-with col_img_preview:
-    st.subheader("👁️ プレビュー")
+        st.markdown("クイック配置:")
+        cq1, cq2 = st.columns(2)
+        if cq1.button("リセット(0,0)", use_container_width=True, key="pm_q_reset"):
+            st.session_state.pm_x, st.session_state.pm_y = 0, 0
+            st.rerun()
+        if cq2.button("中央揃え(0,0)", use_container_width=True, key="pm_q_center"):
+            st.session_state.pm_x, st.session_state.pm_y = 0, 0
+            st.info("基準点を『中央』に設定してください")
+            st.rerun()
+else:
+    col_prev = st.container()
+    anchor = "左上"
+    pos_x, pos_y, overlay_scale = 0, 0, 1.0
+
+with col_prev:
     try:
         # スケジュールデータの構築
         calendar_data = []
-
-        # 1. 開始前の空欄パディング
         for i in range(start_weekday_idx):
             calendar_data.append({"date": "", "day": weekdays_sun_start[i], "point": ""})
 
-        # 2. 実際の日付データ
         for i in range(1, num_days + 1):
             current_date = start_date + timedelta(days=i - 1)
             pt = st.session_state[f"pm_day_{i}"]
             pt_str = "SKIP" if pt == "SKIP" else f"+{pt}pt"
-
             calendar_data.append(
                 {
                     "date": str(current_date.day),
@@ -362,24 +339,17 @@ with col_img_preview:
             width=img_width,
         )
 
-        final_bytes = fg_bytes
-        display_img = fg_bytes
-
-        # 背景画像がある場合は合成
         if bg_file:
             bg_bytes = bg_file.getvalue()
             final_bytes = composite_images(
-                bg_bytes=bg_bytes,
-                fg_bytes=fg_bytes,
-                x=pos_x,
-                y=pos_y,
-                scale=overlay_scale,
+                bg_bytes=bg_bytes, fg_bytes=fg_bytes, offset_x=pos_x, offset_y=pos_y, scale=overlay_scale, anchor=anchor
             )
-            display_img = final_bytes
+        else:
+            final_bytes = fg_bytes
 
         import base64
 
-        b64_img = base64.b64encode(display_img).decode()
+        b64_img = base64.b64encode(final_bytes).decode()
         st.markdown(
             f'<div style="background-color:#eee; background-image:linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%, #ccc), linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%, #ccc); background-size:20px 20px; background-position:0 0, 10px 10px; padding:20px; border-radius:10px; text-align:center;"><img src="data:image/png;base64,{b64_img}" style="max-width:100%; height:auto;"></div>',
             unsafe_allow_html=True,

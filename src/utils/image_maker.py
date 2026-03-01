@@ -250,12 +250,14 @@ def create_palmu_calendar_grid_image(
 def composite_images(
     bg_bytes: bytes,
     fg_bytes: bytes,
-    x: int,
-    y: int,
+    offset_x: int,
+    offset_y: int,
     scale: float = 1.0,
+    anchor: str = "左上",
 ) -> bytes:
     """
     背景画像の上に前景画像を合成します。
+    anchor: "左上", "中央", "右上", "左下", "右下"
     """
     bg = Image.open(BytesIO(bg_bytes)).convert("RGBA")
     fg = Image.open(BytesIO(fg_bytes)).convert("RGBA")
@@ -266,6 +268,25 @@ def composite_images(
         if new_w > 0 and new_h > 0:
             fg = fg.resize((new_w, new_h), Image.Resampling.LANCZOS)
 
+    # 基準点（アンカー）に基づく座標計算
+    bg_w, bg_h = bg.size
+    fg_w, fg_h = fg.size
+
+    x, y = offset_x, offset_y
+
+    if anchor == "中央":
+        x = (bg_w - fg_w) // 2 + offset_x
+        y = (bg_h - fg_h) // 2 + offset_y
+    elif anchor == "右上":
+        x = (bg_w - fg_w) - offset_x
+        y = offset_y
+    elif anchor == "左下":
+        x = offset_x
+        y = (bg_h - fg_h) - offset_y
+    elif anchor == "右下":
+        x = (bg_w - fg_w) - offset_x
+        y = (bg_h - fg_h) - offset_y
+
     # 合成用のキャンバス（背景と同じサイズ）
     canvas = Image.new("RGBA", bg.size, (0, 0, 0, 0))
     canvas.paste(fg, (x, y), fg)
@@ -274,6 +295,5 @@ def composite_images(
     result = Image.alpha_composite(bg, canvas)
 
     buf = BytesIO()
-    # JPEGだと透過が消えるため、PNGで出力（最終出力用）
     result.save(buf, format="PNG")
     return buf.getvalue()
