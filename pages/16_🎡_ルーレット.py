@@ -1,4 +1,5 @@
 import json
+import random
 import time
 
 import streamlit as st
@@ -6,6 +7,7 @@ from streamlit_local_storage import LocalStorage
 
 from src.utils.roulette import (
     migrate_roulette_config,
+    normalize_weights,
     pick_roulette_winner,
     validate_roulette_config,
 )
@@ -42,9 +44,9 @@ col_main, col_sidebar = st.columns([2, 1])
 with col_main:
     # 外部 JS/CSS を読み込む
     try:
-        with open("src/assets/roulette/wheel.js") as f:
+        with open("src/assets/roulette/wheel.js", encoding="utf-8") as f:
             wheel_js = f.read()
-        with open("src/assets/roulette/style.css") as f:
+        with open("src/assets/roulette/style.css", encoding="utf-8") as f:
             wheel_css = f.read()
     except Exception:
         wheel_js = ""
@@ -53,30 +55,36 @@ with col_main:
     # ルーレット描画用のコンポーネント
     def render_roulette_canvas(items, sound_enabled, spin_trigger, winner_index):
         # 描画前に重みを正規化する
-        from src.utils.roulette import normalize_weights
-
         normalized_items = normalize_weights(items)
         items_json = json.dumps(normalized_items, ensure_ascii=False)
+        sound_enabled_js = "true" if sound_enabled else "false"
+        status_text = "抽選中..." if spin_trigger > 0 else ""
 
-        html_code = f"""
-        <style>{wheel_css}</style>
+        # f-string の中でのブレース問題を避けるため、CSSとJSは分割して結合する
+        html_head = "<style>" + wheel_css + "</style>"
+        html_body = f"""
         <div id="container">
             <canvas id="wheel" width="450" height="450"></canvas>
-            <div id="status">{"抽選中..." if spin_trigger > 0 else ""}</div>
+            <div id="status">{status_text}</div>
         </div>
+        """
+        html_script = f"""
         <script>
             {wheel_js}
             const config = {{
                 items: {items_json},
-                soundEnabled: {str(sound_enabled).lower()},
+                soundEnabled: {sound_enabled_js},
                 spinTrigger: {spin_trigger},
                 winnerIndex: {json.dumps(winner_index)}
             }};
             setupWheel(config);
         </script>
         """
+
+        full_html = html_head + html_body + html_script
+
         # key を指定することで、毎回 iframe が作り直され、アニメーションが確実に最初から走る
-        st.components.v1.html(html_code, height=550, key=f"roulette_comp_{spin_trigger}")
+        st.components.v1.html(full_html, height=550, key=f"roulette_comp_{spin_trigger}")
 
     # 描画 (trigger が 0 より大きければアニメーション開始)
     render_roulette_canvas(
@@ -90,7 +98,14 @@ with col_main:
         # 1. Python で先に結果を出す
         items = st.session_state.roulette_config["items"]
         winner = pick_roulette_winner(items)
-        winner_idx = next(i for i, item in enumerate(items) if item["label"] == winner["label"])
+
+        # IDや一意の識別子がないため、名前で一致を確認
+        # 本来はID管理が望ましいが、現状のデータ構造に合わせる
+        winner_idx = 0
+        for i, item in enumerate(items):
+            if item["label"] == winner["label"]:
+                winner_idx = i
+                break
 
         # 2. セッション状態を更新 (Trigger を変えることで JS が動く)
         st.session_state.roulette_last_winner = winner
@@ -141,8 +156,6 @@ with col_sidebar:
                     # 削除処理（リストから除外）
                     continue
             new_items.append({"label": label, "weight": weight, "color": color})
-
-        import random
 
         if st.button("➕ 項目を追加"):
             # デフォルト色をランダムに

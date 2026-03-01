@@ -23,7 +23,19 @@ def test_pick_roulette_winner():
         assert winner["label"] == "Always"
 
 
+def test_normalize_weights_scaling():
+    # 10, 30 -> 25%, 75%
+    items = [
+        {"label": "A", "weight": 10.0, "color": "#000"},
+        {"label": "B", "weight": 30.0, "color": "#000"},
+    ]
+    normalized = normalize_weights(items)
+    assert normalized[0]["weight"] == 25.0
+    assert normalized[1]["weight"] == 75.0
+
+
 def test_normalize_weights_zero_total():
+    # ... (existing code)
     # 全ての重みが0の場合、均等に割り振られること
     items = [
         {"label": "A", "weight": 0.0, "color": "#000"},
