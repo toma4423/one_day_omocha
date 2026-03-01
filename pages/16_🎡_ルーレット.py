@@ -6,6 +6,7 @@ import streamlit as st
 from streamlit_local_storage import LocalStorage
 
 from src.utils.roulette import (
+    equalize_weights,
     migrate_roulette_config,
     normalize_weights,
     pick_roulette_winner,
@@ -113,7 +114,6 @@ with col_main:
     )
 
     if st.button("🚀 ルーレットを回す！", use_container_width=True, type="primary"):
-        # Python で先に結果を出す
         items = st.session_state.roulette_config["items"]
         winner = pick_roulette_winner(items)
 
@@ -123,12 +123,10 @@ with col_main:
                 winner_idx = i
                 break
 
-        # セッション状態を更新
         st.session_state.roulette_last_winner = winner
         st.session_state.roulette_winner_index = winner_idx
         st.session_state.roulette_spin_trigger += 1
 
-        # 履歴追加
         history_entry = {
             "time": time.strftime("%H:%M:%S"),
             "label": str(winner["label"]),
@@ -140,7 +138,7 @@ with col_main:
 
         st.rerun()
 
-    # --- データの保存と読み込み (JSON) ---
+    # --- データの保存と読み込み ---
     st.write("")
     with st.container(border=True):
         st.subheader("📁 データの保存と読み込み")
@@ -182,29 +180,60 @@ with col_main:
 with col_sidebar:
     st.subheader("⚙️ 設定")
 
-    with st.expander("📝 項目と重みの編集", expanded=False):
+    with st.expander("📝 項目と重みの編集", expanded=True):
+        items = st.session_state.roulette_config["items"]
         new_items = []
-        for i, item in enumerate(st.session_state.roulette_config["items"]):
+        to_delete = None
+
+        for i, item in enumerate(items):
             c1, c2, c3 = st.columns([3, 2, 1])
             with c1:
                 label = st.text_input(f"名前 {i + 1}", value=item["label"], key=f"label_{i}")
             with c2:
                 weight = st.number_input(
-                    "重み", value=float(item.get("weight", 1.0)), min_value=0.0, step=0.1, key=f"weight_{i}"
+                    f"重み {i + 1}",
+                    value=float(item.get("weight", 1.0)),
+                    min_value=0.0,
+                    step=0.1,
+                    key=f"weight_{i}",
+                    label_visibility="collapsed",
                 )
             with c3:
-                color = st.color_picker("色", value=item.get("color", "#CCCCCC"), key=f"color_{i}")
+                st.color_picker(
+                    "色", value=item.get("color", "#CCCCCC"), key=f"color_{i}", label_visibility="collapsed"
+                )
                 if st.button("🗑️", key=f"del_{i}"):
-                    continue
-            new_items.append({"label": label, "weight": weight, "color": color})
+                    to_delete = i
 
-        if st.button("➕ 項目を追加"):
-            rand_color = f"#{random.randint(0, 0xFFFFFF):06x}"
-            new_items.append({"label": "新しい項目", "weight": 1.0, "color": rand_color})
+            # 削除対象でない場合のみリストに追加
+            new_items.append({"label": label, "weight": weight, "color": st.session_state[f"color_{i}"]})
+
+        # 削除処理の実行
+        if to_delete is not None:
+            new_items.pop(to_delete)
+            st.session_state.roulette_config["items"] = new_items
+            storage.set_item("roulette_config", st.session_state.roulette_config)
             st.rerun()
 
-        if st.button("💾 設定を保存"):
-            st.session_state.roulette_config["items"] = new_items
+        st.write("---")
+        col_add, col_auto = st.columns(2)
+        with col_add:
+            if st.button("➕ 追加", use_container_width=True):
+                rand_color = f"#{random.randint(0, 0xFFFFFF):06x}"
+                new_items.append({"label": "新しい項目", "weight": 1.0, "color": rand_color})
+                st.session_state.roulette_config["items"] = new_items
+                storage.set_item("roulette_config", st.session_state.roulette_config)
+                st.rerun()
+
+        with col_auto:
+            if st.button("⚖️ 均等化", use_container_width=True, help="すべての重みを均等にします"):
+                st.session_state.roulette_config["items"] = equalize_weights(new_items)
+                storage.set_item("roulette_config", st.session_state.roulette_config)
+                st.success("重みを均等にしました")
+                st.rerun()
+
+        if st.button("💾 設定を保存", use_container_width=True, type="primary"):
+            st.session_state.roulette_config["items"] = normalize_weights(new_items)
             storage.set_item("roulette_config", st.session_state.roulette_config)
             st.success("保存しました！")
             st.rerun()

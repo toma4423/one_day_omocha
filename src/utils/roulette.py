@@ -65,6 +65,23 @@ def normalize_weights(items: list[RouletteItem]) -> list[RouletteItem]:
     return new_items
 
 
+def equalize_weights(items: list[RouletteItem]) -> list[RouletteItem]:
+    """すべての項目の重みを均等（合計100%）に設定します。"""
+    if not items:
+        return []
+
+    count = len(items)
+    weight = round(100.0 / count, 2)
+
+    new_items = []
+    for item in items:
+        new_item = item.copy()
+        new_item["weight"] = weight
+        new_items.append(new_item)
+
+    return new_items
+
+
 def validate_roulette_config(config: dict[str, Any]) -> tuple[bool, str]:
     """設定データの形式をチェックします。"""
     if not isinstance(config, dict):
