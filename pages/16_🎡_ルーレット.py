@@ -12,10 +12,30 @@ from src.utils.roulette import (
     validate_roulette_config,
 )
 from src.utils.storage import SafeStorage
-from src.utils.styles import render_donation_box
+from src.utils.styles import render_donation_box, render_page_header
 
 # ページ基本設定
 st.set_page_config(page_title="ルーレット", page_icon="🎡", layout="wide")
+
+# グローバルスタイルの適用
+render_page_header()
+
+# 結果表示を遅らせるための CSS
+st.markdown(
+    """
+<style>
+@keyframes delayedReveal {
+    0% { opacity: 0; max-height: 0; overflow: hidden; margin: 0; padding: 0; }
+    90% { opacity: 0; max-height: 0; overflow: hidden; margin: 0; padding: 0; }
+    100% { opacity: 1; max-height: 200px; overflow: visible; }
+}
+.reveal-result {
+    animation: delayedReveal 4.8s forwards;
+}
+</style>
+""",
+    unsafe_allow_html=True,
+)
 
 # SafeStorage の初期化
 storage = SafeStorage(LocalStorage())
@@ -89,8 +109,6 @@ with col_main:
             .replace("__WINNER__", json.dumps(winner_index))
         )
 
-        # key 引数が一部環境でエラーを引き起こすため削除。
-        # 代わりに full_html 内のコメントを変更することで再描画を促す。
         try:
             st.components.v1.html(str(full_html), height=550)
         except Exception as e:
@@ -105,23 +123,22 @@ with col_main:
     )
 
     if st.button("🚀 ルーレットを回す！", use_container_width=True, type="primary"):
-        # Python で先に結果を出す
+        # 1. Python で先に結果を出す
         items = st.session_state.roulette_config["items"]
         winner = pick_roulette_winner(items)
 
-        # インデックス特定
         winner_idx = 0
         for i, item in enumerate(items):
             if item["label"] == winner["label"]:
                 winner_idx = i
                 break
 
-        # セッション状態を更新
+        # 2. セッション状態を更新
         st.session_state.roulette_last_winner = winner
         st.session_state.roulette_winner_index = winner_idx
         st.session_state.roulette_spin_trigger += 1
 
-        # 履歴追加
+        # 3. 履歴追加
         history_entry = {
             "time": time.strftime("%H:%M:%S"),
             "label": str(winner["label"]),
@@ -133,9 +150,14 @@ with col_main:
 
         st.rerun()
 
+    # 結果表示エリア（CSS アニメーションで遅延させる）
     if st.session_state.roulette_last_winner and st.session_state.roulette_spin_trigger > 0:
-        time.sleep(0.5)
+        st.markdown('<div class="reveal-result">', unsafe_allow_html=True)
         st.success(f"結果：{st.session_state.roulette_last_winner['label']}")
+        st.markdown("</div>", unsafe_allow_html=True)
+        # バルーンは即座に飛ぶが、テキストが出るタイミングとズレるため
+        # 演出として許容するか、あるいは JS 側で balloons を呼び出す仕組みが必要。
+        # 現状はテキストの遅延表示で対応。
         st.balloons()
 
     # 履歴表示
@@ -194,6 +216,7 @@ with col_sidebar:
         data=json_data,
         file_name="roulette_config.json",
         mime="application/json",
+        use_container_width=True,
     )
 
     # JSON読込
