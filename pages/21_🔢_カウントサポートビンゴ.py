@@ -62,11 +62,22 @@ storage = SafeStorage(LocalStorage())
 
 
 def get_current_version():
-    v_param = st.query_params.get("v", None)
-    if v_param:
-        return str(v_param)
+    """
+    URLパラメータまたはLocalStorageから現在のデータバージョンを取得します。
+    数値として妥当でない場合は "1" を返します。
+    """
+    v_raw = st.query_params.get("v", None)
+    if v_raw:
+        # st.query_params の値がリストの場合や文字列の場合があるため安全に処理
+        v_str = str(v_raw)
+        if v_str.isdigit():
+            return v_str
+
     v_store = storage.get_item("csb_ver", is_json=False)
-    return str(v_store) if v_store else "1"
+    if v_store and str(v_store).isdigit():
+        return str(v_store)
+
+    return "1"
 
 
 def get_data_key(version=None):
@@ -110,7 +121,7 @@ def load_from_storage():
         return False
 
 
-# 初期化ロジックの強化
+# 初期化ロジック
 if "csb_rows" not in st.session_state:
     if not load_from_storage():
         st.session_state.csb_rows = 5
@@ -122,7 +133,6 @@ def on_change():
 
 
 # --- メイングリッド ---
-# range の引数を安全に取得
 current_rows = st.session_state.get("csb_rows", 5)
 current_cols = st.session_state.get("csb_cols", 5)
 
@@ -194,12 +204,17 @@ with st.sidebar:
     if st.button("🚨 全てリセット", use_container_width=True):
         # LocalStorage 削除
         storage.delete_item(get_data_key())
-        # SessionState の徹底クリア
+        # SessionState クリア
         for k in list(st.session_state.keys()):
             if k.startswith("csb_"):
                 del st.session_state[k]
-        # バージョン更新による強制リセット
-        current_v = int(get_current_version())
+
+        # バージョン更新（安全な変換）
+        try:
+            current_v = int(get_current_version())
+        except (ValueError, TypeError):
+            current_v = 1
+
         new_v = 1 if current_v >= 100 else current_v + 1
         storage.set_item("csb_ver", str(new_v))
         st.query_params["v"] = str(new_v)
