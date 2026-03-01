@@ -34,7 +34,7 @@ st.markdown(
 .strictly-delayed {
     animation: waitThenShow 5.0s forwards;
 }
-hr { margin: 10px 0 !important; border: 0; border-top: 1px solid #eee; }
+hr { margin: 15px 0 !important; border: 0; border-top: 2px solid #f0f2f6; }
 </style>
 """,
     unsafe_allow_html=True,
@@ -117,6 +117,7 @@ with col_main:
     )
 
     if st.button("🚀 ルーレットを回す！", use_container_width=True, type="primary"):
+        # 1. Python で先に結果を出す
         items = st.session_state.roulette_config["items"]
         winner = pick_roulette_winner(items)
 
@@ -126,10 +127,12 @@ with col_main:
                 winner_idx = i
                 break
 
+        # 2. セッション状態を更新
         st.session_state.roulette_last_winner = winner
         st.session_state.roulette_winner_index = winner_idx
         st.session_state.roulette_spin_trigger += 1
 
+        # 3. 履歴追加
         history_entry = {
             "time": time.strftime("%H:%M:%S"),
             "label": str(winner["label"]),
@@ -201,7 +204,8 @@ with col_sidebar:
         to_delete = None
 
         for i, item in enumerate(items):
-            c1, c2, c3 = st.columns([3, 2, 1])
+            # 上段：名称と確率
+            c1, c2 = st.columns([3, 1])
             with c1:
                 label = st.text_input(
                     f"名前 {i + 1}",
@@ -219,15 +223,19 @@ with col_sidebar:
                     key=f"weight_{i}",
                     label_visibility="collapsed",
                 )
+
+            # 下段：カラーと削除
+            c3, c4 = st.columns([3, 1])
             with c3:
                 color = st.color_picker(
                     f"色 {i + 1}", value=item.get("color", "#CCCCCC"), key=f"color_{i}", label_visibility="collapsed"
                 )
-                if st.button("🗑️", key=f"del_{i}", help="この項目を削除"):
+            with c4:
+                if st.button("🗑️ 削除", key=f"del_{i}", use_container_width=True):
                     to_delete = i
 
             new_items.append({"label": label, "weight": weight, "color": color})
-            st.markdown("<hr>", unsafe_allow_html=True)  # 区切り線
+            st.markdown("<hr>", unsafe_allow_html=True)
 
         # 削除処理
         if to_delete is not None:
