@@ -19,19 +19,39 @@ st.markdown(
     <style>
     /* コンテナのパディングを最小限に */
     [data-testid="stVerticalBlock"] > div > div > div[data-testid="stVerticalBlock"] {
-        padding: 5px !important;
-        gap: 5px !important;
+        padding: 4px !important;
+        gap: 4px !important;
     }
     /* 枠付きコンテナの余白調整 */
     .st-emotion-cache-16idsys, .st-emotion-cache-1r6slb0 {
-        padding: 8px !important;
+        padding: 6px !important;
         margin-bottom: 0px !important;
     }
-    /* 入力フィールドの高さを抑える */
+    /* 入力フィールドの共通設定 */
     .stTextInput input, .stNumberInput input {
-        height: 35px !important;
-        padding: 5px !important;
-        font-size: 14px !important;
+        height: 32px !important;
+        padding: 2px !important;
+        text-align: center !important;
+    }
+    /* ラベル用テキスト（小さく） */
+    .stTextInput input {
+        font-size: 12px !important;
+        opacity: 0.7;
+    }
+    /* 数値用テキスト（大きく太く） */
+    .stNumberInput input {
+        font-size: 20px !important;
+        font-weight: 900 !important;
+        color: #007bff !important;
+    }
+    /* スピンボタン（増減矢印）を隠す（直接入力を優先しつつスペース確保） */
+    input::-webkit-outer-spin-button,
+    input::-webkit-inner-spin-button {
+        -webkit-appearance: none;
+        margin: 0;
+    }
+    input[type=number] {
+        -moz-appearance: textfield;
     }
     /* ラベルの非表示を徹底 */
     label { display: none !important; }
@@ -41,7 +61,7 @@ st.markdown(
 )
 
 st.markdown(
-    "<h1 style='text-align: center; margin-bottom: 10px;'>🔢 カウントサポートビンゴ</h1>", unsafe_allow_html=True
+    "<h1 style='text-align: center; margin-bottom: 5px;'>🔢 カウントサポートビンゴ</h1>", unsafe_allow_html=True
 )
 
 # --- ストレージ管理の定義 ---
