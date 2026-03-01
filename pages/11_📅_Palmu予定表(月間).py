@@ -311,16 +311,18 @@ with col_img_settings:
                 min_value=-2000,
                 max_value=bg_w + 2000,
                 value=st.session_state.get("pm_x", 50),
-                key="pm_x",
+                key="pm_x_input",
             )
+            st.session_state.pm_x = pos_x
         with col_pos_y:
             pos_y = st.number_input(
                 "上下位置 (Y)",
                 min_value=-2000,
                 max_value=bg_h + 2000,
                 value=st.session_state.get("pm_y", 50),
-                key="pm_y",
+                key="pm_y_input",
             )
+            st.session_state.pm_y = pos_y
 
         overlay_scale = st.slider("スケール", min_value=0.1, max_value=2.0, value=1.0, step=0.05, key="pm_scale")
     else:
