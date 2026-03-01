@@ -95,13 +95,13 @@ function setupWheel(config) {
 
     function drawPointer() {
         ctx.save();
-        ctx.translate(width - 15, centerY);
+        ctx.translate(width - 5, centerY);
         ctx.rotate(needleWiggle); // 音に合わせて揺れる
         
         ctx.beginPath();
-        ctx.moveTo(10, 0);
-        ctx.lineTo(-25, -15);
-        ctx.lineTo(-25, 15);
+        ctx.moveTo(-30, 0); // 頂点を左（盤面方向）に向ける
+        ctx.lineTo(5, -15);
+        ctx.lineTo(5, 15);
         ctx.closePath();
         
         ctx.fillStyle = "#FF4B4B";
