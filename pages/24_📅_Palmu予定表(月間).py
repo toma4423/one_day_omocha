@@ -45,9 +45,7 @@ def load_from_storage():
     if data:
         for i in range(1, MAX_MONTH_DAYS + 1):
             val = data.get(f"day_{i}", 1)
-            if val == "スキップ":
-                val = "SKIP"
-            st.session_state[f"pm_day_{i}"] = val
+            st.session_state[f"pm_day_{i}"] = "SKIP" if val == "スキップ" else val
         st.session_state.palmu_month_skip_cards = data.get("skip_cards", 0)
         return True
     return False
@@ -182,64 +180,75 @@ if active_weeks:
                 if status != "ランクアップ":
                     st.caption(f"あと {points_needed_for_rank_up(total)}pt でアップ")
 
-# --- 画像生成 ---
+# --- 画像生成（ライブプレビュー） ---
 st.write("---")
-st.header("🗓️ 画像生成 & 合成")
+st.header("🗓️ 画像生成 & ライブプレビュー")
 with st.container(border=True):
     bg_file = st.file_uploader("🖼️ 背景アップロード", type=["jpg", "png"], key="pm_bg")
-    cs1, cs2 = st.columns([1, 2])
-    with cs1:
+    col_cfg, col_prev = st.columns([1, 1.5])
+
+    with col_cfg:
+        st.subheader("🎨 デザイン設定")
         title_text = st.text_input("タイトル", value=f"{start_date.month}月 スケジュール", key="pm_title")
         img_width = st.number_input("幅", 400, 1200, 800, 10, key="pm_width")
         img_text_color = st.color_picker("文字色", "#FFFFFF", key="pm_txt_c")
         img_frame_color = st.color_picker("枠色", "#FF5722", key="pm_frm_c")
-    with cs2:
-        is_trans = st.checkbox("透過", False, key="pm_trans")
+
+        is_trans = st.checkbox("枠内を完全に透過する", False, key="pm_trans")
         img_bg_rgba = (
             "#00000000"
             if is_trans
             else f"{st.color_picker('枠内色', '#000000', key='pm_bg_c')}{int(st.slider('不透明度', 0, 100, 80, key='pm_a') * 255 / 100):02X}"
         )
 
-    if bg_file:
-        cp, csc = st.columns(2)
-        with cp:
+        if bg_file:
+            st.write("---")
+            st.subheader("📍 配置設定")
             anchor = st.selectbox("基準点", ["左上", "中央", "右上", "左下", "右下"], key="pm_anchor")
             px = st.number_input("Xズレ", value=st.session_state.get("p_x", 0), key="p_x_in")
             py = st.number_input("Yズレ", value=st.session_state.get("p_y", 0), key="p_y_in")
             st.session_state.p_x, st.session_state.p_y = px, py
-        with csc:
             scale = st.slider("スケール", 0.1, 2.0, 1.0, 0.05, key="pm_scale")
-    else:
-        anchor, px, py, scale = "左上", 0, 0, 1.0
+        else:
+            anchor, px, py, scale = "左上", 0, 0, 1.0
 
-    if st.button("画像を生成する", use_container_width=True, type="primary", key="pm_gen"):
-        cal_data = [{"date": "", "day": weekdays_sun[i], "point": ""} for i in range(start_weekday_idx)]
-        for i in range(1, num_days + 1):
-            curr_d = start_date + timedelta(days=i - 1)
-            p = st.session_state[f"pm_day_{i}"]
-            cal_data.append(
-                {
-                    "date": str(curr_d.day),
-                    "day": weekdays_sun[(start_weekday_idx + i - 1) % 7],
-                    "point": "SKIP" if p == "SKIP" else f"+{p}pt",
-                }
+    with col_prev:
+        st.subheader("🖼️ プレビュー")
+        try:
+            cal_data = [{"date": "", "day": weekdays_sun[i], "point": ""} for i in range(start_weekday_idx)]
+            for i in range(1, num_days + 1):
+                curr_d = start_date + timedelta(days=i - 1)
+                p = st.session_state[f"pm_day_{i}"]
+                cal_data.append(
+                    {
+                        "date": str(curr_d.day),
+                        "day": weekdays_sun[(start_weekday_idx + i - 1) % 7],
+                        "point": "SKIP" if p == "SKIP" else f"+{p}pt",
+                    }
+                )
+
+            fg_bytes = create_palmu_calendar_grid_image(
+                title_text, cal_data, img_text_color, img_frame_color, img_bg_rgba, img_width
             )
 
-        fg_bytes = create_palmu_calendar_grid_image(
-            title_text, cal_data, img_text_color, img_frame_color, img_bg_rgba, img_width
-        )
-        final_bytes = composite_images(bg_file.getvalue(), fg_bytes, px, py, scale, anchor) if bg_file else fg_bytes
-        st.markdown(
-            f'<div style="text-align:center; background:#eee; padding:20px; border-radius:16px;"><img src="data:image/png;base64,{base64.b64encode(final_bytes).decode()}" style="max-width:100%;"></div>',
-            unsafe_allow_html=True,
-        )
-        st.download_button(
-            "📥 保存",
-            final_bytes,
-            f"palmu_month_{get_jst_now().strftime('%Y%m%d')}.png",
-            "image/png",
-            use_container_width=True,
-        )
+            if bg_file:
+                final_bytes = composite_images(bg_file.getvalue(), fg_bytes, px, py, scale, anchor)
+            else:
+                final_bytes = fg_bytes
+
+            st.markdown(
+                f'<div style="text-align:center; background:#eee; padding:10px; border-radius:12px; border:1px solid #ddd;"><img src="data:image/png;base64,{base64.b64encode(final_bytes).decode()}" style="max-width:100%; height:auto;"></div>',
+                unsafe_allow_html=True,
+            )
+            st.write("")
+            st.download_button(
+                "📥 完成した画像を保存",
+                final_bytes,
+                f"palmu_month_{get_jst_now().strftime('%Y%m%d')}.png",
+                "image/png",
+                use_container_width=True,
+            )
+        except Exception as e:
+            st.error(f"プレビュー生成エラー: {e}")
 
 render_donation_box("https://qr.paypay.ne.jp/p2p01_jsHjvMAenqfvI10s", is_sidebar=True)

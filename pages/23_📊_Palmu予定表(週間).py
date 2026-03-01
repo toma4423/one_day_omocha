@@ -3,7 +3,6 @@ import json
 from datetime import timedelta
 
 import streamlit as st
-from PIL import Image
 from streamlit_local_storage import LocalStorage
 
 from src.utils.image_maker import composite_images, create_palmu_schedule_image
@@ -52,9 +51,7 @@ def load_from_storage():
     if data:
         for i in range(1, MAX_DAYS + 1):
             val = data.get(f"day_{i}", 1)
-            if val == 0:
-                val = 1
-            elif val == "スキップ":
+            if val == "スキップ":
                 val = "SKIP"
             st.session_state[f"palmu_day_{i}"] = val
         st.session_state.palmu_skip_cards = data.get("skip_cards", 0)
@@ -73,9 +70,7 @@ def init_palmu_state():
 init_palmu_state()
 
 st.title("📊 Palmu週間予定表 (ランクメーター)")
-st.markdown(
-    "Palmuのデイリーランクポイントを入力して、ランク状況をシミュレーションし、配信用のスケジュール画像を作成します。"
-)
+st.markdown("デイリーランクポイントを入力してランク状況をシミュレーションし、配信用のスケジュール画像を作成します。")
 
 # --- サイドバー：セーブ＆ロード ---
 with st.sidebar:
@@ -96,9 +91,7 @@ with st.sidebar:
             data_load = json.load(uploaded_file)
             for i in range(1, MAX_DAYS + 1):
                 val = data_load.get(f"day_{i}", 1)
-                if val == "スキップ":
-                    val = "SKIP"
-                st.session_state[f"palmu_day_{i}"] = val
+                st.session_state[f"palmu_day_{i}"] = "SKIP" if val == "スキップ" else val
             st.session_state.palmu_skip_cards = data_load.get("skip_cards", 0)
             save_to_storage()
             st.rerun()
@@ -129,7 +122,7 @@ with st.container(border=True):
 
 # --- おすすめプリセット ---
 with st.expander("💡 おすすめのポイント取得パターンを見る"):
-    st.markdown("目標を達成するための効率的な構成例です。適用すると入力欄に反映されます。")
+    st.markdown("目標達成のための効率的な構成例です。適用すると入力欄に反映されます。")
     presets = generate_point_presets(target_val)
     cols_preset = st.columns(len(presets))
     for idx, (p, col) in enumerate(zip(presets, cols_preset, strict=False)):
@@ -210,20 +203,20 @@ with col_result:
         else:
             st.success("🎉 目標達成予定です！")
 
-# --- 画像生成 ---
+# --- 画像生成（ライブプレビュー） ---
 st.write("---")
-st.header("🗓️ 画像生成 & 合成")
+st.header("🗓️ 画像生成 & ライブプレビュー")
 with st.container(border=True):
     bg_file = st.file_uploader("🖼️ 背景画像をアップロード", type=["jpg", "png"], key="weekly_bg")
-    col_s1, col_style = st.columns([1, 2])
+    col_style_cfg, col_preview_area = st.columns([1, 1.5])
 
-    with col_s1:
+    with col_style_cfg:
+        st.subheader("🎨 デザイン設定")
         title_text = st.text_input("タイトル", value=f"{start_date.month}/{start_date.day}〜 予定")
         img_width = st.number_input("幅", 300, 1000, 600, 10)
         img_text_color = st.color_picker("文字色", "#FFFFFF")
         img_frame_color = st.color_picker("枠色", "#FF5722")
 
-    with col_style:
         is_trans = st.checkbox("枠内を完全に透過する", False)
         img_bg_rgba = (
             "#00000000"
@@ -233,42 +226,50 @@ with st.container(border=True):
         img_f_width = st.slider("枠の太さ", 0, 30, 8)
         img_radius = st.slider("角丸", 0, 200, 30)
 
-    if bg_file:
-        st.subheader("📍 配置設定")
-        bg_img_p = Image.open(bg_file)
-        c_pos, c_scale = st.columns(2)
-        with c_pos:
+        if bg_file:
+            st.write("---")
+            st.subheader("📍 配置設定")
             anchor = st.selectbox("基準点", ["左上", "中央", "右上", "左下", "右下"])
-            px = st.number_input("Xズレ", value=st.session_state.get("w_x", 0), key="w_x_in")
-            py = st.number_input("Yズレ", value=st.session_state.get("w_y", 0), key="w_y_in")
+            px = st.number_input("X方向のズレ", value=st.session_state.get("w_x", 0), key="w_x_in")
+            py = st.number_input("Y方向のズレ", value=st.session_state.get("w_y", 0), key="w_y_in")
             st.session_state.w_x, st.session_state.w_y = px, py
-        with c_scale:
-            scale = st.slider("スケール", 0.1, 2.0, 1.0, 0.05)
-    else:
-        anchor, px, py, scale = "左上", 0, 0, 1.0
+            scale = st.slider("大きさ（スケール）", 0.1, 2.0, 1.0, 0.05)
+        else:
+            anchor, px, py, scale = "左上", 0, 0, 1.0
 
-    if st.button("画像を生成する", use_container_width=True, type="primary"):
-        sched_data = []
-        for i in range(1, display_days + 1):
-            curr_d = start_date + timedelta(days=i - 1)
-            p = st.session_state[f"palmu_day_{i}"]
-            sched_data.append((f"{curr_d.month}/{curr_d.day}", "SKIP" if p == "SKIP" else f"+{p}pt"))
+    with col_preview_area:
+        st.subheader("🖼️ プレビュー")
+        try:
+            sched_data = []
+            for i in range(1, display_days + 1):
+                curr_d = start_date + timedelta(days=i - 1)
+                p = st.session_state[f"palmu_day_{i}"]
+                sched_data.append((f"{curr_d.month}/{curr_d.day}", "SKIP" if p == "SKIP" else f"+{p}pt"))
 
-        fg_bytes = create_palmu_schedule_image(
-            title_text, sched_data, img_text_color, img_frame_color, img_bg_rgba, img_f_width, img_radius, img_width
-        )
-        final_bytes = composite_images(bg_file.getvalue(), fg_bytes, px, py, scale, anchor) if bg_file else fg_bytes
+            # ライブ生成
+            fg_bytes = create_palmu_schedule_image(
+                title_text, sched_data, img_text_color, img_frame_color, img_bg_rgba, img_f_width, img_radius, img_width
+            )
 
-        st.markdown(
-            f'<div style="text-align:center; background:#eee; padding:20px; border-radius:16px;"><img src="data:image/png;base64,{base64.b64encode(final_bytes).decode()}" style="max-width:100%;"></div>',
-            unsafe_allow_html=True,
-        )
-        st.download_button(
-            "📥 ダウンロード",
-            final_bytes,
-            f"palmu_week_{get_jst_now().strftime('%Y%m%d')}.png",
-            "image/png",
-            use_container_width=True,
-        )
+            if bg_file:
+                final_bytes = composite_images(bg_file.getvalue(), fg_bytes, px, py, scale, anchor)
+            else:
+                final_bytes = fg_bytes
+
+            # 表示
+            st.markdown(
+                f'<div style="text-align:center; background:#eee; padding:10px; border-radius:12px; border:1px solid #ddd;"><img src="data:image/png;base64,{base64.b64encode(final_bytes).decode()}" style="max-width:100%; height:auto;"></div>',
+                unsafe_allow_html=True,
+            )
+            st.write("")
+            st.download_button(
+                "📥 完成した画像を保存",
+                final_bytes,
+                f"palmu_week_{get_jst_now().strftime('%Y%m%d')}.png",
+                "image/png",
+                use_container_width=True,
+            )
+        except Exception as e:
+            st.error(f"プレビュー生成中にエラーが発生しました: {e}")
 
 render_donation_box("https://qr.paypay.ne.jp/p2p01_jsHjvMAenqfvI10s", is_sidebar=True)
