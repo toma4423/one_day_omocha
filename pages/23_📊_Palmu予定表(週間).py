@@ -122,6 +122,7 @@ with col_input:
         curr_d = start_date + timedelta(days=i - 1)
         p_idx = period_assigns[i - 1]
         p_color = PERIOD_COLORS[p_idx % len(PERIOD_COLORS)]
+
         with st.container(border=True):
             c_sel, c_plan, c_info = st.columns([2, 3, 1])
             with c_info:
@@ -155,13 +156,16 @@ with col_result:
     p1_points = [st.session_state[f"palmu_day_{i + 1}"] for i, p in enumerate(period_assigns) if p == 1]
     total = calculate_total_points(p1_points)
     status = evaluate_rank_status(total)
+
     colors = {
         "ランクアップ": ("#E8F5E9", "#2E7D32"),
         "キープ": ("#FFF3E0", "#E65100"),
         "ランクダウン": ("#FFEBEE", "#C62828"),
     }
     bg, fg = colors.get(status, ("#F5F5F5", "#333333"))
+
     render_result_box("現在の判定", status, bg_color=bg, border_color=fg, text_color=fg, font_size=40)
+
     with st.container(border=True):
         st.metric("有効7日間の合計", f"{total} pt")
         if status != "ランクアップ":
@@ -172,34 +176,49 @@ with col_result:
         else:
             st.success("🎉 目標達成予定です！")
 
-# --- 画像生成 ---
+# --- 画像生成（ライブプレビュー） ---
 st.write("---")
 st.header("🗓️ 画像生成 & ライブプレビュー")
 with st.container(border=True):
     bg_file = st.file_uploader("🖼️ 背景画像をアップロード", type=["jpg", "png"], key="weekly_bg")
+
     col_style_cfg, col_preview_area = st.columns([1, 1.5])
+
     with col_style_cfg:
-        st.subheader("🎨 デザイン設定")
-        title_text = st.text_input("タイトル", value=f"{start_date.month}/{start_date.day}〜 予定")
-        img_width = st.number_input("幅", 300, 1000, 600, 10)
-        img_text_color = st.color_picker("文字色", "#FFFFFF")
-        img_frame_color = st.color_picker("枠色", "#FF5722")
-        is_trans = st.checkbox("枠内を完全に透過する", False)
-        img_bg_rgba = (
-            "#00000000"
-            if is_trans
-            else f"{st.color_picker('枠内色', '#000000')}{int(st.slider('不透明度', 0, 100, 80) * 255 / 100):02X}"
-        )
-        img_f_width = st.slider("枠の太さ", 0, 30, 8)
-        img_radius = st.slider("角丸", 0, 200, 30)
+        with st.expander("🎨 デザイン詳細設定", expanded=True):
+            title_text = st.text_input("タイトル", value=f"{start_date.month}/{start_date.day}〜 予定")
+            c1, c2 = st.columns(2)
+            with c1:
+                img_text_color = st.color_picker("文字色", "#FFFFFF")
+            with c2:
+                img_frame_color = st.color_picker("枠色", "#FF5722")
+
+            img_width = st.number_input("幅", 300, 1000, 600, 10)
+
+            is_trans = st.checkbox("枠内を完全に透過する", False)
+            if not is_trans:
+                c1, c2 = st.columns([1, 2])
+                with c1:
+                    img_bg_base = st.color_picker("枠内色", "#000000")
+                with c2:
+                    img_bg_alpha = st.slider("不透明度", 0, 100, 80)
+                img_bg_rgba = f"{img_bg_base}{int(img_bg_alpha * 255 / 100):02X}"
+            else:
+                img_bg_rgba = "#00000000"
+
+            img_f_width = st.slider("枠の太さ", 0, 30, 8)
+            img_radius = st.slider("角丸", 0, 200, 30)
+
         if bg_file:
-            st.write("---")
-            st.subheader("📍 配置設定")
-            anchor = st.selectbox("基準点", ["左上", "中央", "右上", "左下", "右下"])
-            px = st.number_input("Xズレ", value=st.session_state.get("w_x", 0), key="w_x_in")
-            py = st.number_input("Yズレ", value=st.session_state.get("w_y", 0), key="w_y_in")
-            st.session_state.w_x, st.session_state.w_y = px, py
-            scale = st.slider("スケール", 0.1, 2.0, 1.0, 0.05)
+            with st.expander("📍 配置設定", expanded=True):
+                anchor = st.selectbox("基準点", ["左上", "中央", "右上", "左下", "右下"])
+                c1, c2 = st.columns(2)
+                with c1:
+                    px = st.number_input("Xズレ", value=st.session_state.get("w_x", 0), key="w_x_in")
+                with c2:
+                    py = st.number_input("Yズレ", value=st.session_state.get("w_y", 0), key="w_y_in")
+                st.session_state.w_x, st.session_state.w_y = px, py
+                scale = st.slider("スケール", 0.1, 2.0, 1.0, 0.05)
         else:
             anchor, px, py, scale = "左上", 0, 0, 1.0
 
@@ -218,23 +237,26 @@ with st.container(border=True):
                         "SKIP" if p == "SKIP" else f"+{p}pt",
                     )
                 )
+
             fg_bytes = create_palmu_schedule_image(
                 title_text, sched_data, img_text_color, img_frame_color, img_bg_rgba, img_f_width, img_radius, img_width
             )
             final_bytes = composite_images(bg_file.getvalue(), fg_bytes, px, py, scale, anchor) if bg_file else fg_bytes
+
             st.markdown(
                 f'<div style="text-align:center; background:#eee; padding:10px; border-radius:12px; border:1px solid #ddd;"><img src="data:image/png;base64,{base64.b64encode(final_bytes).decode()}" style="max-width:100%; height:auto;"></div>',
                 unsafe_allow_html=True,
             )
+            st.write("")
             st.download_button(
-                "📥 画像を保存",
+                "📥 完成した画像を保存",
                 final_bytes,
                 f"palmu_week_{get_jst_now().strftime('%Y%m%d')}.png",
                 "image/png",
                 use_container_width=True,
             )
         except Exception as e:
-            st.error(f"エラー: {e}")
+            st.error(f"プレビュー生成中にエラーが発生しました: {e}")
 
 # --- データの保存と読み込み ---
 st.write("---")
@@ -261,7 +283,7 @@ with st.container(border=True):
                 d = json.load(uploaded_file)
                 for i in range(1, MAX_DAYS + 1):
                     v = d.get(f"day_{i}", 1)
-                    st.session_state[f"palmu_day_{i}"] = "SKIP" if v == "スキップ" else v
+                    st.session_state[f"pm_day_{i}"] = "SKIP" if v == "スキップ" else v
                     st.session_state[f"palmu_plan_{i}"] = d.get(f"plan_{i}", "")
                 st.session_state.palmu_skip_cards = d.get("skip_cards", 0)
                 save_to_storage()

@@ -81,7 +81,7 @@ point_options = ["SKIP", 1, 2, 4, 6]
 PERIOD_COLORS = ["#E0E0E0", "#E3F2FD", "#F1F8E9", "#FFF3E0", "#F3E5F5", "#EFEBE9"]
 weekdays_sun = ["日", "月", "火", "水", "木", "金", "土"]
 
-st.subheader(f"📝 デイリーポイント入力 ({num_days}日間)")
+st.subheader(f"📝 ポイント入力 ({num_days}日間)")
 daily_vals = [st.session_state.get(f"pm_day_{i}", 1) for i in range(1, num_days + 1)]
 period_assigns = get_day_period_assignments(daily_vals)
 skip_balances = calculate_skip_card_balance(st.session_state.palmu_month_skip_cards, start_date, num_days, daily_vals)
@@ -146,32 +146,45 @@ if active_weeks:
                 if status != "ランクアップ":
                     st.caption(f"あと {points_needed_for_rank_up(total)}pt でアップ")
 
-# --- 画像生成 ---
+# --- 画像生成（ライブプレビュー） ---
 st.write("---")
 st.header("🗓️ 画像生成 & ライブプレビュー")
 with st.container(border=True):
     bg_file = st.file_uploader("🖼️ 背景アップロード", type=["jpg", "png"], key="pm_bg")
     col_cfg, col_prev = st.columns([1, 1.5])
+
     with col_cfg:
-        st.subheader("🎨 デザイン設定")
-        title_text = st.text_input("タイトル", value=f"{start_date.month}月 スケジュール", key="pm_title")
-        img_width = st.number_input("幅", 400, 1200, 800, 10, key="pm_width")
-        img_text_color = st.color_picker("文字色", "#FFFFFF", key="pm_txt_c")
-        img_frame_color = st.color_picker("枠色", "#FF5722", key="pm_frm_c")
-        is_trans = st.checkbox("枠内を完全に透過する", False, key="pm_trans")
-        img_bg_rgba = (
-            "#00000000"
-            if is_trans
-            else f"{st.color_picker('枠内色', '#000000', key='pm_bg_c')}{int(st.slider('不透明度', 0, 100, 80, key='pm_a') * 255 / 100):02X}"
-        )
+        with st.expander("🎨 デザイン詳細設定", expanded=True):
+            title_text = st.text_input("タイトル", value=f"{start_date.month}月 スケジュール", key="pm_title")
+            c1, c2 = st.columns(2)
+            with c1:
+                img_text_color = st.color_picker("文字色", "#FFFFFF", key="pm_txt_c")
+            with c2:
+                img_frame_color = st.color_picker("枠色", "#FF5722", key="pm_frm_c")
+
+            img_width = st.number_input("幅", 400, 1200, 800, 10, key="pm_width")
+
+            is_trans = st.checkbox("枠内を完全に透過する", False, key="pm_trans")
+            if not is_trans:
+                c1, c2 = st.columns([1, 2])
+                with c1:
+                    img_bg_base = st.color_picker("枠内色", "#000000", key="pm_bg_c")
+                with c2:
+                    img_bg_alpha = st.slider("不透明度", 0, 100, 80, key="pm_a")
+                img_bg_rgba = f"{img_bg_base}{int(img_bg_alpha * 255 / 100):02X}"
+            else:
+                img_bg_rgba = "#00000000"
+
         if bg_file:
-            st.write("---")
-            st.subheader("📍 配置設定")
-            anchor = st.selectbox("基準点", ["左上", "中央", "右上", "左下", "右下"], key="pm_anchor")
-            px = st.number_input("Xズレ", value=st.session_state.get("p_x", 0), key="p_x_in")
-            py = st.number_input("Yズレ", value=st.session_state.get("p_y", 0), key="p_y_in")
-            st.session_state.p_x, st.session_state.p_y = px, py
-            scale = st.slider("スケール", 0.1, 2.0, 1.0, 0.05, key="pm_scale")
+            with st.expander("📍 配置設定", expanded=True):
+                anchor = st.selectbox("基準点", ["左上", "中央", "右上", "左下", "右下"], key="pm_anchor")
+                c1, c2 = st.columns(2)
+                with c1:
+                    px = st.number_input("Xズレ", value=st.session_state.get("p_x", 0), key="p_x_in")
+                with c2:
+                    py = st.number_input("Yズレ", value=st.session_state.get("p_y", 0), key="p_y_in")
+                st.session_state.p_x, st.session_state.p_y = px, py
+                scale = st.slider("スケール", 0.1, 2.0, 1.0, 0.05, key="pm_scale")
         else:
             anchor, px, py, scale = "左上", 0, 0, 1.0
 
@@ -189,10 +202,16 @@ with st.container(border=True):
                         "point": "SKIP" if p == "SKIP" else f"+{p}pt",
                     }
                 )
+
             fg_bytes = create_palmu_calendar_grid_image(
                 title_text, cal_data, img_text_color, img_frame_color, img_bg_rgba, img_width
             )
-            final_bytes = composite_images(bg_file.getvalue(), fg_bytes, px, py, scale, anchor) if bg_file else fg_bytes
+
+            if bg_file:
+                final_bytes = composite_images(bg_file.getvalue(), fg_bytes, px, py, scale, anchor)
+            else:
+                final_bytes = fg_bytes
+
             st.markdown(
                 f'<div style="text-align:center; background:#eee; padding:10px; border-radius:12px; border:1px solid #ddd;"><img src="data:image/png;base64,{base64.b64encode(final_bytes).decode()}" style="max-width:100%; height:auto;"></div>',
                 unsafe_allow_html=True,
@@ -206,7 +225,7 @@ with st.container(border=True):
                 use_container_width=True,
             )
         except Exception as e:
-            st.error(f"エラー: {e}")
+            st.error(f"プレビュー生成エラー: {e}")
 
 # --- データの保存と読み込み ---
 st.write("---")
