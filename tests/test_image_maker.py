@@ -28,7 +28,7 @@ def test_create_badge_image_basic():
 
 
 def test_create_palmu_schedule_image_basic():
-    schedule_data = [("2/27", "+6pt"), ("2/28", "SKIP")]
+    schedule_data = [("2/27", "Study", "+6pt"), ("2/28", "Game", "SKIP")]
     img_bytes = create_palmu_schedule_image("Week", schedule_data)
     assert img_bytes.startswith(b"\x89PNG")
 

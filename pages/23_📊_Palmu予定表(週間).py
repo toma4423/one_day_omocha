@@ -42,6 +42,9 @@ if "palmu_skip_cards" not in st.session_state:
 
 def save_to_storage():
     data = {f"day_{i}": st.session_state.get(f"palmu_day_{i}", 1) for i in range(1, MAX_DAYS + 1)}
+    # 予定テキストの保存
+    for i in range(1, MAX_DAYS + 1):
+        data[f"plan_{i}"] = st.session_state.get(f"palmu_plan_{i}", "")
     data["skip_cards"] = st.session_state.get("palmu_skip_cards", 0)
     storage.set_item(PALMU_STORAGE_KEY, data)
 
@@ -51,9 +54,8 @@ def load_from_storage():
     if data:
         for i in range(1, MAX_DAYS + 1):
             val = data.get(f"day_{i}", 1)
-            if val == "スキップ":
-                val = "SKIP"
-            st.session_state[f"palmu_day_{i}"] = val
+            st.session_state[f"palmu_day_{i}"] = "SKIP" if val == "スキップ" else val
+            st.session_state[f"palmu_plan_{i}"] = data.get(f"plan_{i}", "")
         st.session_state.palmu_skip_cards = data.get("skip_cards", 0)
         return True
     return False
@@ -64,6 +66,7 @@ def init_palmu_state():
         if not load_from_storage():
             for i in range(1, MAX_DAYS + 1):
                 st.session_state[f"palmu_day_{i}"] = 1
+                st.session_state[f"palmu_plan_{i}"] = ""
             st.session_state.palmu_skip_cards = 0
 
 
@@ -76,8 +79,10 @@ st.markdown("デイリーランクポイントを入力してランク状況を�
 with st.sidebar:
     st.header("💾 セーブ & ロード")
     current_data = {f"day_{i}": st.session_state[f"palmu_day_{i}"] for i in range(1, MAX_DAYS + 1)}
+    for i in range(1, MAX_DAYS + 1):
+        current_data[f"plan_{i}"] = st.session_state[f"palmu_plan_{i}"]
     current_data["skip_cards"] = st.session_state.palmu_skip_cards
-    json_str = json.dumps(current_data, indent=2)
+    json_str = json.dumps(current_data, indent=2, ensure_ascii=False)
     st.download_button(
         label="📥 JSON保存",
         data=json_str,
@@ -92,6 +97,7 @@ with st.sidebar:
             for i in range(1, MAX_DAYS + 1):
                 val = data_load.get(f"day_{i}", 1)
                 st.session_state[f"palmu_day_{i}"] = "SKIP" if val == "スキップ" else val
+                st.session_state[f"palmu_plan_{i}"] = data_load.get(f"plan_{i}", "")
             st.session_state.palmu_skip_cards = data_load.get("skip_cards", 0)
             save_to_storage()
             st.rerun()
@@ -101,6 +107,7 @@ with st.sidebar:
     if st.button("🚨 全入力をリセット", use_container_width=True):
         for i in range(1, MAX_DAYS + 1):
             st.session_state[f"palmu_day_{i}"] = 1
+            st.session_state[f"palmu_plan_{i}"] = ""
         st.session_state.palmu_skip_cards = 0
         st.session_state.palmu_reset_counter += 1
         storage.delete_item(PALMU_STORAGE_KEY)
@@ -148,10 +155,10 @@ period_assigns = get_day_period_assignments(daily_vals)
 active_period1 = [i for i, p in enumerate(period_assigns) if p == 1]
 display_days = active_period1[-1] + 1 if active_period1 else 7
 
-col_input, col_result = st.columns([1.2, 1])
+col_input, col_result = st.columns([1.5, 1])
 
 with col_input:
-    st.subheader(f"📝 ポイント入力 ({display_days}日間)")
+    st.subheader(f"📝 ポイント・予定入力 ({display_days}日間)")
     reset_id = st.session_state.palmu_reset_counter
     for i in range(1, display_days + 1):
         curr_d = start_date + timedelta(days=i - 1)
@@ -159,7 +166,7 @@ with col_input:
         p_color = PERIOD_COLORS[p_idx % len(PERIOD_COLORS)]
 
         with st.container(border=True):
-            c_sel, c_info = st.columns([3, 1])
+            c_sel, c_plan, c_info = st.columns([2, 3, 1])
             with c_info:
                 st.markdown(
                     f"<div style='background-color:{p_color}; border-radius:8px; padding:4px; text-align:center; font-size:12px; border:1px solid #ddd;'>第{p_idx if p_idx > 0 else '休'}期</div>",
@@ -176,6 +183,14 @@ with col_input:
                     key=f"p_day_{i}_{reset_id}",
                     on_change=save_to_storage,
                     format_func=lambda x: f"+{x} pt" if isinstance(x, int) else str(x),
+                )
+            with c_plan:
+                st.session_state[f"palmu_plan_{i}"] = st.text_input(
+                    "予定テキスト",
+                    value=st.session_state.get(f"palmu_plan_{i}", ""),
+                    key=f"p_plan_{i}_{reset_id}",
+                    on_change=save_to_storage,
+                    placeholder="配信内容など",
                 )
 
 with col_result:
@@ -244,7 +259,14 @@ with st.container(border=True):
             for i in range(1, display_days + 1):
                 curr_d = start_date + timedelta(days=i - 1)
                 p = st.session_state[f"palmu_day_{i}"]
-                sched_data.append((f"{curr_d.month}/{curr_d.day}", "SKIP" if p == "SKIP" else f"+{p}pt"))
+                plan = st.session_state.get(f"palmu_plan_{i}", "")
+                sched_data.append(
+                    (
+                        f"{curr_d.month}/{curr_d.day} ({['月', '火', '水', '木', '金', '土', '日'][curr_d.weekday()]})",
+                        plan,
+                        "SKIP" if p == "SKIP" else f"+{p}pt",
+                    )
+                )
 
             # ライブ生成
             fg_bytes = create_palmu_schedule_image(

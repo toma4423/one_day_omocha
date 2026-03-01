@@ -68,7 +68,7 @@ def create_badge_image(
 
 def create_palmu_schedule_image(
     title: str,
-    schedule_data: list[tuple[str, str]],
+    schedule_data: list[tuple[str, str, str]],
     text_color: str = "#FFFFFF",
     frame_color: str = "#FF5722",
     bg_color: str = "#000000CC",
@@ -78,6 +78,7 @@ def create_palmu_schedule_image(
 ) -> bytes:
     """
     Palmuのスケジュールを描画したリスト形式の画像を生成します。
+    schedule_data: [(日付, 予定テキスト, ポイント), ...]
     """
     title_height = 80
     row_height = 50
@@ -104,9 +105,11 @@ def create_palmu_schedule_image(
     try:
         title_font = ImageFont.truetype(str(FONT_PATH), 40)
         row_font = ImageFont.truetype(str(FONT_PATH), 30)
+        plan_font = ImageFont.truetype(str(FONT_PATH), 24)
     except OSError:
         title_font = ImageFont.load_default()  # type: ignore
         row_font = ImageFont.load_default()  # type: ignore
+        plan_font = ImageFont.load_default()  # type: ignore
 
     text_rgba = hex_to_rgba(text_color)
 
@@ -121,15 +124,33 @@ def create_palmu_schedule_image(
     draw.line([(width * 0.1, line_y), (width * 0.9, line_y)], fill=text_rgba, width=2)
 
     current_y = line_y + 10
-    for date_str, point_str in schedule_data:
+    for date_str, plan_text, point_str in schedule_data:
+        # 日付 (左側)
         d_bbox = draw.textbbox((0, 0), date_str, font=row_font)
         d_y = current_y + (row_height - (d_bbox[3] - d_bbox[1])) / 2 - d_bbox[1]
-        draw.text((width * 0.15, d_y), date_str, fill=text_rgba, font=row_font)
+        draw.text((width * 0.1, d_y), date_str, fill=text_rgba, font=row_font)
 
+        # ポイント (右側)
         p_bbox = draw.textbbox((0, 0), point_str, font=row_font)
         p_w = p_bbox[2] - p_bbox[0]
         p_y = current_y + (row_height - (p_bbox[3] - p_bbox[1])) / 2 - p_bbox[1]
-        draw.text((width * 0.85 - p_w, p_y), point_str, fill=text_rgba, font=row_font)
+        draw.text((width * 0.9 - p_w, p_y), point_str, fill=text_rgba, font=row_font)
+
+        # 予定テキスト (中央)
+        if plan_text:
+            pl_bbox = draw.textbbox((0, 0), plan_text, font=plan_font)
+            pl_w = pl_bbox[2] - pl_bbox[0]
+            pl_h = pl_bbox[3] - pl_bbox[1]
+
+            # 日付の右端とポイントの左端の間で中央揃え
+            center_x_start = width * 0.1 + (d_bbox[2] - d_bbox[0]) + 20
+            center_x_end = width * 0.9 - p_w - 20
+
+            if center_x_end > center_x_start:
+                pl_x = center_x_start + (center_x_end - center_x_start - pl_w) / 2
+                pl_y = current_y + (row_height - pl_h) / 2 - pl_bbox[1]
+                draw.text((pl_x, pl_y), plan_text, fill=text_rgba, font=plan_font)
+
         current_y += row_height
 
     buf = BytesIO()
