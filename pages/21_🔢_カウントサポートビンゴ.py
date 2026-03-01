@@ -13,7 +13,36 @@ st.set_page_config(page_title="カウントサポートビンゴ", page_icon="�
 # グローバルスタイルの適用
 render_page_header()
 
-st.markdown("<h1 style='text-align: center;'>🔢 カウントサポートビンゴ</h1>", unsafe_allow_html=True)
+# ビンゴ専用のコンパクトCSS
+st.markdown(
+    """
+    <style>
+    /* コンテナのパディングを最小限に */
+    [data-testid="stVerticalBlock"] > div > div > div[data-testid="stVerticalBlock"] {
+        padding: 5px !important;
+        gap: 5px !important;
+    }
+    /* 枠付きコンテナの余白調整 */
+    .st-emotion-cache-16idsys, .st-emotion-cache-1r6slb0 {
+        padding: 8px !important;
+        margin-bottom: 0px !important;
+    }
+    /* 入力フィールドの高さを抑える */
+    .stTextInput input, .stNumberInput input {
+        height: 35px !important;
+        padding: 5px !important;
+        font-size: 14px !important;
+    }
+    /* ラベルの非表示を徹底 */
+    label { display: none !important; }
+    </style>
+""",
+    unsafe_allow_html=True,
+)
+
+st.markdown(
+    "<h1 style='text-align: center; margin-bottom: 10px;'>🔢 カウントサポートビンゴ</h1>", unsafe_allow_html=True
+)
 
 # --- ストレージ管理の定義 ---
 storage = SafeStorage(LocalStorage())
@@ -79,11 +108,6 @@ def on_change():
     validate_and_save()
 
 
-def on_step(key, delta):
-    st.session_state[key] += delta
-    validate_and_save()
-
-
 # --- サイドバー ---
 with st.sidebar:
     st.header("⚙️ 設定")
@@ -144,17 +168,11 @@ for r in range(st.session_state.csb_rows):
             st.session_state[ck] = 0
         with cols_ui[c]:
             with st.container(border=True):
-                st.text_input(f"L{r}{c}", key=lk, label_visibility="collapsed", on_change=on_change)
-                st.markdown(
-                    f"<div style='text-align:center; font-size:24px; font-weight:bold; margin:5px 0;'>{st.session_state[ck]}</div>",
-                    unsafe_allow_html=True,
+                # テキスト入力（ラベル）
+                st.text_input(
+                    f"L{r}{c}", key=lk, label_visibility="collapsed", on_change=on_change, placeholder="項目名"
                 )
-                c_m, c_p = st.columns(2)
-                with c_m:
-                    st.button("－", key=f"m{r}{c}", use_container_width=True, on_click=on_step, args=(ck, -1))
-                with c_p:
-                    st.button(
-                        "＋", key=f"p{r}{c}", use_container_width=True, on_click=on_step, args=(ck, 1), type="primary"
-                    )
+                # 数値入力（カウント）
+                st.number_input(f"N{r}{c}", key=ck, label_visibility="collapsed", step=1, on_change=on_change)
 
 render_donation_box("https://qr.paypay.ne.jp/p2p01_jsHjvMAenqfvI10s", is_sidebar=True)
