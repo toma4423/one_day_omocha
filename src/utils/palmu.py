@@ -1,9 +1,18 @@
 from datetime import date, timedelta
 
 
+def _to_int(val: int | str) -> int:
+    """値を数値に変換します（'SKIP'や非数値は0として扱います）。"""
+    if isinstance(val, int):
+        return val
+    if isinstance(val, str) and val.isdigit():
+        return int(val)
+    return 0
+
+
 def calculate_total_points(daily_points: list[int | str]) -> int:
     """日ごとのポイント合計を計算します（'SKIP'等は0として扱う）。"""
-    return sum(int(p) for p in daily_points if isinstance(p, int) or (isinstance(p, str) and p.isdigit()))
+    return sum(_to_int(p) for p in daily_points)
 
 
 def evaluate_rank_status(total_points: int) -> str:
@@ -108,7 +117,7 @@ def group_points_by_active_week(daily_values: list[int | str]) -> list[list[int]
     for i in range(0, len(active_points), 7):
         week = active_points[i : i + 7]
         # キャスト
-        weeks.append([int(p) if isinstance(p, int) or (isinstance(p, str) and p.isdigit()) else 0 for p in week])
+        weeks.append([_to_int(p) for p in week])
 
     return weeks
 

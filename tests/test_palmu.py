@@ -1,7 +1,5 @@
 from datetime import date
 
-import pytest
-
 from src.utils.palmu import (
     calculate_skip_card_balance,
     calculate_total_points,

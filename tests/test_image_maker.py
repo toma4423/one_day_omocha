@@ -36,9 +36,7 @@ def test_create_palmu_schedule_image_basic():
 def test_create_palmu_calendar_grid_image_with_colors():
     calendar_data = [{"date": "1", "day": "月", "point": "+1pt"}]
     # 背景色指定あり
-    img_bytes = create_palmu_calendar_grid_image(
-        "Month", calendar_data, cell_bg_colors=["#FF000080"]
-    )
+    img_bytes = create_palmu_calendar_grid_image("Month", calendar_data, cell_bg_colors=["#FF000080"])
     assert img_bytes.startswith(b"\x89PNG")
 
 
@@ -65,4 +63,4 @@ def test_composite_images_anchors():
     # スケール変更のテスト
     result_scaled = composite_images(bg_bytes, fg_bytes, 0, 0, scale=2.0)
     img_scaled = Image.open(BytesIO(result_scaled))
-    assert img_scaled.size == (100, 100) # 背景サイズは維持されること
+    assert img_scaled.size == (100, 100)  # 背景サイズは維持されること

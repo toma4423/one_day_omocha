@@ -1,7 +1,9 @@
 from src.utils.slot import (
+    calculate_probabilities,
     evaluate_slot_spin,
     migrate_slot_config,
     resolve_pattern_to_chars,
+    solve_weights_from_targets,
     spin_reels,
     validate_slot_config,
 )
@@ -194,3 +196,47 @@ def test_evaluate_slot_spin_any_match():
     )
     assert res is not None
     assert res["name"] == "CHERRY_2"
+
+
+def test_calculate_probabilities_basic():
+    # シンプルな設定: 2種類の図柄が等確率
+    symbols = [
+        {"id": 1, "char": "A", "weight": 1.0},
+        {"id": 2, "char": "B", "weight": 1.0},
+    ]
+    payouts = [
+        {"name": "AAA", "pattern": [1, 1, 1]},
+        {"name": "A-ANY", "pattern": [1, "ANY", "ANY"]},
+    ]
+
+    probs = calculate_probabilities(symbols, payouts)
+
+    # AAA の確率は (1/2)^3 = 1/8 = 12.5%
+    # A-ANY の確率は (1/2) * 1 * 1 = 50%
+    # ただし、calculate_probabilities 内で最初にマッチした役が優先されるロジック
+    hit_rates = {r["name"]: r["rate"] for r in probs["hit_rates"]}
+    assert hit_rates["AAA"] == 12.5
+    # AAAが先に判定されるため、A-ANY は 50% - 12.5% = 37.5% になる
+    assert hit_rates["A-ANY"] == 37.5
+
+
+def test_solve_weights_from_targets_basic():
+    symbols = [
+        {"id": 1, "char": "7", "weight": 1.0},
+        {"id": 2, "char": "Blank", "weight": 1.0},
+    ]
+    payouts = [
+        {"name": "JACKPOT", "pattern": [1, 1, 1]},
+    ]
+    targets = {"JACKPOT": 10.0}  # 10%で当たるようにしたい
+
+    new_symbols = solve_weights_from_targets(symbols, payouts, targets)
+
+    # 10% の JACKPOT (1,1,1) ならば、p(1)^3 = 0.1 => p(1) = 0.1^(1/3) ≒ 0.464
+    s1 = next(s for s in new_symbols if s["id"] == 1)
+    s2 = next(s for s in new_symbols if s["id"] == 2)
+
+    total_w = s1["weight"] + s2["weight"]
+    prob1 = s1["weight"] / total_w
+    # prob1^3 が 10% に近いことを確認
+    assert 0.09 <= (prob1**3) <= 0.11
