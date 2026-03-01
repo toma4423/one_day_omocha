@@ -38,17 +38,24 @@ def pick_roulette_winner(items: list[RouletteItem]) -> RouletteItem:
 
 
 def normalize_weights(items: list[RouletteItem]) -> list[RouletteItem]:
-    """重みの合計が100%になるように（あるいは合計値で）調整します。"""
+    """重みの合計が100%になるように調整します。"""
     if not items:
         return []
 
-    total = sum(item["weight"] for item in items)
+    new_items = [item.copy() for item in items]
+    total = sum(float(item["weight"]) for item in new_items)
+
     if total <= 0:
         # 重みがすべて0または負の場合は均等に割り当て
-        default_weight = 100.0 / len(items)
-        for item in items:
+        default_weight = 100.0 / len(new_items)
+        for item in new_items:
             item["weight"] = round(default_weight, 2)
-    return items
+    else:
+        # 100%換算にする
+        for item in new_items:
+            item["weight"] = round((float(item["weight"]) / total) * 100.0, 2)
+
+    return new_items
 
 
 def validate_roulette_config(config: dict[str, Any]) -> tuple[bool, str]:

@@ -52,7 +52,12 @@ with col_main:
 
     # ルーレット描画用のコンポーネント
     def render_roulette_canvas(items, sound_enabled, spin_trigger, winner_index):
-        items_json = json.dumps(items, ensure_ascii=False)
+        # 描画前に重みを正規化する
+        from src.utils.roulette import normalize_weights
+
+        normalized_items = normalize_weights(items)
+        items_json = json.dumps(normalized_items, ensure_ascii=False)
+
         html_code = f"""
         <style>{wheel_css}</style>
         <div id="container">
@@ -70,7 +75,8 @@ with col_main:
             setupWheel(config);
         </script>
         """
-        st.components.v1.html(html_code, height=550)
+        # key を指定することで、毎回 iframe が作り直され、アニメーションが確実に最初から走る
+        st.components.v1.html(html_code, height=550, key=f"roulette_comp_{spin_trigger}")
 
     # 描画 (trigger が 0 より大きければアニメーション開始)
     render_roulette_canvas(
@@ -84,7 +90,7 @@ with col_main:
         # 1. Python で先に結果を出す
         items = st.session_state.roulette_config["items"]
         winner = pick_roulette_winner(items)
-        winner_idx = next(i for i, item in enumerate(items) if item == winner)
+        winner_idx = next(i for i, item in enumerate(items) if item["label"] == winner["label"])
 
         # 2. セッション状態を更新 (Trigger を変えることで JS が動く)
         st.session_state.roulette_last_winner = winner
@@ -100,6 +106,8 @@ with col_main:
         st.rerun()
 
     if st.session_state.roulette_last_winner and st.session_state.roulette_spin_trigger > 0:
+        # アニメーションが終わるまで少し待つ演出
+        time.sleep(0.5)
         st.success(f"結果：{st.session_state.roulette_last_winner['label']}")
         st.balloons()
 
