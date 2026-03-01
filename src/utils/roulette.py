@@ -42,18 +42,25 @@ def normalize_weights(items: list[RouletteItem]) -> list[RouletteItem]:
     if not items:
         return []
 
-    new_items = [item.copy() for item in items]
-    total = sum(float(item["weight"]) for item in new_items)
+    new_items = []
+    for item in items:
+        new_item = item.copy()
+        # 確実に float にキャスト
+        try:
+            new_item["weight"] = float(item.get("weight", 0.0))
+        except (ValueError, TypeError):
+            new_item["weight"] = 0.0
+        new_items.append(new_item)
+
+    total = sum(item["weight"] for item in new_items)
 
     if total <= 0:
-        # 重みがすべて0または負の場合は均等に割り当て
         default_weight = 100.0 / len(new_items)
         for item in new_items:
             item["weight"] = round(default_weight, 2)
     else:
-        # 100%換算にする
         for item in new_items:
-            item["weight"] = round((float(item["weight"]) / total) * 100.0, 2)
+            item["weight"] = round((item["weight"] / total) * 100.0, 2)
 
     return new_items
 

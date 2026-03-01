@@ -14,17 +14,17 @@ from src.utils.roulette import (
 from src.utils.storage import SafeStorage
 from src.utils.styles import render_donation_box
 
+# ページ基本設定
 st.set_page_config(page_title="ルーレット", page_icon="🎡", layout="wide")
 
 # SafeStorage の初期化
 storage = SafeStorage(LocalStorage())
 
-# 設定のロード
+# セッション状態の初期化
 if "roulette_config" not in st.session_state:
     saved_config = storage.get_item("roulette_config", is_json=True)
     st.session_state.roulette_config = migrate_roulette_config(saved_config)
 
-# 抽選履歴の初期化
 if "roulette_history" not in st.session_state:
     saved_history = storage.get_item("roulette_history", is_json=True)
     st.session_state.roulette_history = saved_history if saved_history else []
@@ -42,60 +42,59 @@ st.title("🎡 カスタムルーレット")
 col_main, col_sidebar = st.columns([2, 1])
 
 with col_main:
-    # 外部 JS/CSS を読み込む
-    wheel_js = ""
-    wheel_css = ""
+    # 外部 JS/CSS の安全な読み込み
     try:
-        # 本番環境でのパスの整合性を考慮し、確実に読み込む
-        with open("src/assets/roulette/wheel.js", encoding="utf-8") as f:
+        with open("src/assets/roulette/wheel.js", encoding="utf-8", errors="replace") as f:
             wheel_js = f.read()
-        with open("src/assets/roulette/style.css", encoding="utf-8") as f:
+        with open("src/assets/roulette/style.css", encoding="utf-8", errors="replace") as f:
             wheel_css = f.read()
     except Exception as e:
-        # 開発中のデバッグ用（本番ではエラー表示を避けるが、型エラー防止のため空文字をセット）
-        wheel_js = f"console.error('Failed to load wheel.js: {e}');"
-        wheel_css = "/* Failed to load style.css */"
+        wheel_js = f"console.error('Asset Load Error: {e}');"
+        wheel_css = ""
 
-    # ルーレット描画用のコンポーネント
+    # ルーレット描画用のコンポーネント (TypeError 防止のテンプレート方式)
     def render_roulette_canvas(items, sound_enabled, spin_trigger, winner_index):
-        # 描画前に重みを正規化する
-        normalized_items = normalize_weights(items)
-        items_json = json.dumps(normalized_items, ensure_ascii=False)
-        sound_enabled_js = "true" if sound_enabled else "false"
-        status_text = "抽選中..." if spin_trigger > 0 else ""
-        winner_index_json = json.dumps(winner_index)
+        # 描画前の正規化
+        norm_items = normalize_weights(items)
+        items_json = json.dumps(norm_items, ensure_ascii=True)  # ASCII固定でシリアライズエラーを防止
 
-        # TypeError 防止のため、すべてのパーツを確実に文字列として結合する
-        # f-string 内での JavaScript コードの展開はブレース問題を招くため避ける
-        html_parts = [
-            "<style>",
-            wheel_css,
-            "</style>",
-            '<div id="container">',
-            '    <canvas id="wheel" width="450" height="450"></canvas>',
-            f'    <div id="status">{status_text}</div>',
-            "</div>",
-            "<script>",
-            wheel_js,
-            "\n",
-            "const config = {",
-            f"    items: {items_json},",
-            f"    soundEnabled: {sound_enabled_js},",
-            f"    spinTrigger: {spin_trigger},",
-            f"    winnerIndex: {winner_index_json}",
-            "};",
-            "setupWheel(config);",
-            "</script>",
-        ]
+        # テンプレート
+        html_template = """
+        <style> __CSS__ </style>
+        <div id="container">
+            <canvas id="wheel" width="450" height="450"></canvas>
+            <div id="status">__STATUS__</div>
+        </div>
+        <script>
+            __JS__
+            const config = {
+                items: __ITEMS__,
+                soundEnabled: __SOUND__,
+                spinTrigger: __TRIGGER__,
+                winnerIndex: __WINNER__
+            };
+            setupWheel(config);
+        </script>
+        """
 
-        full_html = "\n".join(html_parts)
+        # 確実に str 型に変換して置換
+        full_html = (
+            html_template.replace("__CSS__", str(wheel_css))
+            .replace("__JS__", str(wheel_js))
+            .replace("__STATUS__", "抽選中..." if spin_trigger > 0 else "")
+            .replace("__ITEMS__", str(items_json))
+            .replace("__SOUND__", "true" if sound_enabled else "false")
+            .replace("__TRIGGER__", str(int(spin_trigger)))
+            .replace("__WINNER__", json.dumps(winner_index))
+        )
 
-        # key を指定することで、毎回 iframe が作り直され、アニメーションが確実に最初から走る
-        # key は必ず文字列にする
-        comp_key = f"roulette_comp_{spin_trigger}"
-        st.components.v1.html(full_html, height=550, key=comp_key)
+        # 引数を完全にキャストして渡す
+        try:
+            st.components.v1.html(str(full_html), height=550, key=f"roulette_comp_{int(spin_trigger)}")
+        except Exception as e:
+            st.error(f"コンポーネントの表示中にエラーが発生しました: {e}")
 
-    # 描画 (trigger が 0 より大きければアニメーション開始)
+    # 描画実行
     render_roulette_canvas(
         st.session_state.roulette_config["items"],
         st.session_state.roulette_config["sound_enabled"],
@@ -104,24 +103,28 @@ with col_main:
     )
 
     if st.button("🚀 ルーレットを回す！", use_container_width=True, type="primary"):
-        # 1. Python で先に結果を出す
+        # Python で先に結果を出す
         items = st.session_state.roulette_config["items"]
         winner = pick_roulette_winner(items)
 
-        # 名前で一致を確認
+        # インデックス特定
         winner_idx = 0
         for i, item in enumerate(items):
             if item["label"] == winner["label"]:
                 winner_idx = i
                 break
 
-        # 2. セッション状態を更新 (Trigger を変えることで JS が動く)
+        # セッション状態を更新
         st.session_state.roulette_last_winner = winner
         st.session_state.roulette_winner_index = winner_idx
         st.session_state.roulette_spin_trigger += 1
 
-        # 3. 履歴追加
-        history_entry = {"time": time.strftime("%H:%M:%S"), "label": winner["label"], "color": winner["color"]}
+        # 履歴追加
+        history_entry = {
+            "time": time.strftime("%H:%M:%S"),
+            "label": str(winner["label"]),
+            "color": str(winner["color"]),
+        }
         st.session_state.roulette_history.insert(0, history_entry)
         st.session_state.roulette_history = st.session_state.roulette_history[:50]
         storage.set_item("roulette_history", st.session_state.roulette_history)
@@ -129,7 +132,6 @@ with col_main:
         st.rerun()
 
     if st.session_state.roulette_last_winner and st.session_state.roulette_spin_trigger > 0:
-        time.sleep(0.5)
         st.success(f"結果：{st.session_state.roulette_last_winner['label']}")
         st.balloons()
 
@@ -144,6 +146,7 @@ with col_main:
     else:
         st.info("履歴はまだありません。")
 
+# --- サイドバー ---
 with col_sidebar:
     st.subheader("⚙️ 設定")
 
@@ -155,17 +158,15 @@ with col_sidebar:
                 label = st.text_input(f"名前 {i + 1}", value=item["label"], key=f"label_{i}")
             with c2:
                 weight = st.number_input(
-                    "重み", value=float(item["weight"]), min_value=0.0, step=0.1, key=f"weight_{i}"
+                    "重み", value=float(item.get("weight", 1.0)), min_value=0.0, step=0.1, key=f"weight_{i}"
                 )
             with c3:
-                color = st.color_picker("色", value=item["color"], key=f"color_{i}")
+                color = st.color_picker("色", value=item.get("color", "#CCCCCC"), key=f"color_{i}")
                 if st.button("🗑️", key=f"del_{i}"):
-                    # 削除処理（リストから除外）
                     continue
             new_items.append({"label": label, "weight": weight, "color": color})
 
         if st.button("➕ 項目を追加"):
-            # デフォルト色をランダムに
             rand_color = f"#{random.randint(0, 0xFFFFFF):06x}"
             new_items.append({"label": "新しい項目", "weight": 1.0, "color": rand_color})
             st.rerun()
@@ -177,15 +178,13 @@ with col_sidebar:
             st.rerun()
 
     st.session_state.roulette_config["sound_enabled"] = st.toggle(
-        "🔊 カチカチ音を有効にする", value=st.session_state.roulette_config["sound_enabled"]
+        "🔊 カチカチ音を有効にする", value=st.session_state.roulette_config.get("sound_enabled", True)
     )
 
     st.write("---")
-
-    # ファイル入出力
     st.subheader("📁 設定の共有")
 
-    # エクスポート
+    # JSON出力
     json_data = json.dumps(st.session_state.roulette_config, ensure_ascii=False, indent=2)
     st.download_button(
         label="📥 設定をJSONで保存",
@@ -194,7 +193,7 @@ with col_sidebar:
         mime="application/json",
     )
 
-    # インポート
+    # JSON読込
     uploaded_file = st.file_uploader("📤 設定JSONを読み込む", type="json")
     if uploaded_file is not None:
         if st.button("設定を反映", use_container_width=True):
@@ -205,12 +204,12 @@ with col_sidebar:
                     migrated = migrate_roulette_config(data)
                     st.session_state.roulette_config = migrated
                     storage.set_item("roulette_config", migrated)
-                    st.success("設定を反映しました！")
+                    st.success("反映しました！")
                     st.rerun()
                 else:
-                    st.error(f"エラー: {msg}")
+                    st.error(f"無効なデータ: {msg}")
             except Exception as e:
-                st.error(f"JSONの読み込みに失敗しました: {e}")
+                st.error(f"読込失敗: {e}")
 
     if st.button("🗑️ 履歴をクリア", use_container_width=True):
         st.session_state.roulette_history = []
