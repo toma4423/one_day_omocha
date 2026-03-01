@@ -82,6 +82,28 @@ def equalize_weights(items: list[RouletteItem]) -> list[RouletteItem]:
     return new_items
 
 
+COLOR_PRESETS = {
+    "ビビッド": ["#FF4B4B", "#FFD700", "#6ED3FF", "#4CAF50", "#9C27B0", "#FF9800"],
+    "パステル": ["#FFB7B2", "#FFDAC1", "#E2F0CB", "#B5EAD7", "#C7CEEA", "#F3B0C3"],
+    "モノトーン": ["#333333", "#666666", "#999999", "#CCCCCC", "#EEEEEE", "#F5F5F5"],
+    "和風": ["#D75455", "#EAB333", "#4B61BA", "#567835", "#7051AA", "#4A4B4D"],
+}
+
+
+def apply_color_preset(items: list[RouletteItem], preset_name: str) -> list[RouletteItem]:
+    """選択されたプリセットカラーを項目に順番に適用します。"""
+    if preset_name not in COLOR_PRESETS or not items:
+        return items
+
+    colors = COLOR_PRESETS[preset_name]
+    new_items = []
+    for i, item in enumerate(items):
+        new_item = item.copy()
+        new_item["color"] = colors[i % len(colors)]
+        new_items.append(new_item)
+    return new_items
+
+
 def validate_roulette_config(config: dict[str, Any]) -> tuple[bool, str]:
     """設定データの形式をチェックします。"""
     if not isinstance(config, dict):

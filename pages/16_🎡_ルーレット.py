@@ -6,6 +6,8 @@ import streamlit as st
 from streamlit_local_storage import LocalStorage
 
 from src.utils.roulette import (
+    COLOR_PRESETS,
+    apply_color_preset,
     equalize_weights,
     migrate_roulette_config,
     normalize_weights,
@@ -32,6 +34,7 @@ st.markdown(
 .strictly-delayed {
     animation: waitThenShow 5.0s forwards;
 }
+hr { margin: 10px 0 !important; border: 0; border-top: 1px solid #eee; }
 </style>
 """,
     unsafe_allow_html=True,
@@ -181,6 +184,18 @@ with col_sidebar:
     st.subheader("⚙️ 設定")
 
     with st.expander("📝 項目と重みの編集", expanded=True):
+        # カラープリセット選択
+        preset_options = ["(プリセットを選択)"] + list(COLOR_PRESETS.keys())
+        selected_preset = st.selectbox("🎨 カラーテーマを適用", preset_options)
+        if selected_preset != "(プリセットを選択)":
+            st.session_state.roulette_config["items"] = apply_color_preset(
+                st.session_state.roulette_config["items"], selected_preset
+            )
+            storage.set_item("roulette_config", st.session_state.roulette_config)
+            st.rerun()
+
+        st.write("---")
+
         items = st.session_state.roulette_config["items"]
         new_items = []
         to_delete = None
@@ -188,7 +203,13 @@ with col_sidebar:
         for i, item in enumerate(items):
             c1, c2, c3 = st.columns([3, 2, 1])
             with c1:
-                label = st.text_input(f"名前 {i + 1}", value=item["label"], key=f"label_{i}")
+                label = st.text_input(
+                    f"名前 {i + 1}",
+                    value=item["label"],
+                    key=f"label_{i}",
+                    label_visibility="collapsed",
+                    placeholder="項目名",
+                )
             with c2:
                 weight = st.number_input(
                     f"重み {i + 1}",
@@ -199,40 +220,38 @@ with col_sidebar:
                     label_visibility="collapsed",
                 )
             with c3:
-                st.color_picker(
-                    "色", value=item.get("color", "#CCCCCC"), key=f"color_{i}", label_visibility="collapsed"
+                color = st.color_picker(
+                    f"色 {i + 1}", value=item.get("color", "#CCCCCC"), key=f"color_{i}", label_visibility="collapsed"
                 )
-                if st.button("🗑️", key=f"del_{i}"):
+                if st.button("🗑️", key=f"del_{i}", help="この項目を削除"):
                     to_delete = i
 
-            # 削除対象でない場合のみリストに追加
-            new_items.append({"label": label, "weight": weight, "color": st.session_state[f"color_{i}"]})
+            new_items.append({"label": label, "weight": weight, "color": color})
+            st.markdown("<hr>", unsafe_allow_html=True)  # 区切り線
 
-        # 削除処理の実行
+        # 削除処理
         if to_delete is not None:
             new_items.pop(to_delete)
             st.session_state.roulette_config["items"] = new_items
             storage.set_item("roulette_config", st.session_state.roulette_config)
             st.rerun()
 
-        st.write("---")
         col_add, col_auto = st.columns(2)
         with col_add:
-            if st.button("➕ 追加", use_container_width=True):
+            if st.button("➕ 項目を追加", use_container_width=True):
                 rand_color = f"#{random.randint(0, 0xFFFFFF):06x}"
-                new_items.append({"label": "新しい項目", "weight": 1.0, "color": rand_color})
+                new_items.append({"label": f"項目 {len(new_items) + 1}", "weight": 1.0, "color": rand_color})
                 st.session_state.roulette_config["items"] = new_items
                 storage.set_item("roulette_config", st.session_state.roulette_config)
                 st.rerun()
 
         with col_auto:
-            if st.button("⚖️ 均等化", use_container_width=True, help="すべての重みを均等にします"):
+            if st.button("⚖️ 重みを均等化", use_container_width=True):
                 st.session_state.roulette_config["items"] = equalize_weights(new_items)
                 storage.set_item("roulette_config", st.session_state.roulette_config)
-                st.success("重みを均等にしました")
                 st.rerun()
 
-        if st.button("💾 設定を保存", use_container_width=True, type="primary"):
+        if st.button("💾 設定を保存して反映", use_container_width=True, type="primary"):
             st.session_state.roulette_config["items"] = normalize_weights(new_items)
             storage.set_item("roulette_config", st.session_state.roulette_config)
             st.success("保存しました！")
