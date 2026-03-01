@@ -307,10 +307,49 @@ with col_img_settings:
     bg_file = st.file_uploader("背景画像をアップロード (JPG/PNG)", type=["jpg", "jpeg", "png"])
 
     if bg_file:
+        # 画像サイズを取得するために一度開く
+        from PIL import Image
+
+        bg_img_tmp = Image.open(bg_file)
+        bg_w, bg_h = bg_img_tmp.size
+        st.caption(f"背景サイズ: {bg_w} x {bg_h} px")
+
         st.markdown("#### 合成位置・サイズ調整")
-        pos_x = st.slider("左右位置 (X)", min_value=0, max_value=2000, value=50)
-        pos_y = st.slider("上下位置 (Y)", min_value=0, max_value=2000, value=50)
+
+        # 位置プリセット
+        st.markdown("快速配置:")
+        col_pre1, col_pre2, col_pre3 = st.columns(3)
+        if col_pre1.button("左上", use_container_width=True):
+            st.session_state.weekly_x, st.session_state.weekly_y = 50, 50
+            st.rerun()
+        if col_pre2.button("中央", use_container_width=True):
+            st.session_state.weekly_x, st.session_state.weekly_y = (bg_w - int(img_width)) // 2, (bg_h - 400) // 2
+            st.rerun()
+        if col_pre3.button("右下", use_container_width=True):
+            st.session_state.weekly_x, st.session_state.weekly_y = bg_w - int(img_width) - 50, bg_h - 400 - 50
+            st.rerun()
+
+        col_pos_x, col_pos_y = st.columns(2)
+        with col_pos_x:
+            pos_x = st.number_input(
+                "左右位置 (X)",
+                min_value=-2000,
+                max_value=bg_w + 2000,
+                value=st.session_state.get("weekly_x", 50),
+                key="weekly_x",
+            )
+        with col_pos_y:
+            pos_y = st.number_input(
+                "上下位置 (Y)",
+                min_value=-2000,
+                max_value=bg_h + 2000,
+                value=st.session_state.get("weekly_y", 50),
+                key="weekly_y",
+            )
+
         overlay_scale = st.slider("スケール", min_value=0.1, max_value=2.0, value=1.0, step=0.05)
+    else:
+        pos_x, pos_y, overlay_scale = 50, 50, 1.0
 
 with col_img_preview:
     st.subheader("👁️ プレビュー")
@@ -346,7 +385,7 @@ with col_img_preview:
 
         # 背景画像がある場合は合成
         if bg_file:
-            bg_bytes = bg_file.read()
+            bg_bytes = bg_file.getvalue()
             final_bytes = composite_images(
                 bg_bytes=bg_bytes,
                 fg_bytes=fg_bytes,
