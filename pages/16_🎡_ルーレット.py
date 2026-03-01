@@ -117,23 +117,16 @@ with col_main:
     )
 
     if st.button("🚀 ルーレットを回す！", use_container_width=True, type="primary"):
-        # 1. Python で先に結果を出す
         items = st.session_state.roulette_config["items"]
         winner = pick_roulette_winner(items)
-
-        # ID でインデックスを特定
         winner_idx = 0
         for i, item in enumerate(items):
             if item["id"] == winner["id"]:
                 winner_idx = i
                 break
-
-        # 2. セッション状態を更新
         st.session_state.roulette_last_winner = winner
         st.session_state.roulette_winner_index = winner_idx
         st.session_state.roulette_spin_trigger += 1
-
-        # 3. 履歴追加
         history_entry = {
             "time": time.strftime("%H:%M:%S"),
             "label": str(winner["label"]),
@@ -142,7 +135,6 @@ with col_main:
         st.session_state.roulette_history.insert(0, history_entry)
         st.session_state.roulette_history = st.session_state.roulette_history[:50]
         storage.set_item("roulette_history", st.session_state.roulette_history)
-
         st.rerun()
 
     # --- データの保存と読み込み ---
@@ -183,89 +175,86 @@ with col_main:
                 st.info("履歴はまだありません。")
         st.markdown("</div>", unsafe_allow_html=True)
 
-# --- サイドバー ---
+# --- サイドバー：設定 ---
 with col_sidebar:
     st.subheader("⚙️ 設定")
 
     with st.expander("📝 項目と重みの編集", expanded=True):
-        # カラープリセット選択
-        preset_options = ["(プリセットを選択)"] + list(COLOR_PRESETS.keys())
-        selected_preset = st.selectbox("🎨 カラーテーマを適用", preset_options)
-        if selected_preset != "(プリセットを選択)":
-            st.session_state.roulette_config["items"] = apply_color_preset(
-                st.session_state.roulette_config["items"], selected_preset
-            )
+        # 編集中のリストをセッションから取得
+        current_items = st.session_state.roulette_config["items"]
+
+        # 1. 操作系ボタン（追加、均等化）
+        c_add, c_eq = st.columns(2)
+        with c_add:
+            if st.button("➕ 項目を追加", use_container_width=True):
+                new_id = f"item_{int(time.time() * 1000)}"
+                rand_color = f"#{random.randint(0, 0xFFFFFF):06x}"
+                current_items.append(
+                    {"id": new_id, "label": f"項目 {len(current_items) + 1}", "weight": 1.0, "color": rand_color}
+                )
+                st.session_state.roulette_config["items"] = current_items
+                storage.set_item("roulette_config", st.session_state.roulette_config)
+                st.rerun()
+        with c_eq:
+            if st.button("⚖️ 重みを均等化", use_container_width=True):
+                st.session_state.roulette_config["items"] = equalize_weights(current_items)
+                storage.set_item("roulette_config", st.session_state.roulette_config)
+                st.rerun()
+
+        # 2. カラープリセット
+        preset_options = ["(カラーテーマを適用)"] + list(COLOR_PRESETS.keys())
+        selected_preset = st.selectbox("🎨 プリセット", preset_options, label_visibility="collapsed")
+        if selected_preset != "(カラーテーマを適用)":
+            st.session_state.roulette_config["items"] = apply_color_preset(current_items, selected_preset)
             storage.set_item("roulette_config", st.session_state.roulette_config)
             st.rerun()
 
         st.write("---")
 
-        items = st.session_state.roulette_config["items"]
-        new_items = []
+        # 3. 項目ループ
+        new_items_list = []
         to_delete_id = None
 
-        for _, item in enumerate(items):
-            item_id = item["id"]
-            # 上段：名称と確率
-            c1, c2 = st.columns([3, 1])
-            with c1:
-                label = st.text_input(
-                    "名前",
-                    value=item["label"],
-                    key=f"label_{item_id}",
-                    label_visibility="collapsed",
-                    placeholder="項目名",
-                )
-            with c2:
-                weight = st.number_input(
-                    "重み",
-                    value=float(item.get("weight", 1.0)),
-                    min_value=0.0,
-                    step=0.1,
-                    key=f"weight_{item_id}",
-                    label_visibility="collapsed",
-                )
+        for _idx, item in enumerate(current_items):
+            iid = item["id"]
+            with st.container():
+                # 上段
+                col1, col2 = st.columns([3, 1])
+                with col1:
+                    new_label = st.text_input(
+                        "名前", value=item["label"], key=f"label_{iid}", label_visibility="collapsed"
+                    )
+                with col2:
+                    new_weight = st.number_input(
+                        "重み",
+                        value=float(item["weight"]),
+                        min_value=0.0,
+                        step=0.1,
+                        key=f"weight_{iid}",
+                        label_visibility="collapsed",
+                    )
 
-            # 下段：カラーと削除
-            c3, c4 = st.columns([3, 1])
-            with c3:
-                color = st.color_picker(
-                    "色", value=item.get("color", "#CCCCCC"), key=f"color_{item_id}", label_visibility="collapsed"
-                )
-            with c4:
-                if st.button("🗑️ 削除", key=f"del_{item_id}", use_container_width=True):
-                    to_delete_id = item_id
+                # 下段
+                col3, col4 = st.columns([3, 1])
+                with col3:
+                    new_color = st.color_picker(
+                        "色", value=item["color"], key=f"color_{iid}", label_visibility="collapsed"
+                    )
+                with col4:
+                    if st.button("🗑️ 削除", key=f"del_{iid}", use_container_width=True):
+                        to_delete_id = iid
 
-            new_items.append({"id": item_id, "label": label, "weight": weight, "color": color})
-            st.markdown("<hr>", unsafe_allow_html=True)
+                new_items_list.append({"id": iid, "label": new_label, "weight": new_weight, "color": new_color})
+                st.markdown("<hr>", unsafe_allow_html=True)
 
-        # 削除処理
+        # 削除・更新処理
         if to_delete_id:
-            new_items = [it for it in new_items if it["id"] != to_delete_id]
-            st.session_state.roulette_config["items"] = new_items
+            st.session_state.roulette_config["items"] = [it for it in new_items_list if it["id"] != to_delete_id]
             storage.set_item("roulette_config", st.session_state.roulette_config)
             st.rerun()
 
-        col_add, col_auto = st.columns(2)
-        with col_add:
-            if st.button("➕ 項目を追加", use_container_width=True):
-                rand_color = f"#{random.randint(0, 0xFFFFFF):06x}"
-                new_id = f"item_{int(time.time() * 1000)}"
-                new_items.append(
-                    {"id": new_id, "label": f"項目 {len(new_items) + 1}", "weight": 1.0, "color": rand_color}
-                )
-                st.session_state.roulette_config["items"] = new_items
-                storage.set_item("roulette_config", st.session_state.roulette_config)
-                st.rerun()
-
-        with col_auto:
-            if st.button("⚖️ 重みを均等化", use_container_width=True):
-                st.session_state.roulette_config["items"] = equalize_weights(new_items)
-                storage.set_item("roulette_config", st.session_state.roulette_config)
-                st.rerun()
-
         if st.button("💾 設定を保存して反映", use_container_width=True, type="primary"):
-            st.session_state.roulette_config["items"] = normalize_weights(new_items)
+            st.session_state.roulette_config["items"] = normalize_weights(new_items_list)
             storage.set_item("roulette_config", st.session_state.roulette_config)
             st.success("保存しました！")
             st.rerun()
