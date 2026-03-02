@@ -65,9 +65,10 @@ init_palmu_month_state()
 # --- ストレージによる同期 (ビジュアルエディタからの戻り) ---
 sync_data = storage.get_item("palmu_sync_data", is_json=True)
 if sync_data and sync_data.get("mode") == "monthly":
-    st.session_state.p_x = sync_data["x"]
-    st.session_state.p_y = sync_data["y"]
-    st.session_state.p_scale = sync_data["s"]
+    # スライダーのkeyに直接値を注入
+    st.session_state.p_x_slider = sync_data["x"]
+    st.session_state.p_y_slider = sync_data["y"]
+    st.session_state.pm_scale_slider = sync_data["s"]
     storage.delete_item("palmu_sync_data")
     st.rerun()
 
@@ -165,7 +166,6 @@ if active_weeks:
                 if status != "ランクアップ":
                     st.caption(f"あと {points_needed_for_rank_up(total)}pt でアップ")
 
-
 @st.dialog("📏 配置を直感的に調整する", width="large")
 def show_palmu_editor(bg_bytes, fg_bytes, fg_w, fg_h, px, py, scale, anchor):
     render_visual_editor(bg_bytes, fg_bytes, fg_w, fg_h, px, py, scale, anchor, mode="monthly")
@@ -176,6 +176,14 @@ st.write("---")
 st.header("🗓️ 画像生成 & ライブプレビュー")
 with st.container(border=True):
     bg_file = st.file_uploader("🖼️ 背景アップロード", type=["jpg", "png"], key="pm_bg")
+    
+    # 画像の永続化ロジック
+    if bg_file:
+        st.session_state.monthly_bg_cache = bg_file.getvalue()
+    
+    # キャッシュされた画像がある場合はそれを使用する
+    active_bg = st.session_state.get("monthly_bg_cache")
+
     col_cfg, col_prev = st.columns([1, 1.5])
 
     with col_cfg:
@@ -200,31 +208,31 @@ with st.container(border=True):
             else:
                 img_bg_rgba = "#00000000"
 
-        if bg_file:
+        if active_bg:
             with st.expander("📍 配置設定", expanded=True):
                 anchor = st.selectbox(
-                    "基準点",
-                    ["左上", "中央", "右上", "左下", "右下", "中央左", "中央右", "中央上", "中央下"],
-                    key="pm_anchor",
+                    "基準点", ["左上", "中央", "右上", "左下", "右下", "中央左", "中央右", "中央上", "中央下"], key="pm_anchor"
                 )
                 c1, c2 = st.columns(2)
                 with c1:
                     px = st.slider(
-                        "X軸調整", -1000, 1000, value=st.session_state.get("p_x", 0), step=5, key="p_x_slider"
+                        "X軸調整", -1000, 1000, value=st.session_state.get("p_x_slider", 0), step=5, key="p_x_slider"
                     )
                 with c2:
                     py = st.slider(
-                        "Y軸調整", -1000, 1000, value=st.session_state.get("p_y", 0), step=5, key="p_y_slider"
+                        "Y軸調整", -1000, 1000, value=st.session_state.get("p_y_slider", 0), step=5, key="p_y_slider"
                     )
 
-                st.session_state.p_x, st.session_state.p_y = px, py
                 scale = st.slider(
-                    "スケール", 0.1, 2.0, value=st.session_state.get("p_scale", 1.0), step=0.05, key="pm_scale_slider"
+                    "スケール", 0.1, 2.0, value=st.session_state.get("pm_scale_slider", 1.0), step=0.05, key="pm_scale_slider"
                 )
-                st.session_state.p_scale = scale
 
             if st.button("🖱️ マウスで直感的に配置する (試験的機能)", key="pm_visual_btn"):
                 st.session_state.pm_show_visual_editor = True
+            
+            if st.button("🖼️ 背景画像をクリア", key="pm_clear_btn"):
+                st.session_state.monthly_bg_cache = None
+                st.rerun()
         else:
             anchor, px, py, scale = "左上", 0, 0, 1.0
 
@@ -254,8 +262,8 @@ with st.container(border=True):
             fg_img_size = Image.open(BytesIO(fg_bytes)).size
             fg_w, fg_h = fg_img_size
 
-            if bg_file:
-                final_bytes = composite_images(bg_file.getvalue(), fg_bytes, px, py, scale, anchor)
+            if active_bg:
+                final_bytes = composite_images(active_bg, fg_bytes, px, py, scale, anchor)
             else:
                 final_bytes = fg_bytes
 
@@ -264,8 +272,8 @@ with st.container(border=True):
                 unsafe_allow_html=True,
             )
 
-            if st.session_state.get("pm_show_visual_editor", False) and bg_file:
-                show_palmu_editor(bg_file.getvalue(), fg_bytes, fg_w, fg_h, px, py, scale, anchor)
+            if st.session_state.get("pm_show_visual_editor", False) and active_bg:
+                show_palmu_editor(active_bg, fg_bytes, fg_w, fg_h, px, py, scale, anchor)
                 st.session_state.pm_show_visual_editor = False
 
             st.write("")
@@ -317,6 +325,7 @@ with st.sidebar:
             st.session_state[f"pm_day_{i}"] = 1
         st.session_state.palmu_month_skip_cards = 0
         st.session_state.pm_show_visual_editor = False
+        st.session_state.monthly_bg_cache = None
         st.session_state.palmu_month_reset_counter += 1
         storage.delete_item(PALMU_MONTH_STORAGE_KEY)
         st.rerun()

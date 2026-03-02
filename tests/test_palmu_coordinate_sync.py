@@ -1,5 +1,5 @@
 import pytest
-from src.utils.image_maker import composite_images
+
 
 def calculate_expected_absolute(bg_w, bg_h, fg_w, fg_h, px, py, scale, anchor):
     """

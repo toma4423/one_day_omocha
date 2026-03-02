@@ -75,9 +75,10 @@ init_palmu_state()
 # --- ストレージによる同期 (ビジュアルエディタからの戻り) ---
 sync_data = storage.get_item("palmu_sync_data", is_json=True)
 if sync_data and sync_data.get("mode") == "weekly":
-    st.session_state.w_x = sync_data["x"]
-    st.session_state.w_y = sync_data["y"]
-    st.session_state.w_scale = sync_data["s"]
+    # スライダーのkeyに直接値をセットすることで強制的に更新する
+    st.session_state.w_x_slider = sync_data["x"]
+    st.session_state.w_y_slider = sync_data["y"]
+    st.session_state.w_scale_slider = sync_data["s"]
     storage.delete_item("palmu_sync_data")
     st.rerun()
 
@@ -186,7 +187,6 @@ with col_result:
         else:
             st.success("🎉 目標達成予定です！")
 
-
 @st.dialog("📏 配置を直感的に調整する", width="large")
 def show_palmu_editor(bg_bytes, fg_bytes, fg_w, fg_h, px, py, scale, anchor):
     render_visual_editor(bg_bytes, fg_bytes, fg_w, fg_h, px, py, scale, anchor, mode="weekly")
@@ -197,6 +197,13 @@ st.write("---")
 st.header("🗓️ 画像生成 & ライブプレビュー")
 with st.container(border=True):
     bg_file = st.file_uploader("🖼️ 背景画像をアップロード", type=["jpg", "png"], key="weekly_bg")
+    
+    # 画像の永続化ロジック
+    if bg_file:
+        st.session_state.weekly_bg_cache = bg_file.getvalue()
+    
+    # キャッシュされた画像がある場合はそれを使用する
+    active_bg = st.session_state.get("weekly_bg_cache")
 
     col_style_cfg, col_preview_area = st.columns([1, 1.5])
 
@@ -225,7 +232,7 @@ with st.container(border=True):
             img_f_width = st.slider("枠の太さ", 0, 30, 8)
             img_radius = st.slider("角丸", 0, 200, 30)
 
-        if bg_file:
+        if active_bg:
             with st.expander("📍 配置設定", expanded=True):
                 anchor = st.selectbox(
                     "基準点", ["左上", "中央", "右上", "左下", "右下", "中央左", "中央右", "中央上", "中央下"]
@@ -234,21 +241,23 @@ with st.container(border=True):
                 with c1:
                     # スライダーで直感的に調整できるように変更
                     px = st.slider(
-                        "X軸調整", -1000, 1000, value=st.session_state.get("w_x", 0), step=5, key="w_x_slider"
+                        "X軸調整", -1000, 1000, value=st.session_state.get("w_x_slider", 0), step=5, key="w_x_slider"
                     )
                 with c2:
                     py = st.slider(
-                        "Y軸調整", -1000, 1000, value=st.session_state.get("w_y", 0), step=5, key="w_y_slider"
+                        "Y軸調整", -1000, 1000, value=st.session_state.get("w_y_slider", 0), step=5, key="w_y_slider"
                     )
 
-                st.session_state.w_x, st.session_state.w_y = px, py
                 scale = st.slider(
-                    "スケール", 0.1, 2.0, value=st.session_state.get("w_scale", 1.0), step=0.05, key="w_scale_slider"
+                    "スケール", 0.1, 2.0, value=st.session_state.get("w_scale_slider", 1.0), step=0.05, key="w_scale_slider"
                 )
-                st.session_state.w_scale = scale
 
             if st.button("🖱️ マウスで直感的に配置する (試験的機能)"):
                 st.session_state.show_visual_editor = True
+            
+            if st.button("🖼️ 背景画像をクリア"):
+                st.session_state.weekly_bg_cache = None
+                st.rerun()
         else:
             anchor, px, py, scale = "左上", 0, 0, 1.0
 
@@ -279,15 +288,15 @@ with st.container(border=True):
             fg_img_size = Image.open(BytesIO(fg_bytes)).size
             fg_w, fg_h = fg_img_size
 
-            final_bytes = composite_images(bg_file.getvalue(), fg_bytes, px, py, scale, anchor) if bg_file else fg_bytes
+            final_bytes = composite_images(active_bg, fg_bytes, px, py, scale, anchor) if active_bg else fg_bytes
 
             st.markdown(
                 f'<div style="text-align:center; background:#eee; padding:10px; border-radius:12px; border:1px solid #ddd;"><img src="data:image/png;base64,{base64.b64encode(final_bytes).decode()}" style="max-width:100%; height:auto;"></div>',
                 unsafe_allow_html=True,
             )
 
-            if st.session_state.get("show_visual_editor", False) and bg_file:
-                show_palmu_editor(bg_file.getvalue(), fg_bytes, fg_w, fg_h, px, py, scale, anchor)
+            if st.session_state.get("show_visual_editor", False) and active_bg:
+                show_palmu_editor(active_bg, fg_bytes, fg_w, fg_h, px, py, scale, anchor)
                 st.session_state.show_visual_editor = False
 
             st.write("")

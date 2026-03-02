@@ -1,6 +1,3 @@
-import pytest
-from unittest.mock import MagicMock
-from src.utils.palmu import evaluate_rank_status
 
 def test_sync_data_structure():
     """同期用データの構造が正しいか検証"""
