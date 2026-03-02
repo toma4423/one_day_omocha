@@ -214,11 +214,23 @@ with st.container(border=True):
                 anchor = st.selectbox("基準点", ["左上", "中央", "右上", "左下", "右下"])
                 c1, c2 = st.columns(2)
                 with c1:
-                    px = st.number_input("Xズレ (＋右 / －左)", value=st.session_state.get("w_x", 0), key="w_x_in")
+                    # スライダーで直感的に調整できるように変更
+                    px = st.slider(
+                        "X軸調整", -1000, 1000, value=st.session_state.get("w_x", 0), step=5, key="w_x_slider"
+                    )
                 with c2:
-                    py = st.number_input("Yズレ (＋下 / －上)", value=st.session_state.get("w_y", 0), key="w_y_in")
+                    py = st.slider(
+                        "Y軸調整", -1000, 1000, value=st.session_state.get("w_y", 0), step=5, key="w_y_slider"
+                    )
+
                 st.session_state.w_x, st.session_state.w_y = px, py
-                scale = st.number_input("スケール", value=1.0, min_value=0.1, max_value=2.0, step=0.05)
+                scale = st.slider(
+                    "スケール", 0.1, 2.0, value=st.session_state.get("w_scale", 1.0), step=0.05, key="w_scale_slider"
+                )
+                st.session_state.w_scale = scale
+
+            if st.button("🖱️ マウスで直感的に配置する (試験的機能)"):
+                st.session_state.show_visual_editor = not st.session_state.get("show_visual_editor", False)
         else:
             anchor, px, py, scale = "左上", 0, 0, 1.0
 
@@ -241,12 +253,88 @@ with st.container(border=True):
             fg_bytes = create_palmu_schedule_image(
                 title_text, sched_data, img_text_color, img_frame_color, img_bg_rgba, img_f_width, img_radius, img_width
             )
+
+            from io import BytesIO
+
+            from PIL import Image
+
+            fg_img_size = Image.open(BytesIO(fg_bytes)).size
+            fg_w, fg_h = fg_img_size
+
             final_bytes = composite_images(bg_file.getvalue(), fg_bytes, px, py, scale, anchor) if bg_file else fg_bytes
 
             st.markdown(
                 f'<div style="text-align:center; background:#eee; padding:10px; border-radius:12px; border:1px solid #ddd;"><img src="data:image/png;base64,{base64.b64encode(final_bytes).decode()}" style="max-width:100%; height:auto;"></div>',
                 unsafe_allow_html=True,
             )
+
+            if st.session_state.get("show_visual_editor", False) and bg_file:
+                import streamlit.components.v1 as components
+
+                bg_b64 = base64.b64encode(bg_file.getvalue()).decode()
+                fg_b64 = base64.b64encode(fg_bytes).decode()
+
+                # Fabric.jsを使用した簡易エディタ
+                # ユーザーがスライダーで設定した現在の値を初期位置として反映
+                editor_html = f"""
+                <div id="wrapper" style="position: relative; border: 1px solid #ccc; display: inline-block; background: #fff; max-width: 100%; overflow: auto;">
+                    <canvas id="canvas"></canvas>
+                </div>
+                <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js"></script>
+                <script>
+                    const canvas = new fabric.Canvas('canvas');
+                    
+                    fabric.Image.fromURL('data:image/png;base64,{bg_b64}', function(bgImg) {{
+                        canvas.setWidth(bgImg.width);
+                        canvas.setHeight(bgImg.height);
+                        canvas.setBackgroundImage(bgImg, canvas.renderAll.bind(canvas));
+                        
+                        fabric.Image.fromURL('data:image/png;base64,{fg_b64}', function(fgImg) {{
+                            // Streamlit側の座標計算ロジックに合わせる
+                            let left = {px};
+                            let top = {py};
+                            if ("{anchor}" === "中央") {{
+                                left = (bgImg.width - {fg_w} * {scale}) / 2 + {px};
+                                top = (bgImg.height - {fg_h} * {scale}) / 2 + {py};
+                            }} else if ("{anchor}" === "右上") {{
+                                left = (bgImg.width - {fg_w} * {scale}) - {px};
+                                top = {py};
+                            }} else if ("{anchor}" === "左下") {{
+                                left = {px};
+                                top = (bgImg.height - {fg_h} * {scale}) - {py};
+                            }} else if ("{anchor}" === "右下") {{
+                                left = (bgImg.width - {fg_w} * {scale}) - {px};
+                                top = (bgImg.height - {fg_h} * {scale}) - {py};
+                            }}
+
+                            fgImg.set({{
+                                left: left,
+                                top: top,
+                                scaleX: {scale},
+                                scaleY: {scale},
+                                selectable: true,
+                                hasControls: true,
+                                cornerColor: 'rgba(0,0,255,0.5)',
+                                cornerSize: 12,
+                                transparentCorners: false
+                            }});
+                            canvas.add(fgImg);
+                            canvas.setActiveObject(fgImg);
+                            
+                            fgImg.on('modified', function() {{
+                                // 将来的にはここで値を戻す
+                                console.log('Modified:', fgImg.left, fgImg.top, fgImg.scaleX);
+                            }});
+                        }});
+                    }});
+                </script>
+                <p style="font-size: 0.8em; color: #666; margin-top: 10px;">
+                    ※ ドラッグ＆ドロップで配置イメージを確認できます。確定は上のスライダーで行ってください。
+                </p>
+                """
+                st.info("💡 視覚的に配置を検討するためのエディタです。")
+                components.html(editor_html, height=bg_file.size // 1000 + 400, scrolling=True)
+
             st.write("")
             st.download_button(
                 "📥 完成した画像を保存",
