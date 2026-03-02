@@ -142,6 +142,19 @@ def get_day_period_assignments(daily_values: list[int | str]) -> list[int]:
     return assignments
 
 
+def calculate_weekly_display_days(daily_values: list[int | str], max_total: int = 21) -> int:
+    """
+    7日間の配信日を確保するために必要な合計日数を計算します。
+    """
+    active_count = 0
+    day_idx = 0
+    while active_count < 7 and day_idx < len(daily_values) and day_idx < max_total:
+        if daily_values[day_idx] != "SKIP":
+            active_count += 1
+        day_idx += 1
+    return max(7, day_idx)
+
+
 def render_visual_editor(
     bg_bytes: bytes,
     fg_bytes: bytes,

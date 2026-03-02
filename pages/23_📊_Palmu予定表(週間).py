@@ -9,6 +9,7 @@ from src.utils.image_maker import composite_images, create_palmu_schedule_image
 from src.utils.palmu import (
     calculate_skip_card_balance,
     calculate_total_points,
+    calculate_weekly_display_days,
     evaluate_rank_status,
     generate_point_presets,
     points_needed_for_keep,
@@ -32,7 +33,7 @@ render_page_header()
 storage = SafeStorage(LocalStorage())
 PALMU_STORAGE_KEY = "palmu_data"
 BG_CACHE_KEY = "palmu_bg_cache_weekly"
-MAX_TOTAL_DAYS = 21  # SKIPが多い場合を考慮して最大枠を拡大
+MAX_TOTAL_DAYS = 21
 
 # セッション状態の初期化
 if "palmu_reset_counter" not in st.session_state:
@@ -128,37 +129,31 @@ with st.expander("💡 おすすめのポイント取得パターンを見る"):
                 p_str = "/".join([str(x) for x in p])
                 st.caption(f"[{p_str}]")
                 if st.button("適用", key=f"apply_{target_val}_{idx}", use_container_width=True):
-                    # 全リセットしてから適用
                     for i in range(1, MAX_TOTAL_DAYS + 1):
                         st.session_state[f"palmu_day_{i}"] = 1
-                    # プリセットを先頭から適用
                     for i, val in enumerate(p, 1):
                         st.session_state[f"palmu_day_{i}"] = val
                     save_to_storage()
                     st.rerun()
 
-# --- 表示日数の動的計算 (7日分の配信日を確保するまで) ---
-def calculate_display_days():
-    active_count = 0
-    day_idx = 0
-    while active_count < 7 and day_idx < MAX_TOTAL_DAYS:
-        val = st.session_state.get(f"palmu_day_{day_idx + 1}", 1)
-        if val != "SKIP":
-            active_count += 1
-        day_idx += 1
-    return max(7, day_idx)
-
-display_days = calculate_display_days()
-
-# --- 入力エリア ---
-point_options = ["SKIP", 1, 2, 4, 6]
+# --- 入力エリアの動的制御 ---
 daily_vals = [st.session_state.get(f"palmu_day_{i}", 1) for i in range(1, MAX_TOTAL_DAYS + 1)]
+display_days = calculate_weekly_display_days(daily_vals, MAX_TOTAL_DAYS)
 skip_balances = calculate_skip_card_balance(st.session_state.palmu_skip_cards, start_date, MAX_TOTAL_DAYS, daily_vals)
+
+point_options = ["SKIP", 1, 2, 4, 6]
 
 col_input, col_result = st.columns([1.5, 1])
 with col_input:
     st.subheader(f"📝 ポイント・予定入力 ({display_days}日間)")
     reset_id = st.session_state.palmu_reset_counter
+    
+    # 選択内容が変わった時に即座に反映させるためのコールバック
+    def on_point_change(idx):
+        key = f"p_day_widget_{idx}_{reset_id}"
+        st.session_state[f"palmu_day_{idx}"] = st.session_state[key]
+        save_to_storage()
+
     for i in range(1, display_days + 1):
         curr_d = start_date + timedelta(days=i - 1)
         val = st.session_state[f"palmu_day_{i}"]
@@ -174,14 +169,13 @@ with col_input:
                 )
                 st.caption(f"🎫 {skip_balances[i - 1]}枚")
             with c_sel:
-                st.session_state[f"palmu_day_{i}"] = st.selectbox(
+                st.selectbox(
                     f"{curr_d.strftime('%m/%d')} ({['月', '火', '水', '木', '金', '土', '日'][curr_d.weekday()]})",
                     options=point_options,
-                    index=point_options.index(st.session_state[f"palmu_day_{i}"])
-                    if st.session_state[f"palmu_day_{i}"] in point_options
-                    else 1,
-                    key=f"p_day_{i}_{reset_id}",
-                    on_change=save_to_storage,
+                    index=point_options.index(val) if val in point_options else 1,
+                    key=f"p_day_widget_{i}_{reset_id}",
+                    on_change=on_point_change,
+                    args=(i,),
                     format_func=lambda x: f"+{x} pt" if isinstance(x, int) else str(x),
                 )
             with c_plan:
@@ -195,9 +189,8 @@ with col_input:
 
 with col_result:
     st.subheader("📈 ランク状況分析")
-    # 配信日のみを抽出
     active_points = [st.session_state[f"palmu_day_{i}"] for i in range(1, display_days + 1) if st.session_state[f"palmu_day_{i}"] != "SKIP"]
-    total = calculate_total_points(active_points[:7]) # 最初の7日分のみ
+    total = calculate_total_points(active_points[:7])
     status = evaluate_rank_status(total)
 
     with st.container(border=True):
@@ -237,7 +230,6 @@ with st.container(border=True):
     active_bg = st.session_state.get("weekly_bg_cache")
 
     try:
-        # 入力エリアに表示されている全ての日程を画像に含める
         sched_data = []
         for i in range(1, display_days + 1):
             curr_d = start_date + timedelta(days=i - 1)
@@ -278,7 +270,6 @@ with st.container(border=True):
                 img_f_width = st.slider("枠の太さ", 0, 30, 8)
                 img_radius = st.slider("角丸", 0, 200, 30)
 
-            # 前景画像生成
             fg_bytes = create_palmu_schedule_image(
                 title_text, sched_data, img_text_color, img_frame_color, img_bg_rgba, img_f_width, img_radius, img_width
             )
