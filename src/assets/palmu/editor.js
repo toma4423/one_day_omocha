@@ -1,11 +1,13 @@
 /* Palmu Editor JS */
 (function() {
     const canvas = new fabric.Canvas('canvas');
-    const MAX_DISPLAY_WIDTH = window.innerWidth - 40; // スマホ対応
+    
+    // よりコンパクトな表示制限 (画面内に収めることを優先)
+    const MAX_DISPLAY_WIDTH = Math.min(500, window.innerWidth * 0.9);
+    const MAX_DISPLAY_HEIGHT = 400; 
     let displayScale = 1.0;
 
     // Streamlitからの変数を注入するためのプレースホルダー
-    // 実際にはHTML生成時に文字列置換されます
     const config = {
         bgB64: "__BG_B64__",
         fgB64: "__FG_B64__",
@@ -24,7 +26,11 @@
     }
 
     fabric.Image.fromURL('data:image/png;base64,' + config.bgB64, function(bgImg) {
-        displayScale = Math.min(1.0, MAX_DISPLAY_WIDTH / bgImg.width);
+        // 幅と高さの両方で制限し、より小さい方のスケールを採用（アスペクト比維持）
+        const scaleW = MAX_DISPLAY_WIDTH / bgImg.width;
+        const scaleH = MAX_DISPLAY_HEIGHT / bgImg.height;
+        displayScale = Math.min(scaleW, scaleH, 1.0); 
+        
         const displayWidth = bgImg.width * displayScale;
         const displayHeight = bgImg.height * displayScale;
 
@@ -75,16 +81,14 @@
                 selectable: true,
                 hasControls: true,
                 cornerColor: 'rgba(0,0,255,0.8)',
-                cornerSize: 20, // スマホで掴みやすく
+                cornerSize: 24, // さらに掴みやすく
                 transparentCorners: false
             });
 
             canvas.add(fgImg);
             canvas.setActiveObject(fgImg);
 
-            // 操作イベント
             const syncValues = () => {
-                // 逆計算してオリジナル座標に戻す
                 let curLeft = fgImg.left / displayScale;
                 let curTop = fgImg.top / displayScale;
                 let curScale = fgImg.scaleX / displayScale;
@@ -92,7 +96,6 @@
                 let finalX = curLeft;
                 let finalY = curTop;
 
-                // 基準点に応じた逆算
                 if (config.anchor === "中央") {
                     finalX = curLeft - (bgImg.width - fgImg.width * fgImg.scaleX / displayScale) / 2;
                     finalY = curTop - (bgImg.height - fgImg.height * fgImg.scaleY / displayScale) / 2;

@@ -187,4 +187,4 @@ def render_visual_editor(
 
     st.markdown("#### 📱 ビジュアルエディタ")
     st.caption("画像をドラッグして移動、角を引いてサイズ変更できます。")
-    components.html(html_final, height=650, scrolling=True)
+    components.html(html_final, height=550, scrolling=True)
