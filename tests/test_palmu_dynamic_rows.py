@@ -1,4 +1,4 @@
-from src.utils.palmu import calculate_weekly_display_days
+from src.utils.palmu import calculate_monthly_display_days, calculate_weekly_display_days
 
 
 def test_calculate_weekly_display_days_all_active():
@@ -25,3 +25,13 @@ def test_calculate_weekly_display_days_minimum():
     # SKIPがなくても最低7日間は表示
     vals = [1, 1]
     assert calculate_weekly_display_days(vals) == 7
+
+def test_calculate_monthly_display_days_4_periods():
+    # 全て配信の場合、28日間表示されるはず (4期 * 7日)
+    vals = [1] * 40
+    assert calculate_monthly_display_days(vals, target_periods=4) == 28
+
+def test_calculate_monthly_display_days_with_skips():
+    # 配信28日を達成するために、途中にSKIPが2日ある場合、合計30日間になるはず
+    vals = [1] * 10 + ["SKIP"] + [1] * 10 + ["SKIP"] + [1] * 10
+    assert calculate_monthly_display_days(vals, target_periods=4) == 30

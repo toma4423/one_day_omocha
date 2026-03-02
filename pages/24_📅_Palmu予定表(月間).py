@@ -7,6 +7,7 @@ from streamlit_local_storage import LocalStorage
 
 from src.utils.image_maker import composite_images, create_palmu_calendar_grid_image
 from src.utils.palmu import (
+    calculate_monthly_display_days,
     calculate_skip_card_balance,
     evaluate_rank_status,
     get_day_period_assignments,
@@ -27,7 +28,7 @@ render_page_header()
 storage = SafeStorage(LocalStorage())
 PALMU_MONTH_STORAGE_KEY = "palmu_month_data"
 BG_CACHE_KEY_MONTHLY = "palmu_bg_cache_monthly"
-MAX_MONTH_DAYS = 31
+MAX_TOTAL_MONTH_DAYS = 60 # SKIPを考慮して最大日数を拡大
 
 # セッション状態の初期化
 if "palmu_month_reset_counter" not in st.session_state:
@@ -37,7 +38,7 @@ if "palmu_month_skip_cards" not in st.session_state:
 
 
 def save_to_storage():
-    data = {f"day_{i}": st.session_state.get(f"pm_day_{i}", 1) for i in range(1, MAX_MONTH_DAYS + 1)}
+    data = {f"day_{i}": st.session_state.get(f"pm_day_{i}", 1) for i in range(1, MAX_TOTAL_MONTH_DAYS + 1)}
     data["skip_cards"] = st.session_state.get("palmu_month_skip_cards", 0)
     storage.set_item(PALMU_MONTH_STORAGE_KEY, data)
 
@@ -45,7 +46,7 @@ def save_to_storage():
 def load_from_storage():
     data = storage.get_item(PALMU_MONTH_STORAGE_KEY, is_json=True)
     if data:
-        for i in range(1, MAX_MONTH_DAYS + 1):
+        for i in range(1, MAX_TOTAL_MONTH_DAYS + 1):
             val = data.get(f"day_{i}", 1)
             st.session_state[f"pm_day_{i}"] = "SKIP" if val == "スキップ" else val
         st.session_state.palmu_month_skip_cards = data.get("skip_cards", 0)
@@ -56,7 +57,7 @@ def load_from_storage():
 def init_palmu_month_state():
     if "pm_day_1" not in st.session_state:
         if not load_from_storage():
-            for i in range(1, MAX_MONTH_DAYS + 1):
+            for i in range(1, MAX_TOTAL_MONTH_DAYS + 1):
                 st.session_state[f"pm_day_{i}"] = 1
             st.session_state.palmu_month_skip_cards = 0
     # スライダーの初期化
@@ -95,25 +96,27 @@ st.title("📅 Palmu月間予定表マネージャー")
 # --- 基本設定 ---
 with st.container(border=True):
     st.subheader("📅 スケジュール設定")
-    c1, c2, c3 = st.columns(3)
+    c1, c2 = st.columns(2)
     with c1:
         start_date = st.date_input("開始日", value=get_jst_now().date())
     with c2:
-        num_days = st.number_input("表示日数", 7, MAX_MONTH_DAYS, 31)
-    with c3:
         st.session_state.palmu_month_skip_cards = st.number_input(
             "所持スキップカード数", 0, 10, value=st.session_state.palmu_month_skip_cards
         )
 
+# --- 動的な表示日数の計算 (4期完了まで) ---
+daily_vals_all = [st.session_state.get(f"pm_day_{i}", 1) for i in range(1, MAX_TOTAL_MONTH_DAYS + 1)]
+num_days = calculate_monthly_display_days(daily_vals_all, target_periods=4, max_total=MAX_TOTAL_MONTH_DAYS)
+
 # --- 入力グリッド ---
 point_options = ["SKIP", 1, 2, 4, 6]
 PERIOD_COLORS = [
-    "#F5F5F5",
-    "#BBDEFB",
-    "#C8E6C9",
-    "#FFE0B2",
-    "#E1BEE7",
-    "#FFF9C4",
+    "#F5F5F5",  # 0: SKIP/休み
+    "#BBDEFB",  # 1: 期1
+    "#C8E6C9",  # 2: 期2
+    "#FFE0B2",  # 3: 期3
+    "#E1BEE7",  # 4: 期4
+    "#FFF9C4",  # 5: 期5
 ]
 weekdays_sun = ["日", "月", "火", "水", "木", "金", "土"]
 
@@ -127,6 +130,12 @@ total_slots = num_days + start_weekday_idx
 rows = (total_slots + 6) // 7
 reset_id = st.session_state.palmu_month_reset_counter
 
+# コールバック
+def on_pm_point_change(idx):
+    key = f"pm_p_widget_{idx}_{reset_id}"
+    st.session_state[f"pm_day_{idx}"] = st.session_state[key]
+    save_to_storage()
+
 # ヘッダー
 cols_h = st.columns(7)
 for i, dname in enumerate(weekdays_sun):
@@ -135,7 +144,7 @@ for i, dname in enumerate(weekdays_sun):
         f"<div style='text-align:center; font-weight:bold; color:{color};'>{dname}</div>", unsafe_allow_html=True
     )
 
-# グリッド
+# グリッド入力
 for r in range(rows):
     cols = st.columns(7)
     for c in range(7):
@@ -146,21 +155,21 @@ for r in range(rows):
                 curr_d = start_date + timedelta(days=day_idx - 1)
                 p_idx = period_assigns[day_idx - 1]
                 p_color = PERIOD_COLORS[p_idx % len(PERIOD_COLORS)]
+                val = st.session_state[f"pm_day_{day_idx}"]
                 with st.container(border=True):
                     st.markdown(
                         f"<div style='background-color:{p_color}; border-radius:4px; font-size:10px; text-align:center; border:1px solid #ccc; margin-bottom:4px; color:#333; font-weight:bold;'>第{p_idx if p_idx > 0 else '休'}期</div>",
                         unsafe_allow_html=True,
                     )
                     st.caption(f"🎫{skip_balances[day_idx - 1]} {curr_d.month}/{curr_d.day}")
-                    st.session_state[f"pm_day_{day_idx}"] = st.selectbox(
+                    st.selectbox(
                         "P",
                         point_options,
-                        index=point_options.index(st.session_state[f"pm_day_{day_idx}"])
-                        if st.session_state[f"pm_day_{day_idx}"] in point_options
-                        else 1,
-                        key=f"pm_p_{day_idx}_{reset_id}",
+                        index=point_options.index(val) if val in point_options else 1,
+                        key=f"pm_p_widget_{day_idx}_{reset_id}",
                         label_visibility="collapsed",
-                        on_change=save_to_storage,
+                        on_change=on_pm_point_change,
+                        args=(day_idx,),
                         format_func=lambda x: f"+{x}" if isinstance(x, int) else str(x),
                     )
 
@@ -200,7 +209,6 @@ with st.container(border=True):
     
     active_bg = st.session_state.get("monthly_bg_cache")
 
-    # 画像生成ロジックを先行実行
     try:
         cal_data = [{"date": "", "day": weekdays_sun[i], "point": ""} for i in range(start_weekday_idx)]
         for i in range(1, num_days + 1):
@@ -297,7 +305,7 @@ with st.container(border=True):
     st.subheader("📁 データの保存と読み込み")
     c1, c2 = st.columns(2)
     with c1:
-        current_data = {f"day_{i}": st.session_state[f"pm_day_{i}"] for i in range(1, MAX_MONTH_DAYS + 1)}
+        current_data = {f"day_{i}": st.session_state[f"pm_day_{i}"] for i in range(1, MAX_TOTAL_MONTH_DAYS + 1)}
         current_data["skip_cards"] = st.session_state.palmu_month_skip_cards
         json_str = json.dumps(current_data, indent=2, ensure_ascii=False)
         st.download_button(
@@ -312,7 +320,7 @@ with st.container(border=True):
         if uploaded_file and st.button("反映実行", use_container_width=True):
             try:
                 d = json.load(uploaded_file)
-                for i in range(1, MAX_MONTH_DAYS + 1):
+                for i in range(1, MAX_TOTAL_MONTH_DAYS + 1):
                     v = d.get(f"day_{i}", 1)
                     st.session_state[f"pm_day_{i}"] = "SKIP" if v == "スキップ" else v
                 st.session_state.palmu_month_skip_cards = d.get("skip_cards", 0)
@@ -325,7 +333,7 @@ with st.container(border=True):
 with st.sidebar:
     st.header("⚙️ 設定")
     if st.button("🚨 全リセット", use_container_width=True):
-        for i in range(1, MAX_MONTH_DAYS + 1):
+        for i in range(1, MAX_TOTAL_MONTH_DAYS + 1):
             st.session_state[f"pm_day_{i}"] = 1
         st.session_state.palmu_month_skip_cards = 0
         st.session_state.pm_show_visual_editor = False

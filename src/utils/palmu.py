@@ -155,6 +155,22 @@ def calculate_weekly_display_days(daily_values: list[int | str], max_total: int 
     return max(7, day_idx)
 
 
+def calculate_monthly_display_days(daily_values: list[int | str], target_periods: int = 4, max_total: int = 60) -> int:
+    """
+    指定された期数（1期7日）の配信日を確保するために必要な合計日数を計算します。
+    デフォルトは4期（28日間の配信日）。
+    """
+    target_active_days = target_periods * 7
+    active_count = 0
+    day_idx = 0
+    while active_count < target_active_days and day_idx < len(daily_values) and day_idx < max_total:
+        if daily_values[day_idx] != "SKIP":
+            active_count += 1
+        day_idx += 1
+    # 最低でも28日間、または計算された日数
+    return max(target_active_days, day_idx)
+
+
 def render_visual_editor(
     bg_bytes: bytes,
     fg_bytes: bytes,
