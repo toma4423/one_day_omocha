@@ -251,40 +251,50 @@ with st.container(border=True):
                 fg_b64 = base64.b64encode(fg_bytes).decode()
 
                 editor_html = f"""
-                <div id="wrapper" style="position: relative; border: 1px solid #ccc; display: inline-block; background: #fff; max-width: 100%; overflow: auto;">
+                <div id="wrapper" style="position: relative; border: 1px solid #ccc; display: inline-block; background: #f0f0f0; max-width: 100%;">
                     <canvas id="canvas"></canvas>
                 </div>
                 <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js"></script>
                 <script>
                     const canvas = new fabric.Canvas('canvas');
+                    const MAX_DISPLAY_WIDTH = 800;
                     
                     fabric.Image.fromURL('data:image/png;base64,{bg_b64}', function(bgImg) {{
-                        canvas.setWidth(bgImg.width);
-                        canvas.setHeight(bgImg.height);
+                        const displayScale = Math.min(1.0, MAX_DISPLAY_WIDTH / bgImg.width);
+                        const displayWidth = bgImg.width * displayScale;
+                        const displayHeight = bgImg.height * displayScale;
+
+                        canvas.setWidth(displayWidth);
+                        canvas.setHeight(displayHeight);
+                        
+                        bgImg.scale(displayScale);
                         canvas.setBackgroundImage(bgImg, canvas.renderAll.bind(canvas));
                         
                         fabric.Image.fromURL('data:image/png;base64,{fg_b64}', function(fgImg) {{
-                            let left = {px};
-                            let top = {py};
+                            let origLeft = {px};
+                            let origTop = {py};
+                            const fgOrigW = {fg_w} * {scale};
+                            const fgOrigH = {fg_h} * {scale};
+
                             if ("{anchor}" === "中央") {{
-                                left = (bgImg.width - {fg_w} * {scale}) / 2 + {px};
-                                top = (bgImg.height - {fg_h} * {scale}) / 2 + {py};
+                                origLeft = (bgImg.width - fgOrigW) / 2 + {px};
+                                origTop = (bgImg.height - fgOrigH) / 2 + {py};
                             }} else if ("{anchor}" === "右上") {{
-                                left = (bgImg.width - {fg_w} * {scale}) - {px};
-                                top = {py};
+                                origLeft = (bgImg.width - fgOrigW) - {px};
+                                origTop = {py};
                             }} else if ("{anchor}" === "左下") {{
-                                left = {px};
-                                top = (bgImg.height - {fg_h} * {scale}) - {py};
+                                origLeft = {px};
+                                origTop = (bgImg.height - fgOrigH) - {py};
                             }} else if ("{anchor}" === "右下") {{
-                                left = (bgImg.width - {fg_w} * {scale}) - {px};
-                                top = (bgImg.height - {fg_h} * {scale}) - {py};
+                                origLeft = (bgImg.width - fgOrigW) - {px};
+                                origTop = (bgImg.height - fgOrigH) - {py};
                             }}
 
                             fgImg.set({{
-                                left: left,
-                                top: top,
-                                scaleX: {scale},
-                                scaleY: {scale},
+                                left: origLeft * displayScale,
+                                top: origTop * displayScale,
+                                scaleX: {scale} * displayScale,
+                                scaleY: {scale} * displayScale,
                                 selectable: true,
                                 hasControls: true,
                                 cornerColor: 'rgba(0,0,255,0.5)',
@@ -297,11 +307,11 @@ with st.container(border=True):
                     }});
                 </script>
                 <p style="font-size: 0.8em; color: #666; margin-top: 10px;">
-                    ※ ドラッグ＆ドロップで配置イメージを確認できます。確定は上のスライダーで行ってください。
+                    ※ 表示は画面サイズに合わせて縮小されていますが、相対的な位置関係は維持されています。
                 </p>
                 """
-                st.info("💡 視覚的に配置を検討するためのエディタです。")
-                components.html(editor_html, height=bg_file.size // 1000 + 400, scrolling=True)
+                st.info("💡 巨大な画像も画面内に収まるように自動調整されています。")
+                components.html(editor_html, height=800, scrolling=True)
 
             st.write("")
             st.download_button(
