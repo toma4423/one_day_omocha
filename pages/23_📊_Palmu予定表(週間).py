@@ -75,10 +75,10 @@ init_palmu_state()
 # --- ストレージによる同期 (ビジュアルエディタからの戻り) ---
 sync_data = storage.get_item("palmu_sync_data", is_json=True)
 if sync_data and sync_data.get("mode") == "weekly":
-    # スライダーのkeyに直接値をセットすることで強制的に更新する
-    st.session_state.w_x_slider = sync_data["x"]
-    st.session_state.w_y_slider = sync_data["y"]
-    st.session_state.w_scale_slider = sync_data["s"]
+    # エラー防止：スライダーの範囲外にならないよう値を制限(Clamp)
+    st.session_state.w_x_slider = max(-1000, min(1000, int(sync_data.get("x", 0))))
+    st.session_state.w_y_slider = max(-1000, min(1000, int(sync_data.get("y", 0))))
+    st.session_state.w_scale_slider = max(0.1, min(2.0, float(sync_data.get("s", 1.0))))
     storage.delete_item("palmu_sync_data")
     st.rerun()
 
@@ -198,11 +198,9 @@ st.header("🗓️ 画像生成 & ライブプレビュー")
 with st.container(border=True):
     bg_file = st.file_uploader("🖼️ 背景画像をアップロード", type=["jpg", "png"], key="weekly_bg")
     
-    # 画像の永続化ロジック
     if bg_file:
         st.session_state.weekly_bg_cache = bg_file.getvalue()
     
-    # キャッシュされた画像がある場合はそれを使用する
     active_bg = st.session_state.get("weekly_bg_cache")
 
     col_style_cfg, col_preview_area = st.columns([1, 1.5])
@@ -239,7 +237,6 @@ with st.container(border=True):
                 )
                 c1, c2 = st.columns(2)
                 with c1:
-                    # スライダーで直感的に調整できるように変更
                     px = st.slider(
                         "X軸調整", -1000, 1000, value=st.session_state.get("w_x_slider", 0), step=5, key="w_x_slider"
                     )

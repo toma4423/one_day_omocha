@@ -65,10 +65,10 @@ init_palmu_month_state()
 # --- ストレージによる同期 (ビジュアルエディタからの戻り) ---
 sync_data = storage.get_item("palmu_sync_data", is_json=True)
 if sync_data and sync_data.get("mode") == "monthly":
-    # スライダーのkeyに直接値を注入
-    st.session_state.p_x_slider = sync_data["x"]
-    st.session_state.p_y_slider = sync_data["y"]
-    st.session_state.pm_scale_slider = sync_data["s"]
+    # エラー防止：スライダーの範囲外にならないよう値を制限(Clamp)
+    st.session_state.p_x_slider = max(-1000, min(1000, int(sync_data.get("x", 0))))
+    st.session_state.p_y_slider = max(-1000, min(1000, int(sync_data.get("y", 0))))
+    st.session_state.pm_scale_slider = max(0.1, min(2.0, float(sync_data.get("s", 1.0))))
     storage.delete_item("palmu_sync_data")
     st.rerun()
 
@@ -89,14 +89,13 @@ with st.container(border=True):
 
 # --- 入力グリッド ---
 point_options = ["SKIP", 1, 2, 4, 6]
-# 視認性の高い配色
 PERIOD_COLORS = [
-    "#F5F5F5",  # 0: SKIP/休み (ライトグレー)
-    "#BBDEFB",  # 1: 青
-    "#C8E6C9",  # 2: 緑
-    "#FFE0B2",  # 3: オレンジ
-    "#E1BEE7",  # 4: 紫
-    "#FFF9C4",  # 5: 黄色
+    "#F5F5F5",
+    "#BBDEFB",
+    "#C8E6C9",
+    "#FFE0B2",
+    "#E1BEE7",
+    "#FFF9C4",
 ]
 weekdays_sun = ["日", "月", "火", "水", "木", "金", "土"]
 
@@ -130,7 +129,6 @@ for r in range(rows):
                 p_idx = period_assigns[day_idx - 1]
                 p_color = PERIOD_COLORS[p_idx % len(PERIOD_COLORS)]
                 with st.container(border=True):
-                    # 期バッジの視認性改善 (文字色を濃く、太字に)
                     st.markdown(
                         f"<div style='background-color:{p_color}; border-radius:4px; font-size:10px; text-align:center; border:1px solid #ccc; margin-bottom:4px; color:#333; font-weight:bold;'>第{p_idx if p_idx > 0 else '休'}期</div>",
                         unsafe_allow_html=True,
@@ -177,11 +175,9 @@ st.header("🗓️ 画像生成 & ライブプレビュー")
 with st.container(border=True):
     bg_file = st.file_uploader("🖼️ 背景アップロード", type=["jpg", "png"], key="pm_bg")
     
-    # 画像の永続化ロジック
     if bg_file:
         st.session_state.monthly_bg_cache = bg_file.getvalue()
     
-    # キャッシュされた画像がある場合はそれを使用する
     active_bg = st.session_state.get("monthly_bg_cache")
 
     col_cfg, col_prev = st.columns([1, 1.5])
