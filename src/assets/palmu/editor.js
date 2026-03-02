@@ -15,26 +15,36 @@
         scale: __SCALE__,
         fgW: __FG_W__,
         fgH: __FG_H__,
-        mode: "__MODE__" // 'weekly' か 'monthly' を判別
-    };
-
-    // 親ウィンドウに送るための最新値を保持
-    window.latestValues = {
-        x: config.px,
-        y: config.py,
-        s: config.scale
+        mode: "__MODE__"
     };
 
     function updateResultText(left, top, scale) {
-        document.getElementById('res_x').innerText = Math.round(left);
-        document.getElementById('res_y').innerText = Math.round(top);
-        document.getElementById('res_scale').innerText = scale.toFixed(2);
-        
-        window.latestValues = {
-            x: Math.round(left),
-            y: Math.round(top),
-            s: parseFloat(scale.toFixed(2))
-        };
+        const x = Math.round(left);
+        const y = Math.round(top);
+        const s = parseFloat(scale.toFixed(2));
+
+        document.getElementById('res_x').innerText = x;
+        document.getElementById('res_y').innerText = y;
+        document.getElementById('res_scale').innerText = s;
+
+        // OKリンクの飛び先をリアルタイムで生成
+        // 親画面のURLを取得してパラメータを付与
+        try {
+            const url = new URL(window.parent.location.href);
+            url.searchParams.set('palmu_x', x);
+            url.searchParams.set('palmu_y', y);
+            url.searchParams.set('palmu_s', s);
+            url.searchParams.set('palmu_sync', '1');
+            document.getElementById('ok_link').href = url.href;
+        } catch (e) {
+            // 親のURLが取れない場合は、現在のURLベースで暫定作成 (Streamlitの仕様に合わせる)
+            const url = new URL(window.location.href);
+            url.searchParams.set('palmu_x', x);
+            url.searchParams.set('palmu_y', y);
+            url.searchParams.set('palmu_s', s);
+            url.searchParams.set('palmu_sync', '1');
+            document.getElementById('ok_link').href = url.href;
+        }
     }
 
     fabric.Image.fromURL('data:image/png;base64,' + config.bgB64, function(bgImg) {
@@ -141,14 +151,4 @@
             syncValues();
         });
     });
-
-    // 親画面への反映処理
-    window.applyAndClose = function() {
-        const url = new URL(window.parent.location.href);
-        url.searchParams.set('palmu_x', window.latestValues.x);
-        url.searchParams.set('palmu_y', window.latestValues.y);
-        url.searchParams.set('palmu_s', window.latestValues.s);
-        url.searchParams.set('palmu_sync', '1');
-        window.parent.location.href = url.href;
-    };
 })();
