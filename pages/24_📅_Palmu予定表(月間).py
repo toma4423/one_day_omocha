@@ -26,6 +26,7 @@ render_page_header()
 # ストレージ設定
 storage = SafeStorage(LocalStorage())
 PALMU_MONTH_STORAGE_KEY = "palmu_month_data"
+BG_CACHE_KEY_MONTHLY = "palmu_bg_cache_monthly"
 MAX_MONTH_DAYS = 31
 
 # セッション状態の初期化
@@ -62,15 +63,25 @@ def init_palmu_month_state():
 
 init_palmu_month_state()
 
-# --- ストレージによる同期 (ビジュアルエディタからの戻り) ---
+# --- ストレージによる同期 (座標とスケール) ---
 sync_data = storage.get_item("palmu_sync_data", is_json=True)
 if sync_data and sync_data.get("mode") == "monthly":
-    # エラー防止：スライダーの範囲外にならないよう値を制限(Clamp)
     st.session_state.p_x_slider = max(-1000, min(1000, int(sync_data.get("x", 0))))
     st.session_state.p_y_slider = max(-1000, min(1000, int(sync_data.get("y", 0))))
     st.session_state.pm_scale_slider = max(0.1, min(2.0, float(sync_data.get("s", 1.0))))
     storage.delete_item("palmu_sync_data")
     st.rerun()
+
+# --- 画像データの復元 (リロード対策) ---
+if "monthly_bg_cache" not in st.session_state:
+    cached_bg_b64 = storage.get_item(BG_CACHE_KEY_MONTHLY)
+    if cached_bg_b64:
+        try:
+            st.session_state.monthly_bg_cache = base64.b64decode(cached_bg_b64)
+        except Exception:
+            st.session_state.monthly_bg_cache = None
+    else:
+        st.session_state.monthly_bg_cache = None
 
 st.title("📅 Palmu月間予定表マネージャー")
 
@@ -176,7 +187,10 @@ with st.container(border=True):
     bg_file = st.file_uploader("🖼️ 背景アップロード", type=["jpg", "png"], key="pm_bg")
     
     if bg_file:
-        st.session_state.monthly_bg_cache = bg_file.getvalue()
+        img_data = bg_file.getvalue()
+        st.session_state.monthly_bg_cache = img_data
+        # ストレージにも永続化（リロード対策）
+        storage.set_item(BG_CACHE_KEY_MONTHLY, base64.b64encode(img_data).decode())
     
     active_bg = st.session_state.get("monthly_bg_cache")
 
@@ -228,6 +242,7 @@ with st.container(border=True):
             
             if st.button("🖼️ 背景画像をクリア", key="pm_clear_btn"):
                 st.session_state.monthly_bg_cache = None
+                storage.delete_item(BG_CACHE_KEY_MONTHLY)
                 st.rerun()
         else:
             anchor, px, py, scale = "左上", 0, 0, 1.0
@@ -322,8 +337,8 @@ with st.sidebar:
         st.session_state.palmu_month_skip_cards = 0
         st.session_state.pm_show_visual_editor = False
         st.session_state.monthly_bg_cache = None
-        st.session_state.palmu_month_reset_counter += 1
         storage.delete_item(PALMU_MONTH_STORAGE_KEY)
+        storage.delete_item(BG_CACHE_KEY_MONTHLY)
         st.rerun()
 
 render_donation_box("https://qr.paypay.ne.jp/p2p01_jsHjvMAenqfvI10s", is_sidebar=True)
