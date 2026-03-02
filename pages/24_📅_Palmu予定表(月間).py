@@ -59,6 +59,13 @@ def init_palmu_month_state():
             for i in range(1, MAX_MONTH_DAYS + 1):
                 st.session_state[f"pm_day_{i}"] = 1
             st.session_state.palmu_month_skip_cards = 0
+    # スライダーの初期化
+    if "p_x_slider" not in st.session_state:
+        st.session_state.p_x_slider = 0
+    if "p_y_slider" not in st.session_state:
+        st.session_state.p_y_slider = 0
+    if "pm_scale_slider" not in st.session_state:
+        st.session_state.pm_scale_slider = 1.0
 
 
 init_palmu_month_state()
@@ -189,103 +196,89 @@ with st.container(border=True):
     if bg_file:
         img_data = bg_file.getvalue()
         st.session_state.monthly_bg_cache = img_data
-        # ストレージにも永続化（リロード対策）
         storage.set_item(BG_CACHE_KEY_MONTHLY, base64.b64encode(img_data).decode())
     
     active_bg = st.session_state.get("monthly_bg_cache")
 
-    col_cfg, col_prev = st.columns([1, 1.5])
+    # 画像生成ロジックを先行実行
+    try:
+        cal_data = [{"date": "", "day": weekdays_sun[i], "point": ""} for i in range(start_weekday_idx)]
+        for i in range(1, num_days + 1):
+            curr_d = start_date + timedelta(days=i - 1)
+            p = st.session_state[f"pm_day_{i}"]
+            cal_data.append(
+                {
+                    "date": str(curr_d.day),
+                    "day": weekdays_sun[(start_weekday_idx + i - 1) % 7],
+                    "point": "SKIP" if p == "SKIP" else f"+{p}pt",
+                }
+            )
 
-    with col_cfg:
-        with st.expander("🎨 デザイン詳細設定", expanded=True):
-            title_text = st.text_input("タイトル", value=f"{start_date.month}月 スケジュール", key="pm_title")
-            c1, c2 = st.columns(2)
-            with c1:
-                img_text_color = st.color_picker("文字色", "#FFFFFF", key="pm_txt_c")
-            with c2:
-                img_frame_color = st.color_picker("枠色", "#FF5722", key="pm_frm_c")
+        col_cfg, col_prev = st.columns([1, 1.5])
 
-            img_width = st.number_input("幅", 400, 1200, 800, 10, key="pm_width")
-
-            is_trans = st.checkbox("枠内を完全に透過する", False, key="pm_trans")
-            if not is_trans:
-                c1, c2 = st.columns([1, 2])
-                with c1:
-                    img_bg_base = st.color_picker("枠内色", "#000000", key="pm_bg_c")
-                with c2:
-                    img_bg_alpha = st.slider("不透明度", 0, 100, 80, key="pm_a")
-                img_bg_rgba = f"{img_bg_base}{int(img_bg_alpha * 255 / 100):02X}"
-            else:
-                img_bg_rgba = "#00000000"
-
-        if active_bg:
-            with st.expander("📍 配置設定", expanded=True):
-                anchor = st.selectbox(
-                    "基準点", ["左上", "中央", "右上", "左下", "右下", "中央左", "中央右", "中央上", "中央下"], key="pm_anchor"
-                )
+        with col_cfg:
+            with st.expander("🎨 デザイン詳細設定", expanded=True):
+                title_text = st.text_input("タイトル", value=f"{start_date.month}月 スケジュール", key="pm_title")
                 c1, c2 = st.columns(2)
                 with c1:
-                    px = st.slider(
-                        "X軸調整", -1000, 1000, value=st.session_state.get("p_x_slider", 0), step=5, key="p_x_slider"
-                    )
+                    img_text_color = st.color_picker("文字色", "#FFFFFF", key="pm_txt_c")
                 with c2:
-                    py = st.slider(
-                        "Y軸調整", -1000, 1000, value=st.session_state.get("p_y_slider", 0), step=5, key="p_y_slider"
-                    )
+                    img_frame_color = st.color_picker("枠色", "#FF5722", key="pm_frm_c")
 
-                scale = st.slider(
-                    "スケール", 0.1, 2.0, value=st.session_state.get("pm_scale_slider", 1.0), step=0.05, key="pm_scale_slider"
-                )
+                img_width = st.number_input("幅", 400, 1200, 800, 10, key="pm_width")
 
-            if st.button("🖱️ マウスで直感的に配置する (試験的機能)", key="pm_visual_btn"):
-                st.session_state.pm_show_visual_editor = True
-            
-            if st.button("🖼️ 背景画像をクリア", key="pm_clear_btn"):
-                st.session_state.monthly_bg_cache = None
-                storage.delete_item(BG_CACHE_KEY_MONTHLY)
-                st.rerun()
-        else:
-            anchor, px, py, scale = "左上", 0, 0, 1.0
+                is_trans = st.checkbox("枠内を完全に透過する", False, key="pm_trans")
+                if not is_trans:
+                    c1, c2 = st.columns([1, 2])
+                    with c1:
+                        img_bg_base = st.color_picker("枠内色", "#000000", key="pm_bg_c")
+                    with c2:
+                        img_bg_alpha = st.slider("不透明度", 0, 100, 80, key="pm_a")
+                    img_bg_rgba = f"{img_bg_base}{int(img_bg_alpha * 255 / 100):02X}"
+                else:
+                    img_bg_rgba = "#00000000"
 
-    with col_prev:
-        st.subheader("🖼️ プレビュー")
-        try:
-            cal_data = [{"date": "", "day": weekdays_sun[i], "point": ""} for i in range(start_weekday_idx)]
-            for i in range(1, num_days + 1):
-                curr_d = start_date + timedelta(days=i - 1)
-                p = st.session_state[f"pm_day_{i}"]
-                cal_data.append(
-                    {
-                        "date": str(curr_d.day),
-                        "day": weekdays_sun[(start_weekday_idx + i - 1) % 7],
-                        "point": "SKIP" if p == "SKIP" else f"+{p}pt",
-                    }
-                )
-
+            # 前景画像生成
             fg_bytes = create_palmu_calendar_grid_image(
                 title_text, cal_data, img_text_color, img_frame_color, img_bg_rgba, img_width
             )
-
             from io import BytesIO
 
             from PIL import Image
-
             fg_img_size = Image.open(BytesIO(fg_bytes)).size
             fg_w, fg_h = fg_img_size
 
             if active_bg:
-                final_bytes = composite_images(active_bg, fg_bytes, px, py, scale, anchor)
+                with st.expander("📍 配置設定", expanded=True):
+                    anchor = st.selectbox(
+                        "基準点", ["左上", "中央", "右上", "左下", "右下", "中央左", "中央右", "中央上", "中央下"], key="pm_anchor"
+                    )
+                    c1, c2 = st.columns(2)
+                    with c1:
+                        px = st.slider("X軸調整", -1000, 1000, step=5, key="p_x_slider")
+                    with c2:
+                        py = st.slider("Y軸調整", -1000, 1000, step=5, key="p_y_slider")
+
+                    scale = st.slider("スケール", 0.1, 2.0, step=0.05, key="pm_scale_slider")
+
+                if st.button("🖱️ マウスで直感的に配置する (試験的機能)", key="pm_visual_btn"):
+                    show_palmu_editor(active_bg, fg_bytes, fg_w, fg_h, px, py, scale, anchor)
+                
+                if st.button("🖼️ 背景画像をクリア", key="pm_clear_btn"):
+                    st.session_state.monthly_bg_cache = None
+                    storage.delete_item(BG_CACHE_KEY_MONTHLY)
+                    st.rerun()
             else:
-                final_bytes = fg_bytes
+                anchor, px, py, scale = "左上", 0, 0, 1.0
+
+        with col_prev:
+            st.subheader("🖼️ プレビュー")
+            final_bytes = composite_images(active_bg, fg_bytes, px, py, scale, anchor) if active_bg else fg_bytes
 
             st.markdown(
                 f'<div style="text-align:center; background:#eee; padding:10px; border-radius:12px; border:1px solid #ddd;"><img src="data:image/png;base64,{base64.b64encode(final_bytes).decode()}" style="max-width:100%; height:auto;"></div>',
                 unsafe_allow_html=True,
             )
-
-            if st.session_state.get("pm_show_visual_editor", False) and active_bg:
-                show_palmu_editor(active_bg, fg_bytes, fg_w, fg_h, px, py, scale, anchor)
-                st.session_state.pm_show_visual_editor = False
 
             st.write("")
             st.download_button(
@@ -295,8 +288,8 @@ with st.container(border=True):
                 "image/png",
                 use_container_width=True,
             )
-        except Exception as e:
-            st.error(f"プレビュー生成エラー: {e}")
+    except Exception as e:
+        st.error(f"プレビュー生成エラー: {e}")
 
 # --- データの保存と読み込み ---
 st.write("---")
@@ -337,6 +330,9 @@ with st.sidebar:
         st.session_state.palmu_month_skip_cards = 0
         st.session_state.pm_show_visual_editor = False
         st.session_state.monthly_bg_cache = None
+        st.session_state.p_x_slider = 0
+        st.session_state.p_y_slider = 0
+        st.session_state.pm_scale_slider = 1.0
         storage.delete_item(PALMU_MONTH_STORAGE_KEY)
         storage.delete_item(BG_CACHE_KEY_MONTHLY)
         st.rerun()
