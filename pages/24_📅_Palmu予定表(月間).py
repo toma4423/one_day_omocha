@@ -129,13 +129,11 @@ total_slots = num_days + start_weekday_idx
 rows = (total_slots + 6) // 7
 reset_id = st.session_state.palmu_month_reset_counter
 
-# コールバック
 def on_pm_point_change(idx):
     key = f"pm_p_widget_{idx}_{reset_id}"
     st.session_state[f"pm_day_{idx}"] = st.session_state[key]
     save_to_storage()
 
-# ヘッダー
 cols_h = st.columns(7)
 for i, dname in enumerate(weekdays_sun):
     color = "#FF1744" if dname == "日" else ("#2979FF" if dname == "土" else "inherit")
@@ -143,7 +141,6 @@ for i, dname in enumerate(weekdays_sun):
         f"<div style='text-align:center; font-weight:bold; color:{color};'>{dname}</div>", unsafe_allow_html=True
     )
 
-# グリッド
 for r in range(rows):
     cols = st.columns(7)
     for c in range(7):
@@ -154,7 +151,6 @@ for r in range(rows):
                 curr_d = start_date + timedelta(days=day_idx - 1)
                 p_idx = period_assigns[day_idx - 1]
                 p_color = PERIOD_COLORS[p_idx % len(PERIOD_COLORS)]
-                # get() を使用して安全に取得
                 val = st.session_state.get(f"pm_day_{day_idx}", 1)
                 with st.container(border=True):
                     st.markdown(
@@ -267,11 +263,18 @@ with st.container(border=True):
                         py = st.slider("Y軸調整", -1000, 1000, step=5, key="p_y_slider")
 
                     scale = st.slider("スケール", 0.1, 2.0, step=0.05, key="pm_scale_slider")
+                
+                # --- 追加: 位置リセットボタン ---
+                if st.button("🔄 位置とスケールをリセット", use_container_width=True):
+                    st.session_state.p_x_slider = 0
+                    st.session_state.p_y_slider = 0
+                    st.session_state.pm_scale_slider = 1.0
+                    st.rerun()
 
-                if st.button("🖱️ マウスで直感的に配置する (試験的機能)", key="pm_visual_btn"):
+                if st.button("🖱️ マウスで直感的に配置する (試験的機能)", key="pm_visual_btn", use_container_width=True):
                     show_palmu_editor(active_bg, fg_bytes, fg_w, fg_h, px, py, scale, anchor)
                 
-                if st.button("🖼️ 背景画像をクリア", key="pm_clear_btn"):
+                if st.button("🖼️ 背景画像をクリア", key="pm_clear_btn", use_container_width=True):
                     st.session_state.monthly_bg_cache = None
                     storage.delete_item(BG_CACHE_KEY_MONTHLY)
                     st.rerun()

@@ -148,7 +148,6 @@ with col_input:
     st.subheader(f"📝 ポイント・予定入力 ({display_days}日間)")
     reset_id = st.session_state.palmu_reset_counter
     
-    # 選択内容が変わった時に即座に反映させるためのコールバック
     def on_point_change(idx):
         key = f"p_day_widget_{idx}_{reset_id}"
         st.session_state[f"palmu_day_{idx}"] = st.session_state[key]
@@ -291,11 +290,18 @@ with st.container(border=True):
                         py = st.slider("Y軸調整", -1000, 1000, step=5, key="w_y_slider")
 
                     scale = st.slider("スケール", 0.1, 2.0, step=0.05, key="w_scale_slider")
+                
+                # --- 追加: 位置リセットボタン ---
+                if st.button("🔄 位置とスケールをリセット", use_container_width=True):
+                    st.session_state.w_x_slider = 0
+                    st.session_state.w_y_slider = 0
+                    st.session_state.w_scale_slider = 1.0
+                    st.rerun()
 
-                if st.button("🖱️ マウスで直感的に配置する (試験的機能)"):
+                if st.button("🖱️ マウスで直感的に配置する (試験的機能)", use_container_width=True):
                     show_palmu_editor(active_bg, fg_bytes, fg_w, fg_h, px, py, scale, anchor)
                 
-                if st.button("🖼️ 背景画像をクリア"):
+                if st.button("🖼️ 背景画像をクリア", use_container_width=True):
                     st.session_state.weekly_bg_cache = None
                     storage.delete_item(BG_CACHE_KEY)
                     st.rerun()
