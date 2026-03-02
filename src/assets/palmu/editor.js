@@ -18,33 +18,16 @@
         mode: "__MODE__"
     };
 
+    let latest = { x: config.px, y: config.py, s: config.scale };
+
     function updateResultText(left, top, scale) {
-        const x = Math.round(left);
-        const y = Math.round(top);
-        const s = parseFloat(scale.toFixed(2));
+        latest.x = Math.round(left);
+        latest.y = Math.round(top);
+        latest.s = parseFloat(scale.toFixed(2));
 
-        document.getElementById('res_x').innerText = x;
-        document.getElementById('res_y').innerText = y;
-        document.getElementById('res_scale').innerText = s;
-
-        // OKリンクの飛び先をリアルタイムで生成
-        // 親画面のURLを取得してパラメータを付与
-        try {
-            const url = new URL(window.parent.location.href);
-            url.searchParams.set('palmu_x', x);
-            url.searchParams.set('palmu_y', y);
-            url.searchParams.set('palmu_s', s);
-            url.searchParams.set('palmu_sync', '1');
-            document.getElementById('ok_link').href = url.href;
-        } catch (e) {
-            // 親のURLが取れない場合は、現在のURLベースで暫定作成 (Streamlitの仕様に合わせる)
-            const url = new URL(window.location.href);
-            url.searchParams.set('palmu_x', x);
-            url.searchParams.set('palmu_y', y);
-            url.searchParams.set('palmu_s', s);
-            url.searchParams.set('palmu_sync', '1');
-            document.getElementById('ok_link').href = url.href;
-        }
+        document.getElementById('res_x').innerText = latest.x;
+        document.getElementById('res_y').innerText = latest.y;
+        document.getElementById('res_scale').innerText = latest.s;
     }
 
     fabric.Image.fromURL('data:image/png;base64,' + config.bgB64, function(bgImg) {
@@ -151,4 +134,16 @@
             syncValues();
         });
     });
+
+    // 強制的に親画面をリダイレクトさせる関数
+    window.applyAndClose = function() {
+        const params = new URLSearchParams(window.top.location.search);
+        params.set('palmu_x', latest.x);
+        params.set('palmu_y', latest.y);
+        params.set('palmu_s', latest.s);
+        params.set('palmu_sync', '1');
+        
+        // 最上位のウィンドウに対してURLをセットして強制リロード
+        window.top.location.href = window.top.location.pathname + '?' + params.toString();
+    };
 })();
