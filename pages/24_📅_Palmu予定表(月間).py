@@ -253,6 +253,13 @@ with st.container(border=True):
 
             if active_bg:
                 with st.expander("📍 配置設定", expanded=True):
+                    # --- 追加: 位置リセットボタンをスライダーより先に配置 ---
+                    if st.button("🔄 位置とスケールをリセット", use_container_width=True):
+                        st.session_state.p_x_slider = 0
+                        st.session_state.p_y_slider = 0
+                        st.session_state.pm_scale_slider = 1.0
+                        st.rerun()
+
                     anchor = st.selectbox(
                         "基準点", ["左上", "中央", "右上", "左下", "右下", "中央左", "中央右", "中央上", "中央下"], key="pm_anchor"
                     )
@@ -263,13 +270,6 @@ with st.container(border=True):
                         py = st.slider("Y軸調整", -1000, 1000, step=5, key="p_y_slider")
 
                     scale = st.slider("スケール", 0.1, 2.0, step=0.05, key="pm_scale_slider")
-                
-                # --- 追加: 位置リセットボタン ---
-                if st.button("🔄 位置とスケールをリセット", use_container_width=True):
-                    st.session_state.p_x_slider = 0
-                    st.session_state.p_y_slider = 0
-                    st.session_state.pm_scale_slider = 1.0
-                    st.rerun()
 
                 if st.button("🖱️ マウスで直感的に配置する (試験的機能)", key="pm_visual_btn", use_container_width=True):
                     show_palmu_editor(active_bg, fg_bytes, fg_w, fg_h, px, py, scale, anchor)
