@@ -135,15 +135,19 @@
         });
     });
 
-    // 強制的に親画面をリダイレクトさせる関数
+    // ストレージに保存してリロード
     window.applyAndClose = function() {
-        const params = new URLSearchParams(window.top.location.search);
-        params.set('palmu_x', latest.x);
-        params.set('palmu_y', latest.y);
-        params.set('palmu_s', latest.s);
-        params.set('palmu_sync', '1');
+        const syncData = {
+            x: latest.x,
+            y: latest.y,
+            s: latest.s,
+            mode: config.mode,
+            ts: Date.now()
+        };
+        // LocalStorageに書き込み
+        localStorage.setItem('palmu_sync_data', JSON.stringify(syncData));
         
-        // 最上位のウィンドウに対してURLをセットして強制リロード
-        window.top.location.href = window.top.location.pathname + '?' + params.toString();
+        // メイン画面をリロード
+        window.top.location.reload();
     };
 })();

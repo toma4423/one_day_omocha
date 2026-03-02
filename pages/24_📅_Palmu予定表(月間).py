@@ -62,18 +62,14 @@ def init_palmu_month_state():
 
 init_palmu_month_state()
 
-# --- クエリパラメータによる同期 ---
-if st.query_params.get("palmu_sync") == "1":
-    try:
-        # スライダーに反映させるためにsession_stateを更新
-        st.session_state.p_x = int(st.query_params.get("palmu_x", 0))
-        st.session_state.p_y = int(st.query_params.get("palmu_y", 0))
-        st.session_state.p_scale = float(st.query_params.get("palmu_s", 1.0))
-        # クリアしてリラン
-        st.query_params.clear()
-        st.rerun()
-    except (ValueError, TypeError):
-        pass
+# --- ストレージによる同期 (ビジュアルエディタからの戻り) ---
+sync_data = storage.get_item("palmu_sync_data", is_json=True)
+if sync_data and sync_data.get("mode") == "monthly":
+    st.session_state.p_x = sync_data["x"]
+    st.session_state.p_y = sync_data["y"]
+    st.session_state.p_scale = sync_data["s"]
+    storage.delete_item("palmu_sync_data")
+    st.rerun()
 
 st.title("📅 Palmu月間予定表マネージャー")
 
