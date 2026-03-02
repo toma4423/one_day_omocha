@@ -72,6 +72,19 @@ def init_palmu_state():
 
 init_palmu_state()
 
+# --- クエリパラメータによる同期 ---
+if st.query_params.get("palmu_sync") == "1":
+    try:
+        # スライダーに反映させるためにsession_stateを更新
+        st.session_state.w_x = int(st.query_params.get("palmu_x", 0))
+        st.session_state.w_y = int(st.query_params.get("palmu_y", 0))
+        st.session_state.w_scale = float(st.query_params.get("palmu_s", 1.0))
+        # クリアしてリラン
+        st.query_params.clear()
+        st.rerun()
+    except (ValueError, TypeError):
+        pass
+
 st.title("📊 Palmu週間予定表 (ランクメーター)")
 
 # --- 基本設定 ---
@@ -180,7 +193,7 @@ with col_result:
 
 @st.dialog("📏 配置を直感的に調整する", width="large")
 def show_palmu_editor(bg_bytes, fg_bytes, fg_w, fg_h, px, py, scale, anchor):
-    render_visual_editor(bg_bytes, fg_bytes, fg_w, fg_h, px, py, scale, anchor)
+    render_visual_editor(bg_bytes, fg_bytes, fg_w, fg_h, px, py, scale, anchor, mode="weekly")
 
 
 # --- 画像生成（ライブプレビュー） ---

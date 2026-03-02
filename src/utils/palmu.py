@@ -151,6 +151,7 @@ def render_visual_editor(
     py: float,
     scale: float,
     anchor: str,
+    mode: str = "weekly",
 ) -> None:
     """
     Fabric.jsを使用したビジュアルエディタをダイアログ内に表示します。
@@ -180,6 +181,7 @@ def render_visual_editor(
         .replace("__SCALE__", str(scale))
         .replace("__FG_W__", str(fg_w))
         .replace("__FG_H__", str(fg_h))
+        .replace("__MODE__", mode)
     )
 
     # HTML全体の組み立て
