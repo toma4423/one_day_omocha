@@ -155,20 +155,30 @@ def calculate_weekly_display_days(daily_values: list[int | str], max_total: int 
     return max(7, day_idx)
 
 
-def calculate_monthly_display_days(daily_values: list[int | str], target_periods: int = 4, max_total: int = 60) -> int:
+def calculate_monthly_display_days(daily_values: list[int | str], max_total: int = 60) -> int:
     """
-    指定された期数（1期7日）の配信日を確保するために必要な合計日数を計算します。
-    デフォルトは4期（28日間の配信日）。
+    指定された期数の配信日を確保するために必要な合計日数を計算します。
+    - 基本は4期（28日間の配信日）を目指す。
+    - ただし、4期完了までに28日（4週間）を超える場合は、3期（21日間の配信日）に抑える。
     """
-    target_active_days = target_periods * 7
-    active_count = 0
-    day_idx = 0
-    while active_count < target_active_days and day_idx < len(daily_values) and day_idx < max_total:
-        if daily_values[day_idx] != "SKIP":
-            active_count += 1
-        day_idx += 1
-    # 最低でも28日間、または計算された日数
-    return max(target_active_days, day_idx)
+
+    def count_days(target_active: int) -> int:
+        active_count = 0
+        day_idx = 0
+        while active_count < target_active and day_idx < len(daily_values) and day_idx < max_total:
+            if daily_values[day_idx] != "SKIP":
+                active_count += 1
+            day_idx += 1
+        return max(target_active, day_idx)
+
+    # まず4期（28配信日）に必要な日数を計算
+    days_for_4_periods = count_days(28)
+
+    # 4週間（28日）を超えるなら、3期（21配信日）の結果を返す
+    if days_for_4_periods > 28:
+        return count_days(21)
+
+    return days_for_4_periods
 
 
 def render_visual_editor(

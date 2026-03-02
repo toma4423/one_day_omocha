@@ -26,12 +26,14 @@ def test_calculate_weekly_display_days_minimum():
     vals = [1, 1]
     assert calculate_weekly_display_days(vals) == 7
 
-def test_calculate_monthly_display_days_4_periods():
-    # 全て配信の場合、28日間表示されるはず (4期 * 7日)
+def test_calculate_monthly_display_days_no_skip():
+    # SKIPがない場合、4期(28日間)がそのまま返るはず
     vals = [1] * 40
-    assert calculate_monthly_display_days(vals, target_periods=4) == 28
+    assert calculate_monthly_display_days(vals) == 28
 
-def test_calculate_monthly_display_days_with_skips():
-    # 配信28日を達成するために、途中にSKIPが2日ある場合、合計30日間になるはず
-    vals = [1] * 10 + ["SKIP"] + [1] * 10 + ["SKIP"] + [1] * 10
-    assert calculate_monthly_display_days(vals, target_periods=4) == 30
+def test_calculate_monthly_display_days_with_skip_suppression():
+    # 1日でもSKIPがあり、28日を超える場合、3期(21配信日)分に抑えられる。
+    # 例：10日目に1日SKIPを入れると、4期完了には29日必要。
+    # そのため3期(21配信日)分、つまり22日間（21配信+1SKIP）が返るはず。
+    vals = [1] * 9 + ["SKIP"] + [1] * 30
+    assert calculate_monthly_display_days(vals) == 22

@@ -112,7 +112,7 @@ with st.container(border=True):
 
 # --- 動的な表示日数の計算 ---
 daily_vals_all = [st.session_state.get(f"pm_day_{i}", 1) for i in range(1, MAX_TOTAL_MONTH_DAYS + 1)]
-num_days = calculate_monthly_display_days(daily_vals_all, target_periods=4, max_total=MAX_TOTAL_MONTH_DAYS)
+num_days = calculate_monthly_display_days(daily_vals_all, max_total=MAX_TOTAL_MONTH_DAYS)
 
 # --- 入力グリッド ---
 point_options = ["SKIP", 1, 2, 4, 6]
