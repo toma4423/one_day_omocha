@@ -44,9 +44,21 @@ st.title("🎴 トランプ神経衰弱")
 # --- スコア・状況表示 ---
 col_s1, col_msg, col_s2 = st.columns([1, 2, 1])
 with col_s1:
-    render_result_box("Player 1", str(state.scores[0]), bg_color="#E3F2FD" if state.current_player == 0 else "#F5F5F5")
+    render_result_box(
+        "Player 1",
+        str(state.scores[0]),
+        bg_color="#E3F2FD" if state.current_player == 0 else "#F5F5F5",
+        text_color="#1E88E5" if state.current_player == 0 else "#757575",
+        border_color="#1E88E5" if state.current_player == 0 else "#E0E0E0",
+    )
 with col_s2:
-    render_result_box("Player 2", str(state.scores[1]), bg_color="#E3F2FD" if state.current_player == 1 else "#F5F5F5")
+    render_result_box(
+        "Player 2",
+        str(state.scores[1]),
+        bg_color="#E3F2FD" if state.current_player == 1 else "#F5F5F5",
+        text_color="#1E88E5" if state.current_player == 1 else "#757575",
+        border_color="#1E88E5" if state.current_player == 1 else "#E0E0E0",
+    )
 with col_msg:
     st.markdown(f"### {state.message}")
     if state.game_over:
