@@ -38,9 +38,15 @@ def test_coordinate_calculation_logic():
     scale = 1.0
     px, py = 10, 20
 
-    # 中央基準の場合の左上座標
-    left = (bg_w - fg_w * scale) / 2 + px
-    top = (bg_h - fg_h * scale) / 2 + py
+    # 中央下基準
+    left_cb = (bg_w - fg_w * scale) / 2 + px
+    top_cb = (bg_h - fg_h * scale) - py
+    assert left_cb == (1920 - 600) / 2 + 10
+    assert top_cb == (1080 - 400) - 20
 
-    assert left == (1920 - 600) / 2 + 10
-    assert top == (1080 - 400) / 2 + 20
+    # 中央左基準
+    left_cl = px
+    top_cl = (bg_h - fg_h * scale) / 2 + py
+    assert left_cl == 10
+    assert top_cl == (1080 - 400) / 2 + 20
+

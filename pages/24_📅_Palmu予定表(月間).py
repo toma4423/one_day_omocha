@@ -186,7 +186,9 @@ with st.container(border=True):
 
         if bg_file:
             with st.expander("📍 配置設定", expanded=True):
-                anchor = st.selectbox("基準点", ["左上", "中央", "右上", "左下", "右下"], key="pm_anchor")
+                anchor = st.selectbox(
+                    "基準点", ["左上", "中央", "右上", "左下", "右下", "中央左", "中央右", "中央上", "中央下"], key="pm_anchor"
+                )
                 c1, c2 = st.columns(2)
                 with c1:
                     px = st.slider(
@@ -287,6 +289,18 @@ with st.container(border=True):
                                 origTop = (bgImg.height - fgOrigH) - {py};
                             }} else if ("{anchor}" === "右下") {{
                                 origLeft = (bgImg.width - fgOrigW) - {px};
+                                origTop = (bgImg.height - fgOrigH) - {py};
+                            }} else if ("{anchor}" === "中央左") {{
+                                origLeft = {px};
+                                origTop = (bgImg.height - fgOrigH) / 2 + {py};
+                            }} else if ("{anchor}" === "中央右") {{
+                                origLeft = (bgImg.width - fgOrigW) - {px};
+                                origTop = (bgImg.height - fgOrigH) / 2 + {py};
+                            }} else if ("{anchor}" === "中央上") {{
+                                origLeft = (bgImg.width - fgOrigW) / 2 + {px};
+                                origTop = {py};
+                            }} else if ("{anchor}" === "中央下") {{
+                                origLeft = (bgImg.width - fgOrigW) / 2 + {px};
                                 origTop = (bgImg.height - fgOrigH) - {py};
                             }}
 

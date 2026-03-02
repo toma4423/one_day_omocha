@@ -307,6 +307,18 @@ def composite_images(
     elif anchor == "右下":
         x = (bg_w - fg_w) - offset_x
         y = (bg_h - fg_h) - offset_y
+    elif anchor == "中央左":
+        x = offset_x
+        y = (bg_h - fg_h) // 2 + offset_y
+    elif anchor == "中央右":
+        x = (bg_w - fg_w) - offset_x
+        y = (bg_h - fg_h) // 2 + offset_y
+    elif anchor == "中央上":
+        x = (bg_w - fg_w) // 2 + offset_x
+        y = offset_y
+    elif anchor == "中央下":
+        x = (bg_w - fg_w) // 2 + offset_x
+        y = (bg_h - fg_h) - offset_y
 
     # 合成用のキャンバス（背景と同じサイズ）
     canvas = Image.new("RGBA", bg.size, (0, 0, 0, 0))
