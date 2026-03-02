@@ -140,3 +140,51 @@ def get_day_period_assignments(daily_values: list[int | str]) -> list[int]:
             active_count += 1
 
     return assignments
+
+
+def render_visual_editor(
+    bg_bytes: bytes,
+    fg_bytes: bytes,
+    fg_w: int,
+    fg_h: int,
+    px: float,
+    py: float,
+    scale: float,
+    anchor: str,
+) -> None:
+    """
+    Fabric.jsを使用したビジュアルエディタをダイアログ内に表示します。
+    """
+    import base64
+    from pathlib import Path
+
+    import streamlit as st
+    import streamlit.components.v1 as components
+
+    # アセットの読み込み
+    asset_dir = Path("src/assets/palmu")
+    html_tmpl = (asset_dir / "editor.html").read_text(encoding="utf-8")
+    css_text = (asset_dir / "editor.css").read_text(encoding="utf-8")
+    js_text = (asset_dir / "editor.js").read_text(encoding="utf-8")
+
+    bg_b64 = base64.b64encode(bg_bytes).decode()
+    fg_b64 = base64.b64encode(fg_bytes).decode()
+
+    # JS内のプレースホルダーを置換
+    js_final = (
+        js_text.replace("__BG_B64__", bg_b64)
+        .replace("__FG_B64__", fg_b64)
+        .replace("__ANCHOR__", anchor)
+        .replace("__PX__", str(px))
+        .replace("__PY__", str(py))
+        .replace("__SCALE__", str(scale))
+        .replace("__FG_W__", str(fg_w))
+        .replace("__FG_H__", str(fg_h))
+    )
+
+    # HTML全体の組み立て
+    html_final = html_tmpl.replace("__STYLE__", css_text).replace("__SCRIPT__", js_final)
+
+    st.markdown("#### 📱 ビジュアルエディタ")
+    st.caption("画像をドラッグして移動、角を引いてサイズ変更できます。")
+    components.html(html_final, height=650, scrolling=True)

@@ -49,4 +49,3 @@ def test_coordinate_calculation_logic():
     top_cl = (bg_h - fg_h * scale) / 2 + py
     assert left_cl == 10
     assert top_cl == (1080 - 400) / 2 + 20
-

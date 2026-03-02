@@ -14,6 +14,7 @@ from src.utils.palmu import (
     get_day_period_assignments,
     points_needed_for_keep,
     points_needed_for_rank_up,
+    render_visual_editor,
 )
 from src.utils.storage import SafeStorage
 from src.utils.styles import (
@@ -176,6 +177,12 @@ with col_result:
         else:
             st.success("🎉 目標達成予定です！")
 
+
+@st.dialog("📏 配置を直感的に調整する", width="large")
+def show_palmu_editor(bg_bytes, fg_bytes, fg_w, fg_h, px, py, scale, anchor):
+    render_visual_editor(bg_bytes, fg_bytes, fg_w, fg_h, px, py, scale, anchor)
+
+
 # --- 画像生成（ライブプレビュー） ---
 st.write("---")
 st.header("🗓️ 画像生成 & ライブプレビュー")
@@ -232,7 +239,7 @@ with st.container(border=True):
                 st.session_state.w_scale = scale
 
             if st.button("🖱️ マウスで直感的に配置する (試験的機能)"):
-                st.session_state.show_visual_editor = not st.session_state.get("show_visual_editor", False)
+                st.session_state.show_visual_editor = True
         else:
             anchor, px, py, scale = "左上", 0, 0, 1.0
 
@@ -271,91 +278,8 @@ with st.container(border=True):
             )
 
             if st.session_state.get("show_visual_editor", False) and bg_file:
-                import streamlit.components.v1 as components
-
-                bg_b64 = base64.b64encode(bg_file.getvalue()).decode()
-                fg_b64 = base64.b64encode(fg_bytes).decode()
-
-                # Fabric.jsを使用したエディタ (巨大画像対応版)
-                editor_html = f"""
-                <div id="wrapper" style="position: relative; border: 1px solid #ccc; display: inline-block; background: #f0f0f0; max-width: 100%;">
-                    <canvas id="canvas"></canvas>
-                </div>
-                <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js"></script>
-                <script>
-                    const canvas = new fabric.Canvas('canvas');
-                    const MAX_DISPLAY_WIDTH = 800;
-                    
-                    fabric.Image.fromURL('data:image/png;base64,{bg_b64}', function(bgImg) {{
-                        // 表示用のスケールを計算 (コンテナに収める)
-                        const displayScale = Math.min(1.0, MAX_DISPLAY_WIDTH / bgImg.width);
-                        const displayWidth = bgImg.width * displayScale;
-                        const displayHeight = bgImg.height * displayScale;
-
-                        canvas.setWidth(displayWidth);
-                        canvas.setHeight(displayHeight);
-                        
-                        // 背景画像をキャンバスサイズに合わせる
-                        bgImg.scale(displayScale);
-                        canvas.setBackgroundImage(bgImg, canvas.renderAll.bind(canvas));
-                        
-                        fabric.Image.fromURL('data:image/png;base64,{fg_b64}', function(fgImg) {{
-                            // オリジナルの位置を計算
-                            let origLeft = {px};
-                            let origTop = {py};
-                            const fgOrigW = {fg_w} * {scale};
-                            const fgOrigH = {fg_h} * {scale};
-
-                            if ("{anchor}" === "中央") {{
-                                origLeft = (bgImg.width - fgOrigW) / 2 + {px};
-                                origTop = (bgImg.height - fgOrigH) / 2 + {py};
-                            }} else if ("{anchor}" === "右上") {{
-                                origLeft = (bgImg.width - fgOrigW) - {px};
-                                origTop = {py};
-                            }} else if ("{anchor}" === "左下") {{
-                                origLeft = {px};
-                                origTop = (bgImg.height - fgOrigH) - {py};
-                            }} else if ("{anchor}" === "右下") {{
-                                origLeft = (bgImg.width - fgOrigW) - {px};
-                                origTop = (bgImg.height - fgOrigH) - {py};
-                            }} else if ("{anchor}" === "中央左") {{
-                                origLeft = {px};
-                                origTop = (bgImg.height - fgOrigH) / 2 + {py};
-                            }} else if ("{anchor}" === "中央右") {{
-                                origLeft = (bgImg.width - fgOrigW) - {px};
-                                origTop = (bgImg.height - fgOrigH) / 2 + {py};
-                            }} else if ("{anchor}" === "中央上") {{
-                                origLeft = (bgImg.width - fgOrigW) / 2 + {px};
-                                origTop = {py};
-                            }} else if ("{anchor}" === "中央下") {{
-                                origLeft = (bgImg.width - fgOrigW) / 2 + {px};
-                                origTop = (bgImg.height - fgOrigH) - {py};
-                            }}
-
-                            // 表示用にスケーリング
-                            fgImg.set({{
-                                left: origLeft * displayScale,
-                                top: origTop * displayScale,
-                                scaleX: {scale} * displayScale,
-                                scaleY: {scale} * displayScale,
-                                selectable: true,
-                                hasControls: true,
-                                cornerColor: 'rgba(0,0,255,0.5)',
-                                cornerSize: 12,
-                                transparentCorners: false
-                            }});
-                            canvas.add(fgImg);
-                            canvas.setActiveObject(fgImg);
-                        }});
-                    }});
-                </script>
-                <p style="font-size: 0.8em; color: #666; margin-top: 10px;">
-                    ※ 表示は画面サイズに合わせて縮小されていますが、相対的な位置関係は維持されています。
-                </p>
-                """
-                st.info("💡 巨大な画像も画面内に収まるように自動調整されています。")
-                # 高さはアスペクト比を考慮しつつ制限
-                components.html(editor_html, height=800, scrolling=True)
+                show_palmu_editor(bg_file.getvalue(), fg_bytes, fg_w, fg_h, px, py, scale, anchor)
+                st.session_state.show_visual_editor = False
 
             st.write("")
             st.download_button(

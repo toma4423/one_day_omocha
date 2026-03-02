@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Palmu Visual Editor</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js"></script>
+    <style>__STYLE__</style>
+</head>
+<body>
+    <div id="wrapper">
+        <canvas id="canvas"></canvas>
+    </div>
+
+    <div id="controls-overlay">
+        <div style="flex: 1; font-size: 14px; line-height: 1.2;">
+            <div>X: <span id="res_x" class="result-badge">0</span></div>
+            <div>Y: <span id="res_y" class="result-badge">0</span></div>
+        </div>
+        <div style="flex: 1; font-size: 14px; line-height: 1.2;">
+            <div>Scale: <span id="res_scale" class="result-badge">1.0</span></div>
+        </div>
+        <button onclick="window.parent.focus()" style="background: #2196F3; color: white; border: none; padding: 10px 15px; border-radius: 25px; cursor: pointer; font-weight: bold;">
+            OK
+        </button>
+    </div>
+
+    <div class="guide-text">
+        画像をドラッグして移動、角を引いてサイズ変更できます。<br>
+        数値を確認して、元の画面のスライダーに入力してください。
+    </div>
+
+    <script>
+        // 外部JSを読み込む代わりのプレースホルダー
+        __SCRIPT__
+    </script>
+</body>
+</html>
