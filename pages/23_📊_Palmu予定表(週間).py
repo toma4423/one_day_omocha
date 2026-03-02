@@ -8,10 +8,10 @@ from streamlit_local_storage import LocalStorage
 from src.utils.image_maker import composite_images, create_palmu_schedule_image
 from src.utils.palmu import (
     calculate_skip_card_balance,
-    calculate_total_points,
     evaluate_rank_status,
     generate_point_presets,
     get_day_period_assignments,
+    group_points_by_active_week,
     points_needed_for_keep,
     points_needed_for_rank_up,
     render_visual_editor,
@@ -89,7 +89,7 @@ if sync_data and sync_data.get("mode") == "weekly":
     storage.delete_item("palmu_sync_data")
     st.rerun()
 
-# --- 画像データの復元 (リロード対策) ---
+# --- 画像データの復元 ---
 if "weekly_bg_cache" not in st.session_state:
     cached_bg_b64 = storage.get_item(BG_CACHE_KEY)
     if cached_bg_b64:
@@ -136,12 +136,13 @@ with st.expander("💡 おすすめのポイント取得パターンを見る"):
 
 # --- 入力と計算 ---
 point_options = ["SKIP", 1, 2, 4, 6]
-PERIOD_COLORS = ["#E0E0E0", "#E3F2FD", "#F1F8E9", "#FFF3E0"]
+PERIOD_COLORS = ["#F5F5F5", "#BBDEFB", "#C8E6C9", "#FFE0B2", "#E1BEE7", "#FFF9C4"]
 daily_vals = [st.session_state.get(f"palmu_day_{i}", 1) for i in range(1, MAX_DAYS + 1)]
 skip_balances = calculate_skip_card_balance(st.session_state.palmu_skip_cards, start_date, MAX_DAYS, daily_vals)
 period_assigns = get_day_period_assignments(daily_vals)
-active_period1 = [i for i, p in enumerate(period_assigns) if p == 1]
-display_days = active_period1[-1] + 1 if active_period1 else 7
+
+# 全期間（14日間）を常に入力可能にする
+display_days = MAX_DAYS
 
 col_input, col_result = st.columns([1.5, 1])
 with col_input:
@@ -156,7 +157,7 @@ with col_input:
             c_sel, c_plan, c_info = st.columns([2, 3, 1])
             with c_info:
                 st.markdown(
-                    f"<div style='background-color:{p_color}; border-radius:8px; padding:4px; text-align:center; font-size:12px; border:1px solid #ddd;'>第{p_idx if p_idx > 0 else '休'}期</div>",
+                    f"<div style='background-color:{p_color}; border-radius:8px; padding:4px; text-align:center; font-size:12px; border:1px solid #ddd; color:#333; font-weight:bold;'>第{p_idx if p_idx > 0 else '休'}期</div>",
                     unsafe_allow_html=True,
                 )
                 st.caption(f"🎫 {skip_balances[i - 1]}枚")
@@ -181,29 +182,35 @@ with col_input:
                 )
 
 with col_result:
-    st.subheader("📈 第1期の解析結果")
-    p1_points = [st.session_state[f"palmu_day_{i + 1}"] for i, p in enumerate(period_assigns) if p == 1]
-    total = calculate_total_points(p1_points)
-    status = evaluate_rank_status(total)
-
-    colors = {
-        "ランクアップ": ("#E8F5E9", "#2E7D32"),
-        "キープ": ("#FFF3E0", "#E65100"),
-        "ランクダウン": ("#FFEBEE", "#C62828"),
-    }
-    bg, fg = colors.get(status, ("#F5F5F5", "#333333"))
-
-    render_result_box("現在の判定", status, bg_color=bg, border_color=fg, text_color=fg, font_size=40)
-
-    with st.container(border=True):
-        st.metric("有効7日間の合計", f"{total} pt")
-        if status != "ランクアップ":
-            st.write("---")
-            if status == "ランクダウン":
-                st.info(f"🛡️ キープまで: あと **{points_needed_for_keep(total)}** pt")
-            st.success(f"🚀 ランクアップまで: あと **{points_needed_for_rank_up(total)}** pt")
-        else:
-            st.success("🎉 目標達成予定です！")
+    st.subheader("📈 ランク状況分析")
+    # アクティブな週（7日ごと）にまとめて分析
+    active_weeks = group_points_by_active_week([st.session_state[f"palmu_day_{i}"] for i in range(1, display_days + 1)])
+    
+    if not active_weeks:
+        st.info("配信予定を入力すると分析結果が表示されます。")
+    else:
+        for w, pts in enumerate(active_weeks):
+            with st.container(border=True):
+                total = sum(pts)
+                status = evaluate_rank_status(total)
+                st.markdown(f"**第 {w + 1} 期** (有効7日間合計)")
+                
+                colors = {
+                    "ランクアップ": ("#E8F5E9", "#2E7D32"),
+                    "キープ": ("#FFF3E0", "#E65100"),
+                    "ランクダウン": ("#FFEBEE", "#C62828"),
+                }
+                bg, fg = colors.get(status, ("#F5F5F5", "#333333"))
+                
+                render_result_box(f"第{w+1}期 判定", status, bg_color=bg, border_color=fg, text_color=fg, font_size=24)
+                st.metric("合計ポイント", f"{total} pt")
+                
+                if status != "ランクアップ":
+                    if status == "ランクダウン":
+                        st.caption(f"🛡️ キープまで: あと {points_needed_for_keep(total)} pt")
+                    st.caption(f"🚀 ランクアップまで: あと {points_needed_for_rank_up(total)} pt")
+                else:
+                    st.success("🎉 目標達成予定です！")
 
 @st.dialog("📏 配置を直感的に調整する", width="large")
 def show_palmu_editor(bg_bytes, fg_bytes, fg_w, fg_h, px, py, scale, anchor):
@@ -223,10 +230,13 @@ with st.container(border=True):
     
     active_bg = st.session_state.get("weekly_bg_cache")
 
-    # 前景画像の生成 (配置設定より前に行う必要がある)
     try:
+        # 現在の有効な日数（第1期分）を特定して画像にする
+        active_period1_indices = [i for i, p in enumerate(period_assigns) if p == 1]
+        img_display_days = active_period1_indices[-1] + 1 if active_period1_indices else 7
+        
         sched_data = []
-        for i in range(1, display_days + 1):
+        for i in range(1, img_display_days + 1):
             curr_d = start_date + timedelta(days=i - 1)
             p = st.session_state[f"palmu_day_{i}"]
             plan = st.session_state.get(f"palmu_plan_{i}", "")
@@ -238,18 +248,11 @@ with st.container(border=True):
                 )
             )
 
-        # デザイン詳細設定の値を先行取得
-        title_text_def = f"{start_date.month}/{start_date.day}〜 予定"
-        
-        # デザイン詳細設定
-        with st.sidebar if False else st.container(): # ダミー構造
-            pass
-
         col_style_cfg, col_preview_area = st.columns([1, 1.5])
 
         with col_style_cfg:
             with st.expander("🎨 デザイン詳細設定", expanded=True):
-                title_text = st.text_input("タイトル", value=title_text_def)
+                title_text = st.text_input("タイトル", value=f"{start_date.month}/{start_date.day}〜 予定")
                 c1, c2 = st.columns(2)
                 with c1:
                     img_text_color = st.color_picker("文字色", "#FFFFFF")
