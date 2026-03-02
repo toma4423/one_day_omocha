@@ -28,7 +28,7 @@ render_page_header()
 storage = SafeStorage(LocalStorage())
 PALMU_MONTH_STORAGE_KEY = "palmu_month_data"
 BG_CACHE_KEY_MONTHLY = "palmu_bg_cache_monthly"
-MAX_TOTAL_MONTH_DAYS = 60 # SKIPを考慮して最大日数を拡大
+MAX_TOTAL_MONTH_DAYS = 60
 
 # セッション状態の初期化
 if "palmu_month_reset_counter" not in st.session_state:
@@ -55,11 +55,17 @@ def load_from_storage():
 
 
 def init_palmu_month_state():
-    if "pm_day_1" not in st.session_state:
-        if not load_from_storage():
-            for i in range(1, MAX_TOTAL_MONTH_DAYS + 1):
-                st.session_state[f"pm_day_{i}"] = 1
-            st.session_state.palmu_month_skip_cards = 0
+    # キーが欠落している場合に備えて全件チェック・補完
+    for i in range(1, MAX_TOTAL_MONTH_DAYS + 1):
+        key = f"pm_day_{i}"
+        if key not in st.session_state:
+            st.session_state[key] = 1
+            
+    # 初回起動時のみストレージから読み込み
+    if "palmu_month_initialized" not in st.session_state:
+        load_from_storage()
+        st.session_state.palmu_month_initialized = True
+
     # スライダーの初期化
     if "p_x_slider" not in st.session_state:
         st.session_state.p_x_slider = 0
@@ -104,20 +110,13 @@ with st.container(border=True):
             "所持スキップカード数", 0, 10, value=st.session_state.palmu_month_skip_cards
         )
 
-# --- 動的な表示日数の計算 (4期完了まで) ---
+# --- 動的な表示日数の計算 ---
 daily_vals_all = [st.session_state.get(f"pm_day_{i}", 1) for i in range(1, MAX_TOTAL_MONTH_DAYS + 1)]
 num_days = calculate_monthly_display_days(daily_vals_all, target_periods=4, max_total=MAX_TOTAL_MONTH_DAYS)
 
 # --- 入力グリッド ---
 point_options = ["SKIP", 1, 2, 4, 6]
-PERIOD_COLORS = [
-    "#F5F5F5",  # 0: SKIP/休み
-    "#BBDEFB",  # 1: 期1
-    "#C8E6C9",  # 2: 期2
-    "#FFE0B2",  # 3: 期3
-    "#E1BEE7",  # 4: 期4
-    "#FFF9C4",  # 5: 期5
-]
+PERIOD_COLORS = ["#F5F5F5", "#BBDEFB", "#C8E6C9", "#FFE0B2", "#E1BEE7", "#FFF9C4"]
 weekdays_sun = ["日", "月", "火", "水", "木", "金", "土"]
 
 st.subheader(f"📝 デイリーポイント入力 ({num_days}日間)")
@@ -144,7 +143,7 @@ for i, dname in enumerate(weekdays_sun):
         f"<div style='text-align:center; font-weight:bold; color:{color};'>{dname}</div>", unsafe_allow_html=True
     )
 
-# グリッド入力
+# グリッド
 for r in range(rows):
     cols = st.columns(7)
     for c in range(7):
@@ -155,7 +154,8 @@ for r in range(rows):
                 curr_d = start_date + timedelta(days=day_idx - 1)
                 p_idx = period_assigns[day_idx - 1]
                 p_color = PERIOD_COLORS[p_idx % len(PERIOD_COLORS)]
-                val = st.session_state[f"pm_day_{day_idx}"]
+                # get() を使用して安全に取得
+                val = st.session_state.get(f"pm_day_{day_idx}", 1)
                 with st.container(border=True):
                     st.markdown(
                         f"<div style='background-color:{p_color}; border-radius:4px; font-size:10px; text-align:center; border:1px solid #ccc; margin-bottom:4px; color:#333; font-weight:bold;'>第{p_idx if p_idx > 0 else '休'}期</div>",
@@ -176,7 +176,7 @@ for r in range(rows):
 # --- 分析 ---
 st.write("---")
 st.header("📈 ランク状況分析")
-active_weeks = group_points_by_active_week([st.session_state[f"pm_day_{i}"] for i in range(1, num_days + 1)])
+active_weeks = group_points_by_active_week([st.session_state.get(f"pm_day_{i}", 1) for i in range(1, num_days + 1)])
 if active_weeks:
     cols_w = st.columns(min(len(active_weeks), 4))
     for w, pts in enumerate(active_weeks):
@@ -196,7 +196,7 @@ def show_palmu_editor(bg_bytes, fg_bytes, fg_w, fg_h, px, py, scale, anchor):
     render_visual_editor(bg_bytes, fg_bytes, fg_w, fg_h, px, py, scale, anchor, mode="monthly")
 
 
-# --- 画像生成（ライブプレビュー） ---
+# --- 画像生成 ---
 st.write("---")
 st.header("🗓️ 画像生成 & ライブプレビュー")
 with st.container(border=True):
@@ -213,7 +213,7 @@ with st.container(border=True):
         cal_data = [{"date": "", "day": weekdays_sun[i], "point": ""} for i in range(start_weekday_idx)]
         for i in range(1, num_days + 1):
             curr_d = start_date + timedelta(days=i - 1)
-            p = st.session_state[f"pm_day_{i}"]
+            p = st.session_state.get(f"pm_day_{i}", 1)
             cal_data.append(
                 {
                     "date": str(curr_d.day),
@@ -246,7 +246,6 @@ with st.container(border=True):
                 else:
                     img_bg_rgba = "#00000000"
 
-            # 前景画像生成
             fg_bytes = create_palmu_calendar_grid_image(
                 title_text, cal_data, img_text_color, img_frame_color, img_bg_rgba, img_width
             )
@@ -305,7 +304,7 @@ with st.container(border=True):
     st.subheader("📁 データの保存と読み込み")
     c1, c2 = st.columns(2)
     with c1:
-        current_data = {f"day_{i}": st.session_state[f"pm_day_{i}"] for i in range(1, MAX_TOTAL_MONTH_DAYS + 1)}
+        current_data = {f"day_{i}": st.session_state.get(f"pm_day_{i}", 1) for i in range(1, MAX_TOTAL_MONTH_DAYS + 1)}
         current_data["skip_cards"] = st.session_state.palmu_month_skip_cards
         json_str = json.dumps(current_data, indent=2, ensure_ascii=False)
         st.download_button(
