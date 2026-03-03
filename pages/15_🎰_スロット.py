@@ -150,11 +150,9 @@ st.write("")
 # --- 統計と履歴 ---
 tab1, tab2 = st.tabs(["📊 成立統計", "📜 実戦履歴"])
 
-# 現在の設定に基づく確率計算（統計表示用）
-current_symbols = st.session_state.slot_config["symbols"]
-current_payouts = st.session_state.slot_config["payouts"]
-probs = calculate_probabilities(current_symbols, current_payouts)
-theo_prob_map = {r["name"]: r["denominator"] for r in probs["hit_rates"]}
+# 現在の設定を取得
+current_config = st.session_state.slot_config
+current_payouts = current_config["payouts"]
 
 with tab1:
     st.subheader("成立履歴の統計")
@@ -165,29 +163,25 @@ with tab1:
     for p in current_payouts:
         name = p["name"]
         count = st.session_state.slot_counts.get(name, 0)
-        theo_denom = theo_prob_map.get(name, 0.0)
-        actual_denom = round(total_spins / count, 1) if count > 0 else 0.0
+        # 設定値を直接取得（1/N形式）
+        denom = p.get("denominator", "??")
         
         stats_data.append({
             "役名": name,
             "回数": count,
-            "理論確率 (1/N)": f"1/{theo_denom}",
-            "実戦確率 (1/N)": f"1/{actual_denom}" if actual_denom > 0 else "---"
+            "確率 (1/N)": f"1/{denom}"
         })
     
     # ハズレの統計
     miss_count = st.session_state.slot_counts.get("ハズレ", 0)
-    theo_miss_rate = probs["miss_rate"]
-    actual_miss_rate = (miss_count / total_spins * 100) if total_spins > 0 else 0.0
     stats_data.append({
         "役名": "ハズレ",
         "回数": miss_count,
-        "理論確率 (%)": f"{theo_miss_rate:.1f}%",
-        "実戦確率 (%)": f"{actual_miss_rate:.1f}%"
+        "確率 (1/N)": "---"
     })
     
     st.table(stats_data)
-    st.caption(f"現在の設定「{st.session_state.slot_config.get('name')}」に基づいた統計です。")
+    st.caption(f"現在の設定「{current_config.get('name')}」に基づいた集計結果です。")
 
 with tab2:
     if st.session_state.slot_history:
@@ -210,7 +204,7 @@ with st.sidebar:
     st.write("---")
     st.subheader("📥 設定の読み込み")
     uploaded_file = st.file_uploader("設定JSONを読み込む", type="json")
-    if uploaded_file and st.button("設定を反映", use_container_width=True):
+    if uploaded_file and st.button("設定を反映", use_container_width=True, type="primary"):
         try:
             from src.utils.slot import migrate_slot_config, validate_slot_config
             data = json.load(uploaded_file)
@@ -219,7 +213,9 @@ with st.sidebar:
             if valid:
                 st.session_state.slot_config = migrated
                 storage.set_item("slot_config", migrated)
-                st.success("設定を反映しました！")
+                st.success(f"✅ 設定「{migrated['name']}」を反映しました！")
+                st.balloons()
+                # 統計もリセットするか選べるが、ここでは反映を優先
                 st.rerun()
             else:
                 st.error(msg)
