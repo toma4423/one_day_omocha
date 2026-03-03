@@ -1,5 +1,6 @@
 import random
 from dataclasses import dataclass, field
+from typing import Literal
 
 
 @dataclass
@@ -22,12 +23,14 @@ class Card:
 @dataclass
 class GameState:
     cards: list[Card]
+    mode: Literal["single", "battle"] = "battle"
     current_player: int = 0  # 0 or 1
     scores: list[int] = field(default_factory=lambda: [0, 0])
     selected_indices: list[int] = field(default_factory=list)
     message: str = "プレイヤー1の番です"
     game_over: bool = False
     use_all_suits: bool = False
+    move_count: int = 0  # 1人プレイ用の手数
 
 
 def create_deck(num_pairs: int = 13, use_all_suits: bool = False) -> list[Card]:
@@ -59,6 +62,7 @@ def handle_card_click(state: GameState, index: int) -> GameState:
     if state.game_over or state.cards[index].is_matched:
         return state
 
+    # 既に2枚めくられている状態で新しいのをめくろうとしたら、前のを伏せる
     if len(state.selected_indices) >= 2:
         for idx in state.selected_indices:
             state.cards[idx].is_flipped = False
@@ -71,24 +75,39 @@ def handle_card_click(state: GameState, index: int) -> GameState:
     state.selected_indices.append(index)
 
     if len(state.selected_indices) == 2:
+        state.move_count += 1
         idx1, idx2 = state.selected_indices
         card1, card2 = state.cards[idx1], state.cards[idx2]
 
         if card1.rank == card2.rank:
+            # マッチ成功
             card1.is_matched = True
             card2.is_matched = True
             state.scores[state.current_player] += 1
-            state.message = f"プレイヤー{state.current_player + 1}がマッチ成功！もう一度引けます。"
+            
+            if state.mode == "battle":
+                state.message = f"プレイヤー{state.current_player + 1}がマッチ成功！もう一度引けます。"
+            else:
+                state.message = "マッチ成功！"
+                
+            # 全カードマッチ判定
             if all(c.is_matched for c in state.cards):
                 state.game_over = True
-                if state.scores[0] > state.scores[1]:
-                    state.message = "ゲーム終了！ プレイヤー1の勝利！"
-                elif state.scores[1] > state.scores[0]:
-                    state.message = "ゲーム終了！ プレイヤー2の勝利！"
+                if state.mode == "battle":
+                    if state.scores[0] > state.scores[1]:
+                        state.message = f"ゲーム終了！ プレイヤー1の勝利！ ({state.scores[0]}対{state.scores[1]})"
+                    elif state.scores[1] > state.scores[0]:
+                        state.message = f"ゲーム終了！ プレイヤー2の勝利！ ({state.scores[1]}対{state.scores[0]})"
+                    else:
+                        state.message = "ゲーム終了！ 引き分けです。"
                 else:
-                    state.message = "ゲーム終了！ 引き分けです。"
+                    state.message = f"クリアおめでとうございます！ (手数: {state.move_count})"
         else:
-            state.message = f"残念！ 次はプレイヤー{(1 - state.current_player) + 1}の番です。"
-            state.current_player = 1 - state.current_player
+            # マッチ失敗
+            if state.mode == "battle":
+                state.current_player = 1 - state.current_player
+                state.message = f"残念！ 次はプレイヤー{state.current_player + 1}の番です。"
+            else:
+                state.message = "残念！ 次はどのカードをめくりますか？"
 
     return state

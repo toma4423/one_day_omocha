@@ -11,37 +11,87 @@ render_page_header()
 # 基本的なカードスタイル定義
 st.markdown("""
 <style>
-    /* 共通のカードスタイル */
+    /* カードの基本サイズと形状 */
     .stButton > button {
-        width: 100%;
-        height: 100px;
-        font-size: 24px;
-        border-radius: 8px;
-        transition: transform 0.1s;
+        height: 140px;
+        border-radius: 10px;
         font-weight: bold;
-        margin-bottom: 10px;
+        transition: all 0.2s;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        padding: 5px !important;
     }
     
-    /* マッチした「GET」カードの共通スタイル */
-    .matched-card > button {
-        background-color: #E0E0E0 !important;
-        color: #9E9E9E !important;
-        border: 2px dashed #BDBDBD !important;
-        font-size: 18px !important;
+    /* カード裏面（未選択） */
+    .card-back button {
+        background: linear-gradient(135deg, #2C3E50 25%, #34495E 25%, #34495E 50%, #2C3E50 50%, #2C3E50 75%, #34495E 75%, #34495E 100%) !important;
+        background-size: 20px 20px !important;
+        border: 4px solid #ECF0F1 !important;
+        color: white !important;
+        font-size: 40px !important;
+    }
+    .card-back button:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 6px 12px rgba(0,0,0,0.2);
+        border-color: #FFFFFF !important;
     }
 
-    /* 裏面カードの共通スタイル */
-    .back-card > button {
-        background-color: #2C3E50 !important;
-        color: #ECF0F1 !important;
-        border: 2px solid #34495E !important;
+    /* カード表面（めくられた状態）- 共通 */
+    .card-front button {
+        background-color: #FFFFFF !important;
+        border: 2px solid #333 !important;
+        font-size: 24px !important;
+        cursor: default !important;
+    }
+    
+    /* 赤いスート（ハート・ダイヤ） */
+    .card-front-red button {
+        color: #D32F2F !important;
+        border-color: #D32F2F !important;
+    }
+    
+    /* 黒いスート（スペード・クローバー） */
+    .card-front-black button {
+        color: #1A1A1A !important;
+        border-color: #1A1A1A !important;
+    }
+
+    /* 獲得済みカード */
+    .card-matched button {
+        background-color: #F5F5F5 !important;
+        color: #BDBDBD !important;
+        border: 2px dashed #E0E0E0 !important;
+        opacity: 0.6;
+        cursor: default !important;
+        box-shadow: none !important;
+    }
+
+    /* カード内のランクとスートの配置用 */
+    .card-content {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        height: 100%;
+        position: relative;
+    }
+    .rank-top {
+        position: absolute;
+        top: 5px;
+        left: 5px;
+        font-size: 18px;
+    }
+    .suit-large {
+        font-size: 48px;
     }
 </style>
 """, unsafe_allow_html=True)
 
 # セッション状態の初期化
 if "concentration_state" not in st.session_state:
-    st.session_state.concentration_state = GameState(cards=create_deck(13, use_all_suits=False))
+    st.session_state.concentration_state = GameState(
+        cards=create_deck(13, use_all_suits=False),
+        mode="battle"
+    )
 
 state = st.session_state.concentration_state
 
@@ -49,32 +99,54 @@ st.title("🎴 トランプ神経衰弱")
 
 # --- スコア・状況表示 ---
 col_s1, col_msg, col_s2 = st.columns([1, 2, 1])
-ORANGE_COLOR = "#FF9800"
-GRAY_COLOR = "#757575"
 
 with col_s1:
-    is_active = (state.current_player == 0)
-    render_result_box(
-        "Player 1",
-        str(state.scores[0]),
-        bg_color="#FFF3E0" if is_active else "#F5F5F5",
-        text_color=ORANGE_COLOR if is_active else GRAY_COLOR,
-        border_color=ORANGE_COLOR if is_active else "#E0E0E0",
-    )
+    if state.mode == "battle":
+        is_active = (state.current_player == 0)
+        render_result_box(
+            "Player 1",
+            str(state.scores[0]),
+            bg_color="#FFF3E0" if is_active else "#F5F5F5",
+            text_color="#FF9800" if is_active else "#757575",
+            border_color="#FF9800" if is_active else "#E0E0E0",
+        )
+    else:
+        render_result_box(
+            "Matches",
+            str(state.scores[0]),
+            bg_color="#E3F2FD",
+            text_color="#1976D2",
+            border_color="#1976D2",
+        )
+
 with col_s2:
-    is_active = (state.current_player == 1)
-    render_result_box(
-        "Player 2",
-        str(state.scores[1]),
-        bg_color="#FFF3E0" if is_active else "#F5F5F5",
-        text_color=ORANGE_COLOR if is_active else GRAY_COLOR,
-        border_color=ORANGE_COLOR if is_active else "#E0E0E0",
-    )
+    if state.mode == "battle":
+        is_active = (state.current_player == 1)
+        render_result_box(
+            "Player 2",
+            str(state.scores[1]),
+            bg_color="#FFF3E0" if is_active else "#F5F5F5",
+            text_color="#FF9800" if is_active else "#757575",
+            border_color="#FF9800" if is_active else "#E0E0E0",
+        )
+    else:
+        render_result_box(
+            "Moves",
+            str(state.move_count),
+            bg_color="#F5F5F5",
+            text_color="#424242",
+            border_color="#E0E0E0",
+        )
+
 with col_msg:
     st.markdown(f"<h3 style='text-align:center;'>{state.message}</h3>", unsafe_allow_html=True)
     if state.game_over:
         if st.button("🔄 もう一度遊ぶ", use_container_width=True, type="primary"):
-            st.session_state.concentration_state = GameState(cards=create_deck(13, use_all_suits=state.use_all_suits), use_all_suits=state.use_all_suits)
+            st.session_state.concentration_state = GameState(
+                cards=create_deck(13, use_all_suits=state.use_all_suits),
+                use_all_suits=state.use_all_suits,
+                mode=state.mode
+            )
             st.rerun()
 
 st.write("---")
@@ -90,69 +162,68 @@ for r in range(rows):
         if idx < len(state.cards):
             card = state.cards[idx]
             
-            # 状態に応じたラベルとスタイルの決定
-            if card.is_matched:
-                label = "GET"
-                container_class = "matched-card"
-                disabled = True
-            elif card.is_flipped:
-                label = card.display_value
-                container_class = "front-card"
-                disabled = True
-                # めくられた時の色を動的に適用
-                if card.is_red:
-                    # ハート・ダイヤ: 白背景に赤文字
-                    text_c, bg_c, border_c = "#D32F2F", "#FFFFFF", "#D32F2F"
-                else:
-                    # スペード・クローバー: 黒背景に白文字
-                    text_c, bg_c, border_c = "#FFFFFF", "#333333", "#000000"
-                
-                st.markdown(f"""
-                <style>
-                    div[data-testid="column"]:nth-child({c+1}) div[data-testid="stVerticalBlock"] > div:nth-child({r+1}) button {{
-                        color: {text_c} !important;
-                        background-color: {bg_c} !important;
-                        border: 2px solid {border_c} !important;
-                    }}
-                </style>
-                """, unsafe_allow_html=True)
-            else:
-                label = "🎴"
-                container_class = "back-card"
-                disabled = False
-            
-            # カードをボタンとして配置（コンテナクラスでラップ）
             with cols[c]:
-                st.markdown(f'<div class="{container_class}">', unsafe_allow_html=True)
-                if st.button(label, key=f"card_{idx}", disabled=disabled, use_container_width=True):
-                    st.session_state.concentration_state = handle_card_click(state, idx)
-                    st.rerun()
-                st.markdown('</div>', unsafe_allow_html=True)
+                if card.is_matched:
+                    # マッチ済み
+                    st.markdown('<div class="card-matched">', unsafe_allow_html=True)
+                    st.button("GET", key=f"card_{idx}", disabled=True, use_container_width=True)
+                    st.markdown('</div>', unsafe_allow_html=True)
+                elif card.is_flipped:
+                    # 表
+                    color_class = "red" if card.is_red else "black"
+                    st.markdown(f'<div class="card-front card-front-{color_class}">', unsafe_allow_html=True)
+                    # HTMLタグを含めたボタンラベルはStreamlitでは非推奨だが、絵文字とテキストならある程度可能
+                    # 複雑なレイアウトはCSSでボタンの中身を模倣する
+                    label = f"{card.suit}\n{card.rank}"
+                    st.button(label, key=f"card_{idx}", disabled=True, use_container_width=True)
+                    st.markdown('</div>', unsafe_allow_html=True)
+                else:
+                    # 裏（クリック可能）
+                    st.markdown('<div class="card-back">', unsafe_allow_html=True)
+                    if st.button("？", key=f"card_{idx}", use_container_width=True):
+                        st.session_state.concentration_state = handle_card_click(state, idx)
+                        st.rerun()
+                    st.markdown('</div>', unsafe_allow_html=True)
 
 # サイドバー設定
 with st.sidebar:
-    st.header("⚙️ 設定・難易度")
+    st.header("⚙️ 設定・モード")
     
-    mode_options = ["初級 (2スート・26枚)", "上級 (全スート・52枚)"]
-    current_mode_idx = 1 if state.use_all_suits else 0
-    new_mode_str = st.radio("使用するカード", options=mode_options, index=current_mode_idx)
-    new_use_all = (new_mode_str == mode_options[1])
+    # モード選択
+    mode_map = {"1人プレイ": "single", "2人対戦": "battle"}
+    mode_labels = list(mode_map.keys())
+    current_mode_idx = 1 if state.mode == "battle" else 0
+    selected_label = st.radio("ゲームモード", options=mode_labels, index=current_mode_idx)
+    new_mode = mode_map[selected_label]
     
-    if new_use_all != state.use_all_suits:
+    # カード枚数選択
+    suit_options = ["初級 (2スート・26枚)", "上級 (全スート・52枚)"]
+    current_suit_idx = 1 if state.use_all_suits else 0
+    selected_suit_label = st.radio("カード枚数", options=suit_options, index=current_suit_idx)
+    new_use_all = (selected_suit_label == suit_options[1])
+    
+    if new_mode != state.mode or new_use_all != state.use_all_suits:
         if st.button("⚠️ 設定を反映してリセット"):
-            st.session_state.concentration_state = GameState(cards=create_deck(13, use_all_suits=new_use_all), use_all_suits=new_use_all)
+            st.session_state.concentration_state = GameState(
+                cards=create_deck(13, use_all_suits=new_use_all),
+                use_all_suits=new_use_all,
+                mode=new_mode
+            )
             st.rerun()
 
     if st.button("🚨 ゲームをリセット", use_container_width=True):
-        st.session_state.concentration_state = GameState(cards=create_deck(13, use_all_suits=state.use_all_suits), use_all_suits=state.use_all_suits)
+        st.session_state.concentration_state = GameState(
+            cards=create_deck(13, use_all_suits=state.use_all_suits),
+            use_all_suits=state.use_all_suits,
+            mode=state.mode
+        )
         st.rerun()
     
     st.info("""
     **ルール:**
     - めくったカードが同じ数字なら「GET」になります。
-    - **♠♣**: 黒背景に白文字
-    - **♥♦**: 白背景に赤文字
-    - 操作中のプレイヤーは**オレンジ色**で表示されます。
+    - **対戦モード**: マッチするともう一度引けます。
+    - **1人モード**: すべてめくるまでの手数を競います。
     """)
 
 render_donation_box("https://qr.paypay.ne.jp/p2p01_jsHjvMAenqfvI10s", is_sidebar=True)

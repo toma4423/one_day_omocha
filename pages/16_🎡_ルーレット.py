@@ -214,42 +214,77 @@ with col_sidebar:
         # 3. 項目ループ
         new_items_list = []
         to_delete_id = None
+        move_up_idx = -1
+        move_down_idx = -1
 
-        for _idx, item in enumerate(current_items):
+        for idx, item in enumerate(current_items):
             iid = item["id"]
             with st.container():
-                # 上段
-                col1, col2 = st.columns([3, 1])
-                with col1:
+                # 上段：ラベルと有効化
+                col_en, col_lab, col_weight = st.columns([0.5, 3.5, 1])
+                with col_en:
+                    # 有効・無効チェックボックス
+                    new_enabled = st.checkbox(
+                        "有効", value=item.get("enabled", True), key=f"enabled_{iid}", label_visibility="collapsed"
+                    )
+                with col_lab:
                     new_label = st.text_input(
                         "名前", value=item["label"], key=f"label_{iid}", label_visibility="collapsed"
                     )
-                with col2:
+                with col_weight:
                     new_weight = st.number_input(
                         "重み",
                         value=float(item["weight"]),
                         min_value=0.0,
-                        step=0.1,
+                        step=0.01, # 小数点第2位まで
+                        format="%.2f",
                         key=f"weight_{iid}",
                         label_visibility="collapsed",
                     )
 
-                # 下段
-                col3, col4 = st.columns([3, 1])
-                with col3:
+                # 下段：色、並び替え、削除
+                col_col, col_up, col_down, col_del = st.columns([2, 1, 1, 1])
+                with col_col:
                     new_color = st.color_picker(
                         "色", value=item["color"], key=f"color_{iid}", label_visibility="collapsed"
                     )
-                with col4:
-                    if st.button("🗑️ 削除", key=f"del_{iid}", use_container_width=True):
+                with col_up:
+                    if st.button("↑", key=f"up_{iid}", use_container_width=True, disabled=(idx == 0)):
+                        move_up_idx = idx
+                with col_down:
+                    if st.button("↓", key=f"down_{iid}", use_container_width=True, disabled=(idx == len(current_items) - 1)):
+                        move_down_idx = idx
+                with col_del:
+                    if st.button("🗑️", key=f"del_{iid}", use_container_width=True):
                         to_delete_id = iid
 
-                new_items_list.append({"id": iid, "label": new_label, "weight": new_weight, "color": new_color})
-                st.markdown("<hr>", unsafe_allow_html=True)
+                new_items_list.append({
+                    "id": iid, 
+                    "label": new_label, 
+                    "weight": new_weight, 
+                    "color": new_color,
+                    "enabled": new_enabled
+                })
+                st.markdown("<hr style='margin: 5px 0 !important;'>", unsafe_allow_html=True)
 
-        # 削除・更新処理
+        # 並び替え・削除・更新処理
+        rerun_needed = False
         if to_delete_id:
-            st.session_state.roulette_config["items"] = [it for it in new_items_list if it["id"] != to_delete_id]
+            new_items_list = [it for it in new_items_list if it["id"] != to_delete_id]
+            rerun_needed = True
+        elif move_up_idx > 0:
+            # 入れ替え
+            new_items_list[move_up_idx], new_items_list[move_up_idx - 1] = \
+                new_items_list[move_up_idx - 1], new_items_list[move_up_idx]
+            rerun_needed = True
+        elif move_down_idx >= 0 and move_down_idx < len(new_items_list) - 1:
+            # 入れ替え
+            new_items_list[move_down_idx], new_items_list[move_down_idx + 1] = \
+                new_items_list[move_down_idx + 1], new_items_list[move_down_idx]
+            rerun_needed = True
+
+        if rerun_needed:
+            st.session_state.roulette_config["items"] = new_items_list
             storage.set_item("roulette_config", st.session_state.roulette_config)
             st.rerun()
 
