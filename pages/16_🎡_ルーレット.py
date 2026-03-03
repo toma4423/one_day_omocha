@@ -201,30 +201,34 @@ with col_sidebar:
             st.rerun()
             
         # 現在の合計を計算
-        active_items_for_sum = [it for it in current_items if it.get("enabled", True)]
-        total_weight = sum(it["weight"] for it in active_items_for_sum)
+        active_indices = [i for i, it in enumerate(current_items) if it.get("enabled", True)]
+        total_weight = sum(current_items[i]["weight"] for i in active_indices)
         
         if total_weight != 100:
             diff = 100 - total_weight
             st.warning(f"⚠️ 合計が {total_weight}% です（あと {diff}% 必要です）")
+            
             if st.button("⚖️ 残りを自動配分", use_container_width=True):
-                if active_items_for_sum:
-                    num_active = len(active_items_for_sum)
-                    base_adj = diff // num_active
-                    extra_adj = diff % num_active
+                if active_indices:
+                    n = len(active_indices)
+                    # Pythonの // と % は負数でも整合性が取れるように動く
+                    # 例: 10 // 3 = 3, 10 % 3 = 1 -> (3,3,4) に配分
+                    # 例: -10 // 3 = -4, -10 % 3 = 2 -> (-3,-3,-4) に配分
+                    base_change = diff // n
+                    remainder = diff % n
                     
-                    # 各項目に配分
-                    new_items = []
-                    active_count = 0
-                    for it in current_items:
-                        new_item = it.copy()
-                        if it.get("enabled", True):
-                            adj = base_adj + (1 if active_count < abs(extra_adj) else 0) if extra_adj > 0 else \
-                                  base_adj - (1 if active_count < abs(extra_adj) else 0) if extra_adj < 0 else base_adj
-                            new_item["weight"] = max(0, int(it["weight"] + adj))
-                            active_count += 1
-                        new_items.append(new_item)
+                    new_items = [it.copy() for it in current_items]
+                    for count, idx in enumerate(active_indices):
+                        adj = base_change + (1 if count < remainder else 0)
+                        # マイナスにならないように調整しつつ加算
+                        new_val = max(0, new_items[idx]["weight"] + adj)
+                        new_items[idx]["weight"] = int(new_val)
                     
+                    # 最後に合計を再チェックし、max(0)でずれた分を微調整（念のため）
+                    new_total = sum(new_items[i]["weight"] for i in active_indices)
+                    if new_total != 100 and active_indices:
+                        new_items[active_indices[0]]["weight"] += (100 - new_total)
+
                     st.session_state.roulette_config["items"] = new_items
                     storage.set_item("roulette_config", st.session_state.roulette_config)
                     st.rerun()
