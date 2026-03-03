@@ -5,9 +5,9 @@ from typing import Literal
 
 @dataclass
 class Card:
-    id: int
     rank: str  # "A", "2", ..., "K"
     suit: str  # "♠", "♥", "♣", "♦"
+    id: int = 0
     is_flipped: bool = False
     is_matched: bool = False
 
@@ -22,8 +22,8 @@ class Card:
 
 @dataclass
 class GameState:
-    cards: list[Card]
-    mode: Literal["single", "battle"] = "battle"
+    cards: list[Card] = field(default_factory=list)
+    mode: str = "battle" # "single" or "battle"
     current_player: int = 0  # 0 or 1
     scores: list[int] = field(default_factory=lambda: [0, 0])
     selected_indices: list[int] = field(default_factory=list)

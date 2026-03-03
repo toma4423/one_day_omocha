@@ -87,7 +87,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # セッション状態の初期化
-if "concentration_state" not in st.session_state:
+if "concentration_state" not in st.session_state or not hasattr(st.session_state.concentration_state, "mode"):
     st.session_state.concentration_state = GameState(
         cards=create_deck(13, use_all_suits=False),
         mode="battle"
