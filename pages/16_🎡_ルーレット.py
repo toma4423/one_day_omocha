@@ -13,6 +13,7 @@ from src.utils.roulette import (
 )
 from src.utils.storage import SafeStorage
 from src.utils.styles import render_donation_box, render_page_header
+from src.utils.time import get_jst_now
 
 # ページ基本設定
 st.set_page_config(page_title="ルーレット", page_icon="🎡", layout="wide")
@@ -130,11 +131,15 @@ with col_main:
                     winner_idx = i
                     break
 
+from src.utils.time import get_jst_now
+
+# ... (中略)
+
             st.session_state.roulette_last_winner = winner
             st.session_state.roulette_winner_index = winner_idx
             st.session_state.roulette_spin_trigger += 1
             history_entry = {
-                "time": time.strftime("%H:%M:%S"),
+                "time": get_jst_now().strftime("%H:%M:%S"),
                 "label": str(winner["label"]),
                 "color": str(winner["color"]),
             }
