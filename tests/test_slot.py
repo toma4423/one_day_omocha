@@ -65,9 +65,22 @@ def test_resolve_pattern_to_chars():
 
 def test_spin_reels():
     symbol_data = [{"id": 1, "char": "A", "weight": 1.0}]
-    result = spin_reels(symbol_data, 3)
+    payouts = [{"name": "Win", "pattern": [1, 1, 1], "denominator": 1.0}] # 100%当選
+    result = spin_reels(symbol_data, payouts, 3)
     assert len(result) == 3
     assert result[0]["char"] == "A"
+
+
+def test_spin_reels_priority():
+    # 珍しい役が優先されるか
+    symbols = [{"id": 1, "char": "A"}, {"id": 2, "char": "B"}]
+    payouts = [
+        {"name": "Common", "pattern": [1, 1, 1], "denominator": 1.01}, # ほぼ当たる
+        {"name": "Rare", "pattern": [2, 2, 2], "denominator": 1.01},   # ほぼ当たる
+    ]
+    # 実際にはランダムなので厳密なテストは難しいが、ロジックとしてエラーが出ないことを確認
+    result = spin_reels(symbols, payouts, 3)
+    assert len(result) == 3
 
 
 def test_evaluate_slot_spin_any():

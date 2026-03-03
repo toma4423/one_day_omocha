@@ -106,9 +106,13 @@ with col_main:
     )
 
     if st.button("🔥 レバーを叩く！", use_container_width=True, type="primary"):
-        # 抽選
-        final_reels = spin_reels(st.session_state.slot_config["symbols"])
+        # Python側で先に抽選
+        final_reels = spin_reels(
+            st.session_state.slot_config["symbols"],
+            st.session_state.slot_config["payouts"]
+        )
         result = evaluate_slot_spin(final_reels, st.session_state.slot_config["payouts"])
+
         
         # 状態更新
         st.session_state.slot_reels = st.session_state.slot_target_reels
