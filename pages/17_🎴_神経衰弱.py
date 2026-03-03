@@ -11,77 +11,68 @@ render_page_header()
 # 基本的なカードスタイル定義
 st.markdown("""
 <style>
-    /* カードの基本サイズと形状 */
+    /* カード全体のコンテナ */
     .stButton > button {
-        height: 140px;
-        border-radius: 10px;
-        font-weight: bold;
-        transition: all 0.2s;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        padding: 5px !important;
+        width: 100% !important;
+        aspect-ratio: 5 / 7 !important; /* 縦長を強制 */
+        height: auto !important;
+        border-radius: 10px !important;
+        font-weight: bold !important;
+        transition: all 0.2s !important;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1) !important;
+        padding: 0 !important;
+        display: flex !important;
+        flex-direction: column !important;
+        justify-content: center !important;
+        align-items: center !important;
+        overflow: hidden !important;
     }
     
-    /* カード裏面（未選択） */
+    /* カード裏面 */
     .card-back button {
         background: linear-gradient(135deg, #2C3E50 25%, #34495E 25%, #34495E 50%, #2C3E50 50%, #2C3E50 75%, #34495E 75%, #34495E 100%) !important;
-        background-size: 20px 20px !important;
+        background-size: 15px 15px !important;
         border: 4px solid #ECF0F1 !important;
         color: white !important;
-        font-size: 40px !important;
+        font-size: 2.5rem !important;
     }
     .card-back button:hover {
-        transform: translateY(-5px);
-        box-shadow: 0 6px 12px rgba(0,0,0,0.2);
+        transform: translateY(-5px) !important;
         border-color: #FFFFFF !important;
+        box-shadow: 0 8px 15px rgba(0,0,0,0.3) !important;
     }
 
-    /* カード表面（めくられた状態）- 共通 */
-    .card-front button {
-        background-color: #FFFFFF !important;
-        border: 2px solid #333 !important;
-        font-size: 24px !important;
-        cursor: default !important;
-    }
-    
-    /* 赤いスート（ハート・ダイヤ） */
+    /* カード表面 - 赤 */
     .card-front-red button {
+        background-color: #FFFFFF !important;
         color: #D32F2F !important;
-        border-color: #D32F2F !important;
+        border: 2px solid #D32F2F !important;
+        font-size: 1.5rem !important;
     }
     
-    /* 黒いスート（スペード・クローバー） */
+    /* カード表面 - 黒 */
     .card-front-black button {
+        background-color: #FFFFFF !important;
         color: #1A1A1A !important;
-        border-color: #1A1A1A !important;
+        border: 2px solid #1A1A1A !important;
+        font-size: 1.5rem !important;
     }
 
-    /* 獲得済みカード */
+    /* 獲得済み */
     .card-matched button {
-        background-color: #F5F5F5 !important;
-        color: #BDBDBD !important;
-        border: 2px dashed #E0E0E0 !important;
-        opacity: 0.6;
-        cursor: default !important;
+        background-color: #F0F0F0 !important;
+        color: #CCCCCC !important;
+        border: 2px dashed #DDDDDD !important;
+        opacity: 0.5 !important;
         box-shadow: none !important;
+        pointer-events: none !important;
     }
 
-    /* カード内のランクとスートの配置用 */
-    .card-content {
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-        align-items: center;
-        height: 100%;
-        position: relative;
-    }
-    .rank-top {
-        position: absolute;
-        top: 5px;
-        left: 5px;
-        font-size: 18px;
-    }
-    .suit-large {
-        font-size: 48px;
+    /* 改行を反映させるための設定 */
+    .stButton > button div p {
+        white-space: pre-line !important;
+        line-height: 1.2 !important;
+        font-size: 1.2rem !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -152,7 +143,7 @@ with col_msg:
 st.write("---")
 
 # --- 盤面描画 ---
-cards_per_row = 13 if state.use_all_suits else 7
+cards_per_row = 10 if state.use_all_suits else 7
 rows = (len(state.cards) + cards_per_row - 1) // cards_per_row
 
 for r in range(rows):
@@ -171,10 +162,9 @@ for r in range(rows):
                 elif card.is_flipped:
                     # 表
                     color_class = "red" if card.is_red else "black"
-                    st.markdown(f'<div class="card-front card-front-{color_class}">', unsafe_allow_html=True)
-                    # HTMLタグを含めたボタンラベルはStreamlitでは非推奨だが、絵文字とテキストならある程度可能
-                    # 複雑なレイアウトはCSSでボタンの中身を模倣する
-                    label = f"{card.suit}\n{card.rank}"
+                    st.markdown(f'<div class="card-front-{color_class}">', unsafe_allow_html=True)
+                    # 改行を入れて縦に並べる
+                    label = f"{card.rank}\n{card.suit}"
                     st.button(label, key=f"card_{idx}", disabled=True, use_container_width=True)
                     st.markdown('</div>', unsafe_allow_html=True)
                 else:
