@@ -181,8 +181,8 @@ with st.container(border=True):
     st.write("🆕 **新しい役を追加**")
     with st.expander("新規役の追加フォーム"):
         add_name = st.text_input("新しい役名", "新規役", key="add_name")
-        add_score = st.number_input("新しい配当枚数", 10, key="add_score")
-        add_denom = st.number_input("新しい分母 (1/N)", 100.0, min_value=1.1, key="add_denom")
+        add_score = st.number_input("新しい配当枚数", value=10, key="add_score")
+        add_denom = st.number_input("新しい分母 (1/N)", value=100.0, min_value=1.1, key="add_denom")
         ca1, ca2, ca3 = st.columns(3)
         with ca1:
             p_add1 = st.selectbox("左図柄 ID", symbol_ids, format_func=get_label, key="p_add1")
