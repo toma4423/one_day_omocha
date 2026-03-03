@@ -86,21 +86,28 @@ def migrate_roulette_config(config: dict[str, Any]) -> RouletteConfig:
     """古い形式や不完全なデータから設定を最新の形式に復元します。"""
     new_config = DEFAULT_ROULETTE_CONFIG.copy()
 
-    if not config:
+    if not isinstance(config, dict):
         return new_config
 
-    new_config["title"] = config.get("title", DEFAULT_ROULETTE_CONFIG["title"])
-    new_config["sound_enabled"] = config.get("sound_enabled", DEFAULT_ROULETTE_CONFIG["sound_enabled"])
+    new_config["title"] = str(config.get("title", DEFAULT_ROULETTE_CONFIG["title"]))
+    new_config["sound_enabled"] = bool(config.get("sound_enabled", DEFAULT_ROULETTE_CONFIG["sound_enabled"]))
 
     items = config.get("items", [])
     if isinstance(items, list) and items:
         new_items = []
         for i, item in enumerate(items):
             if isinstance(item, dict):
+                # 重みの安全な変換 (floatも許容し、四捨五入して整数にする)
+                raw_weight = item.get("weight", 1)
+                try:
+                    weight = int(round(float(raw_weight)))
+                except (ValueError, TypeError):
+                    weight = 1
+                
                 new_item: RouletteItem = {
                     "id": str(item.get("id", f"item_{int(time.time() * 1000)}_{i}")),
-                    "label": str(item.get("label", "項目")),
-                    "weight": int(item.get("weight", 1)),
+                    "label": str(item.get("label", f"項目 {i+1}")),
+                    "weight": max(0, weight),
                     "color": str(item.get("color", "#CCCCCC")),
                     "enabled": bool(item.get("enabled", True)),
                 }

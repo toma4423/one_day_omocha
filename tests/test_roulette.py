@@ -45,14 +45,48 @@ def test_validate_roulette_config():
     assert is_valid is False
 
 
-def test_migrate_roulette_config():
+def test_migrate_roulette_config_basic():
+    # 標準的な移行
     legacy_data = {
-        "items": [{"label": "A", "weight": 5.0}],
+        "items": [{"label": "A", "weight": 5}],
     }
     migrated = migrate_roulette_config(legacy_data)
     assert migrated["title"] == DEFAULT_ROULETTE_CONFIG["title"]
     assert migrated["items"][0]["label"] == "A"
-    assert migrated["items"][0]["color"] == "#CCCCCC"
     assert migrated["items"][0]["enabled"] is True
-    # 整数に変換されていること
     assert isinstance(migrated["items"][0]["weight"], int)
+
+def test_migrate_roulette_config_legacy_float():
+    # float形式からの移行と丸め
+    legacy_data = {
+        "items": [
+            {"label": "A", "weight": 10.6}, # -> 11
+            {"label": "B", "weight": "20.4"} # -> 20 (文字列float)
+        ],
+    }
+    migrated = migrate_roulette_config(legacy_data)
+    assert migrated["items"][0]["weight"] == 11
+    assert migrated["items"][1]["weight"] == 20
+    assert all(isinstance(it["weight"], int) for it in migrated["items"])
+
+def test_migrate_roulette_config_missing_fields():
+    # 欠落フィールドの補完
+    legacy_data = {
+        "title": "New Title",
+        "items": [
+            {"label": "A"} # weight, id, color, enabled が欠落
+        ],
+    }
+    migrated = migrate_roulette_config(legacy_data)
+    item = migrated["items"][0]
+    assert migrated["title"] == "New Title"
+    assert item["weight"] == 1 # デフォルト
+    assert item["enabled"] is True
+    assert "id" in item
+    assert item["color"] == "#CCCCCC"
+
+def test_migrate_roulette_config_invalid_data():
+    # 完全に壊れたデータ
+    assert migrate_roulette_config(None)["title"] == DEFAULT_ROULETTE_CONFIG["title"]
+    assert migrate_roulette_config([])["title"] == DEFAULT_ROULETTE_CONFIG["title"]
+    assert migrate_roulette_config({"items": "not a list"})["items"] == DEFAULT_ROULETTE_CONFIG["items"]
