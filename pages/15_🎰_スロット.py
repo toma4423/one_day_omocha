@@ -150,30 +150,44 @@ st.write("")
 # --- 統計と履歴 ---
 tab1, tab2 = st.tabs(["📊 成立統計", "📜 実戦履歴"])
 
+# 現在の設定に基づく確率計算（統計表示用）
+current_symbols = st.session_state.slot_config["symbols"]
+current_payouts = st.session_state.slot_config["payouts"]
+probs = calculate_probabilities(current_symbols, current_payouts)
+theo_prob_map = {r["name"]: r["denominator"] for r in probs["hit_rates"]}
+
 with tab1:
     st.subheader("成立履歴の統計")
-    symbols = st.session_state.slot_config["symbols"]
-    payouts = st.session_state.slot_config["payouts"]
     total_spins = st.session_state.slot_spins
-    probs = calculate_probabilities(symbols, payouts)
-    theo_prob_map = {r["name"]: r["denominator"] for r in probs["hit_rates"]}
     
     stats_data = []
-    for p in payouts:
+    # 役ごとの統計
+    for p in current_payouts:
         name = p["name"]
         count = st.session_state.slot_counts.get(name, 0)
         theo_denom = theo_prob_map.get(name, 0.0)
         actual_denom = round(total_spins / count, 1) if count > 0 else 0.0
+        
         stats_data.append({
-            "役名": name, "回数": count, "理論確率 (1/N)": f"1/{theo_denom}", "実戦確率 (1/N)": f"1/{actual_denom}" if actual_denom > 0 else "---"
+            "役名": name,
+            "回数": count,
+            "理論確率 (1/N)": f"1/{theo_denom}",
+            "実戦確率 (1/N)": f"1/{actual_denom}" if actual_denom > 0 else "---"
         })
     
+    # ハズレの統計
     miss_count = st.session_state.slot_counts.get("ハズレ", 0)
+    theo_miss_rate = probs["miss_rate"]
     actual_miss_rate = (miss_count / total_spins * 100) if total_spins > 0 else 0.0
     stats_data.append({
-        "役名": "ハズレ", "回数": miss_count, "理論確率 (1/N)": f"{probs['miss_rate']:.1f}%", "実戦確率 (1/N)": f"{actual_miss_rate:.1f}%"
+        "役名": "ハズレ",
+        "回数": miss_count,
+        "理論確率 (%)": f"{theo_miss_rate:.1f}%",
+        "実戦確率 (%)": f"{actual_miss_rate:.1f}%"
     })
+    
     st.table(stats_data)
+    st.caption(f"現在の設定「{st.session_state.slot_config.get('name')}」に基づいた統計です。")
 
 with tab2:
     if st.session_state.slot_history:
