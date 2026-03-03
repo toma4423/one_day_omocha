@@ -44,13 +44,7 @@ with st.expander("📖 はじめてのスロット作りガイド（クリック
     - **100.0** と入力 ➡ 100回に1回くらい当たります
     - **256.0** と入力 ➡ なかなか当たりません（パチスロの大当たりの定番！）
 
-    #### 2. 還元率（RTP）の目安
-    設定した後に表示される「想定還元率」は、その台の「甘さ」を表します。
-    - **100%以上** ➡ プレイヤーがどんどん得をする、超ラッキーな台！
-    - **95% 〜 105%** ➡ 実際のパチスロ（設定1〜6）に近い、バランスの良い台。
-    - **80%以下** ➡ なかなかメダルが減らない「激辛」な台です。
-    
-    #### 3. おすすめの定番設定
+    #### 2. おすすめの定番設定
     迷ったらこの数字を入れてみてください：
     - **リプレイ風**: 1/7.3
     - **ベル（小役）風**: 1/12.0
@@ -216,15 +210,7 @@ with st.container(border=True):
             
     with col_info:
         probs = calculate_probabilities(st.session_state.slot_config_edit["symbols"], st.session_state.slot_config_edit["payouts"])
-        c_rtp, c_hit = st.columns(2)
-        # 還元率の判定
-        rtp = probs['rtp']
-        if rtp > 110: rtp_status = "激甘設定"
-        elif rtp > 95: rtp_status = "標準設定"
-        else: rtp_status = "激辛設定"
-        
-        c_rtp.metric("想定還元率 (RTP)", f"{rtp:.2f}%", delta=rtp_status, delta_color="normal")
-        c_hit.metric("合計当り確率", f"{probs['total_hit_rate']:.2f}% (1/{100/probs['total_hit_rate']:.1f})")
+        st.metric("合計当り確率", f"{probs['total_hit_rate']:.2f}% (1/{100/probs['total_hit_rate']:.1f})")
 
     st.write("📊 **現在の詳細確率**")
     df_probs = pd.DataFrame(probs["hit_rates"])

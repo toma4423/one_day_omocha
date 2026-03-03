@@ -42,26 +42,6 @@ def test_migrate_slot_config_denominator():
     assert migrated["payouts"][0]["denominator"] == 0.0
 
 
-def test_calculate_probabilities_rtp():
-    # 1/10 で 10枚払い出し => 還元率 100%
-    symbols = [{"id": 1, "char": "7", "weight": 1.0}]
-    payouts = [{"name": "BIG", "pattern": [1, 1, 1], "score": 10, "denominator": 1.0}]
-
-    # 1種類しかないので確率は100%
-    probs = calculate_probabilities(symbols, payouts)
-    assert probs["rtp"] == 1000.0  # 10枚 * 100% = 1000%
-
-    # より現実的な例: 2種類(A, B)が1:1、AAAが10枚
-    symbols = [
-        {"id": 1, "char": "A", "weight": 1.0},
-        {"id": 2, "char": "B", "weight": 1.0},
-    ]
-    payouts = [{"name": "AAA", "pattern": [1, 1, 1], "score": 8, "denominator": 8.0}]
-    probs = calculate_probabilities(symbols, payouts)
-    # AAA確率は 1/8 (12.5%)。 8枚 * 12.5% = 100%
-    assert probs["rtp"] == 100.0
-
-
 def test_solve_weights_from_denominators():
     symbols = [
         {"id": 1, "char": "7", "weight": 1.0},

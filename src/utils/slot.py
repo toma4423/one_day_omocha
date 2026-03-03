@@ -134,15 +134,14 @@ def calculate_probabilities(symbol_data: list[dict[str, Any]], payouts: list[dic
     現在の設定に基づき、各役の成立確率(1/N)とハズレ確率を計算します。
     """
     if not symbol_data:
-        return {"hit_rates": [], "total_hit_rate": 0.0, "miss_rate": 100.0, "rtp": 0.0}
+        return {"hit_rates": [], "total_hit_rate": 0.0, "miss_rate": 100.0}
 
     total_weight = sum(s["weight"] for s in symbol_data)
     if total_weight == 0:
-        return {"hit_rates": [], "total_hit_rate": 0.0, "miss_rate": 100.0, "rtp": 0.0}
+        return {"hit_rates": [], "total_hit_rate": 0.0, "miss_rate": 100.0}
 
     results = []
     total_hit_prob = 0.0
-    total_expected_return = 0.0  # 還元率（RTP）計算用
 
     # 総当たり計算（3リール固定）
     if len(symbol_data) <= 15:
@@ -167,7 +166,6 @@ def calculate_probabilities(symbol_data: list[dict[str, Any]], payouts: list[dic
                         if is_match:
                             pattern_counts[p["name"]] += prob
                             total_hit_prob += prob
-                            total_expected_return += prob * p.get("score", 0)
                             break
     else:
         # 近似計算（独立試行として扱う）
@@ -181,7 +179,6 @@ def calculate_probabilities(symbol_data: list[dict[str, Any]], payouts: list[dic
                     prob *= id_probs.get(item, 0.0)
 
             total_hit_prob += prob
-            total_expected_return += prob * p.get("score", 0)
 
     # 各役の分母 (1/N) を算出
     for p in payouts:
@@ -201,7 +198,6 @@ def calculate_probabilities(symbol_data: list[dict[str, Any]], payouts: list[dic
         "hit_rates": results,
         "total_hit_rate": total_hit_prob * 100,
         "miss_rate": max(0.0, (1.0 - total_hit_prob) * 100),
-        "rtp": total_expected_return * 100,  # 還元率（%）
     }
 
 
