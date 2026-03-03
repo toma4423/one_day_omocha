@@ -82,18 +82,12 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# セッション状態の初期化 (永続化対応)
+# セッション状態の初期化 (リロード時は最初から)
 if "concentration_state" not in st.session_state or not hasattr(st.session_state.concentration_state, "mode"):
-    # LocalStorage からの復旧を試みる
-    saved_mode = storage.get_item("concentration_mode") or "battle"
-    # 文字列 "true" を boolean に変換
-    saved_suits_raw = storage.get_item("concentration_use_all_suits")
-    saved_suits = (saved_suits_raw == "true")
-    
     st.session_state.concentration_state = GameState(
-        cards=create_deck(13, use_all_suits=saved_suits),
-        mode=saved_mode,
-        use_all_suits=saved_suits
+        cards=create_deck(13, use_all_suits=False),
+        mode="battle",
+        use_all_suits=False
     )
 
 state = st.session_state.concentration_state
@@ -184,10 +178,6 @@ for r in range(rows):
                     st.markdown('<div class="card-back">', unsafe_allow_html=True)
                     if st.button("？", key=f"card_{idx}", use_container_width=True):
                         st.session_state.concentration_state = handle_card_click(state, idx)
-                        # 状態が変化した可能性があるので保存（カードの状態自体は session_state で十分だが、
-                        # モードや設定の永続化を確実にするため）
-                        storage.set_item("concentration_mode", st.session_state.concentration_state.mode)
-                        storage.set_item("concentration_use_all_suits", "true" if st.session_state.concentration_state.use_all_suits else "false")
                         st.rerun()
                     st.markdown('</div>', unsafe_allow_html=True)
 
@@ -198,11 +188,9 @@ with st.sidebar:
     # モード選択
     mode_map = {"1人プレイ": "single", "2人対戦": "battle"}
     mode_labels = list(mode_map.keys())
-    current_mode_idx = 0
-    if state.mode == "battle":
-        current_mode_idx = 1
+    current_mode_idx = 1 if state.mode == "battle" else 0
     
-    selected_label = st.selectbox("ゲームモード", options=mode_labels, index=current_mode_idx)
+    selected_label = st.radio("ゲームモード", options=mode_labels, index=current_mode_idx)
     new_mode = mode_map[selected_label]
     
     # カード枚数選択
@@ -211,11 +199,8 @@ with st.sidebar:
     selected_suit_label = st.radio("カード枚数", options=suit_options, index=current_suit_idx)
     new_use_all = (selected_suit_label == suit_options[1])
     
-    # 設定の即時保存
+    # 設定の反映
     if new_mode != state.mode or new_use_all != state.use_all_suits:
-        storage.set_item("concentration_mode", new_mode)
-        storage.set_item("concentration_use_all_suits", "true" if new_use_all else "false")
-        
         if st.button("⚠️ 設定を反映してリセット"):
             st.session_state.concentration_state = GameState(
                 cards=create_deck(13, use_all_suits=new_use_all),
