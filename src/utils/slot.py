@@ -1,58 +1,48 @@
 import random
 from typing import Any
 
-# デフォルト設定
-# 図柄（シンボル）：ID（数字）、識別子（文字）、重み、画像URL
+# 日本のパチスロ（Aタイプ風）のデフォルト設定
+# 図柄（シンボル）：ID, 管理用ラベル, 重み(内部計算用), 画像URL
 DEFAULT_SYMBOLS = [
-    {"id": 1, "char": "🍒", "weight": 15.0, "image_url": None},
-    {"id": 2, "char": "🍋", "weight": 10.0, "image_url": None},
-    {"id": 3, "char": "🍉", "weight": 7.0, "image_url": None},
-    {"id": 4, "char": "🔔", "weight": 5.0, "image_url": None},
-    {"id": 5, "char": "⭐", "weight": 3.0, "image_url": None},
-    {"id": 6, "char": "7️⃣", "weight": 2.0, "image_url": None},
+    {"id": 1, "char": "🍒", "weight": 25.0, "image_url": None},      # チェリー
+    {"id": 2, "char": "🔔", "weight": 83.3, "image_url": None},      # ベル
+    {"id": 3, "char": "🍉", "weight": 12.5, "image_url": None},      # スイカ
+    {"id": 5, "char": "7️⃣", "weight": 3.9, "image_url": None},       # 7 (BIG)
+    {"id": 6, "char": "⬛", "weight": 2.5, "image_url": None},       # BAR (REG)
 ]
 
+# デフォルトの役（ペイアウト）設定
+# pattern: [左, 中, 右], denominator: 1/N の分母 (表示/設定用)
+# score: 払い出し枚数
 DEFAULT_PAYOUTS = [
-    {"pattern": [6, 6, 6], "name": "超大当り (777)", "score": 1000},
-    {"pattern": [5, 5, 5], "name": "大当り (STAR)", "score": 500},
-    {"pattern": [4, 4, 4], "name": "ベル", "score": 200},
-    {"pattern": [3, 3, 3], "name": "スイカ", "score": 100},
-    {"pattern": [2, 2, 2], "name": "レモン", "score": 50},
-    {"pattern": [1, 1, 1], "name": "チェリー", "score": 30},
-    {"pattern": [1, 1, "ANY"], "name": "ミニチェリー", "score": 10},
+    {"pattern": [5, 5, 5], "name": "BIG BONUS (777)", "score": 300, "denominator": 256.0},
+    {"pattern": [6, 6, 6], "name": "REG BONUS (BAR)", "score": 100, "denominator": 400.0},
+    {"pattern": [2, 2, 2], "name": "ベル", "score": 8, "denominator": 12.0},
+    {"pattern": [3, 3, 3], "name": "スイカ", "score": 12, "denominator": 80.0},
+    {"pattern": [1, "ANY", "ANY"], "name": "チェリー", "score": 2, "denominator": 40.0},
 ]
 
-DEFAULT_SLOT_NAME = "標準スロット"
+DEFAULT_SLOT_NAME = "ジャグラー風スロット"
 
 
 def spin_reels(symbol_data: list[dict[str, Any]], count: int = 3) -> list[dict[str, Any]]:
     """
-    リールを回転させ、重みに基づいてランダムな出目（辞書のリスト）を取得します。
+    リールを回転させ、重みに基づいてランダムな出目を取得します。
     """
     if not symbol_data:
         return []
 
-    # 互換性チェック: 文字列リストが渡された場合
-    if isinstance(symbol_data[0], str):
-        return [
-            {"id": i + 1, "char": random.choice(symbol_data), "weight": 1.0, "image_url": None} for i in range(count)
-        ]
-
     weights = [s.get("weight", 1.0) for s in symbol_data]
-
-    # random.choices はリストを返す
     return random.choices(symbol_data, weights=weights, k=count)
 
 
 def evaluate_slot_spin(result: list[dict[str, Any]], payouts: list[dict[str, Any]]) -> dict[str, Any] | None:
     """
     出目を判定し、成立した役を返します。
-    ID（数字）ベースで判定を行います。
     """
     if not result:
         return None
 
-    # 比較のためにIDのみのリストを作成
     result_ids = [s["id"] for s in result]
 
     for payout in payouts:
@@ -64,7 +54,6 @@ def evaluate_slot_spin(result: list[dict[str, Any]], payouts: list[dict[str, Any
         for i in range(len(pattern)):
             if pattern[i] == "ANY":
                 continue
-            # IDによる比較
             if pattern[i] != result_ids[i]:
                 match = False
                 break
@@ -87,7 +76,7 @@ def get_slot_config(storage_data: dict[str, Any] | None) -> dict[str, Any]:
 
 def migrate_slot_config(config: dict[str, Any]) -> dict[str, Any]:
     """
-    設定データを最新の形式（IDベース）に変換・補完します。
+    設定データを最新形式（IDベース、分母対応）に変換・補完します。
     """
     name = config.get("name", DEFAULT_SLOT_NAME)
     symbols = config.get("symbols", DEFAULT_SYMBOLS)
@@ -95,23 +84,17 @@ def migrate_slot_config(config: dict[str, Any]) -> dict[str, Any]:
 
     # 1. シンボルの移行
     new_symbols = []
-    if symbols and isinstance(symbols[0], str):
-        # 古い文字列リスト形式
-        new_symbols = [{"id": i + 1, "char": s, "weight": 1.0, "image_url": None} for i, s in enumerate(symbols)]
-    else:
-        # 辞書リスト形式
-        for i, s in enumerate(symbols):
-            new_s = s.copy()
-            if "id" not in new_s:
-                new_s["id"] = i + 1
-            if "image_url" not in new_s:
-                new_s["image_url"] = None
-            if "weight" not in new_s:
-                new_s["weight"] = 1.0
-            new_symbols.append(new_s)
+    for i, s in enumerate(symbols):
+        new_s = s.copy()
+        if "id" not in new_s:
+            new_s["id"] = i + 1
+        if "image_url" not in new_s:
+            new_s["image_url"] = None
+        if "weight" not in new_s:
+            new_s["weight"] = 1.0
+        new_symbols.append(new_s)
 
-    # 2. 役パターンの移行 (charベースからidベースへ)
-    # 図柄文字からIDへのマップを作成
+    # 2. 役パターンの移行
     char_to_id = {s["char"]: s["id"] for s in new_symbols}
     new_payouts = []
     for p in payouts:
@@ -119,13 +102,16 @@ def migrate_slot_config(config: dict[str, Any]) -> dict[str, Any]:
         old_pattern = p.get("pattern", [])
         new_pattern = []
         for item in old_pattern:
-            # 文字列かつIDマップに存在する場合はIDに変換
             if isinstance(item, str) and item in char_to_id:
                 new_pattern.append(char_to_id[item])
             else:
-                # すでにID（数字）または ANY の場合はそのまま
                 new_pattern.append(item)
         new_p["pattern"] = new_pattern
+        
+        # 分母（denominator）が欠落している場合の計算
+        if "denominator" not in new_p:
+            new_p["denominator"] = 0.0 # 後で確率計算時に補完
+            
         new_payouts.append(new_p)
 
     return {
@@ -145,28 +131,30 @@ def resolve_pattern_to_chars(pattern: list[Any], symbols: list[dict[str, Any]]) 
 
 def calculate_probabilities(symbol_data: list[dict[str, Any]], payouts: list[dict[str, Any]]) -> dict[str, Any]:
     """
-    現在の設定に基づき、各役の成立確率とハズレ確率を計算します。
-    3リール固定の想定です。
+    現在の設定に基づき、各役の成立確率(1/N)とハズレ確率を計算します。
     """
     if not symbol_data:
-        return {"hit_rates": [], "total_hit_rate": 0.0, "miss_rate": 100.0}
+        return {"hit_rates": [], "total_hit_rate": 0.0, "miss_rate": 100.0, "rtp": 0.0}
 
     total_weight = sum(s["weight"] for s in symbol_data)
     if total_weight == 0:
-        return {"hit_rates": [], "total_hit_rate": 0.0, "miss_rate": 100.0}
+        return {"hit_rates": [], "total_hit_rate": 0.0, "miss_rate": 100.0, "rtp": 0.0}
 
     results = []
     total_hit_prob = 0.0
+    total_expected_return = 0.0 # 還元率（RTP）計算用
 
-    # 図柄が少なければ（例: 15個以下）、総当たりで正確に計算可能
+    # 総当たり計算（3リール固定）
     if len(symbol_data) <= 15:
         pattern_counts: dict[str, float] = {p["name"]: 0.0 for p in payouts}
-
-        # 3リールの全組合せの確率を合計
+        
         for s1 in symbol_data:
+            p1 = s1["weight"] / total_weight
             for s2 in symbol_data:
+                p2 = s2["weight"] / total_weight
                 for s3 in symbol_data:
-                    prob = (s1["weight"] / total_weight) * (s2["weight"] / total_weight) * (s3["weight"] / total_weight)
+                    p3 = s3["weight"] / total_weight
+                    prob = p1 * p2 * p3
                     combo_ids = [s1["id"], s2["id"], s3["id"]]
 
                     for p in payouts:
@@ -179,14 +167,10 @@ def calculate_probabilities(symbol_data: list[dict[str, Any]], payouts: list[dic
                         if is_match:
                             pattern_counts[p["name"]] += prob
                             total_hit_prob += prob
+                            total_expected_return += prob * p.get("score", 0)
                             break
-
-        for p in payouts:
-            rate = pattern_counts[p["name"]] * 100
-            results.append({"name": p["name"], "rate": rate})
-
     else:
-        # 図柄が多い場合は近似（IDベース）
+        # 近似計算（独立試行として扱う）
         id_probs = {s["id"]: s["weight"] / total_weight for s in symbol_data}
         for p in payouts:
             prob = 1.0
@@ -196,79 +180,106 @@ def calculate_probabilities(symbol_data: list[dict[str, Any]], payouts: list[dic
                 else:
                     prob *= id_probs.get(item, 0.0)
 
-            rate = prob * 100
-            results.append({"name": p["name"], "rate": rate})
             total_hit_prob += prob
+            total_expected_return += prob * p.get("score", 0)
+
+    # 各役の分母 (1/N) を算出
+    for p in payouts:
+        # pattern_counts がある場合はそれを使用、なければ近似値
+        if len(symbol_data) <= 15:
+            prob = pattern_counts.get(p["name"], 0.0)
+        else:
+            prob = 1.0
+            id_probs = {s["id"]: s["weight"] / total_weight for s in symbol_data}
+            for item in p["pattern"]:
+                prob *= 1.0 if item == "ANY" else id_probs.get(item, 0.0)
+        
+        denominator = round(1.0 / prob, 1) if prob > 0 else 0.0
+        results.append({"name": p["name"], "rate": prob * 100, "denominator": denominator})
 
     return {
         "hit_rates": results,
         "total_hit_rate": total_hit_prob * 100,
         "miss_rate": max(0.0, (1.0 - total_hit_prob) * 100),
+        "rtp": total_expected_return * 100 # 還元率（%）
     }
 
 
-def solve_weights_from_targets(
+def solve_weights_from_denominators(
     symbol_data: list[dict[str, Any]],
     payouts: list[dict[str, Any]],
-    targets: dict[str, float],
-    total_hit_rate: float | None = None,
 ) -> list[dict[str, Any]]:
     """
-    目標とする役の出現確率（%）から、図柄の重みを逆算して更新します。
+    役の分母(1/N)から図柄の重みを逆算して更新します。
+    パチスロ風の簡易逆算ロジック。
     """
-    actual_targets = targets.copy()
-    sum_targets = sum(targets.values())
+    if not symbol_data or not payouts:
+        return symbol_data
 
-    if total_hit_rate is not None and sum_targets > 0:
-        scale = total_hit_rate / sum_targets
-        for name in actual_targets:
-            actual_targets[name] *= scale
-    elif sum_targets > 100.0:
-        scale = 95.0 / sum_targets
-        for name in actual_targets:
-            actual_targets[name] *= scale
-
-    # IDベースで必要な確率を計算
-    required_probs: dict[Any, float] = {s["id"]: 0.0 for s in symbol_data}
+    # 各図柄が必要とされる累積確率（1リールあたり）
+    required_probs: dict[int, float] = {s["id"]: 0.0 for s in symbol_data}
 
     for p in payouts:
-        target_rate = actual_targets.get(p["name"], 0.0) / 100.0
-        if target_rate <= 0:
+        denom = p.get("denominator", 0.0)
+        if denom <= 0:
             continue
-
+        
+        target_prob = 1.0 / denom
         pattern = p["pattern"]
-        unique_ids = [c for s in [set(pattern)] for c in s if c != "ANY"]
-
-        if len(unique_ids) == 1:
-            sym_id = unique_ids[0]
+        
+        # 簡易化: ANYを除いた図柄が均等に寄与すると仮定
+        active_slots = [i for i, item in enumerate(pattern) if item != "ANY"]
+        if not active_slots:
+            continue
+            
+        # 1つの図柄あたりの必要確率 p = target_prob ^ (1/出現回数)
+        # 例: 1/7.3 のリプレイ (4,4,4) なら p = (1/7.3)^(1/3) ≒ 0.51
+        # 例: 1/40 のチェリー (1, ANY, ANY) なら p = (1/40)^(1/1) = 0.025
+        
+        # 実際には複数役で同じ図柄を使うため、最大値を採用
+        unique_ids = set([pattern[i] for i in active_slots])
+        for sym_id in unique_ids:
             count = pattern.count(sym_id)
-            p_val = target_rate ** (1.0 / count)
+            p_val = target_prob ** (1.0 / count)
             required_probs[sym_id] = max(required_probs[sym_id], p_val)
 
+    # 合計確率が1.0を超えないようにスケーリング（ハズレ分を確保）
     total_req = sum(required_probs.values())
-    max_allowed = 0.98
-
+    max_allowed = 0.95 # 5%はハズレ用に空ける
+    
     if total_req > max_allowed:
         scale = max_allowed / total_req
         for sym_id in required_probs:
             required_probs[sym_id] *= scale
         total_req = max_allowed
 
-    remaining_prob = 1.0 - total_req
-    unassigned_symbols = [s["id"] for s in symbol_data if required_probs[s["id"]] < 0.01]
-
-    if unassigned_symbols:
-        p_extra = remaining_prob / len(unassigned_symbols)
-        for sym_id in unassigned_symbols:
+    # 残りの確率を未割り当ての図柄または全図柄に均等配分
+    remaining = 1.0 - total_req
+    
+    # 役に使われていない図柄（ハズレ図柄）を特定
+    used_ids = set()
+    for p in payouts:
+        for item in p["pattern"]:
+            if item != "ANY":
+                used_ids.add(item)
+    
+    unused_symbols = [s["id"] for s in symbol_data if s["id"] not in used_ids]
+    
+    if unused_symbols and remaining > 0:
+        # ハズレ専用図柄がある場合はそこに全配分
+        p_extra = remaining / len(unused_symbols)
+        for sym_id in unused_symbols:
             required_probs[sym_id] += p_extra
     else:
-        p_extra = remaining_prob / len(symbol_data)
+        # すべてが役図柄の場合は、現状の比率を維持して配分（簡易的に全配分）
+        p_extra = remaining / len(symbol_data)
         for sym_id in required_probs:
             required_probs[sym_id] += p_extra
 
     new_symbol_data = []
     for s in symbol_data:
         new_s = s.copy()
+        # 重みを 1000倍して整数に近くする
         new_s["weight"] = max(0.1, round(required_probs[s["id"]] * 1000, 1))
         new_symbol_data.append(new_s)
 
@@ -278,7 +289,6 @@ def solve_weights_from_targets(
 def validate_slot_config(config: dict[str, Any]) -> tuple[bool, str]:
     """
     設定データの整合性をチェックします。
-    (True, "") または (False, "エラーメッセージ") を返します。
     """
     if not config.get("name"):
         return False, "スロットの名前がありません。"
@@ -287,20 +297,14 @@ def validate_slot_config(config: dict[str, Any]) -> tuple[bool, str]:
     if not symbols:
         return False, "図柄が一つも登録されていません。"
 
-    # 図柄の重複チェック
     ids = [s.get("id") for s in symbols if "id" in s]
     if len(ids) != len(set(ids)):
         return False, "図柄のIDが重複しています。"
-
-    chars = [s.get("char") for s in symbols if "char" in s]
-    if len(chars) != len(set(chars)):
-        return False, "図柄の管理用ラベルが重複しています。識別しやすい名前にしてください。"
 
     payouts = config.get("payouts", [])
     if not payouts:
         return False, "役が一つも登録されていません。"
 
-    # 役パターンの整合性チェック
     valid_ids = set(ids)
     for p in payouts:
         if not p.get("name"):

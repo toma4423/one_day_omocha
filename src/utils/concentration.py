@@ -1,6 +1,5 @@
 import random
 from dataclasses import dataclass, field
-from typing import Literal
 
 
 @dataclass

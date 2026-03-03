@@ -1,5 +1,4 @@
 import streamlit as st
-
 from streamlit_local_storage import LocalStorage
 
 from src.utils.concentration import GameState, create_deck, handle_card_click
