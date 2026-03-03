@@ -6,7 +6,7 @@ from typing import Any, TypedDict
 class RouletteItem(TypedDict):
     id: str
     label: str
-    weight: float
+    weight: int
     color: str
     enabled: bool
 
@@ -20,12 +20,12 @@ class RouletteConfig(TypedDict):
 DEFAULT_ROULETTE_CONFIG: RouletteConfig = {
     "title": "カスタムルーレット",
     "items": [
-        {"id": "item_1", "label": "大吉", "weight": 10.0, "color": "#FF4B4B", "enabled": True},
-        {"id": "item_2", "label": "吉", "weight": 30.0, "color": "#FF8F8F", "enabled": True},
-        {"id": "item_3", "label": "中吉", "weight": 20.0, "color": "#FFD700", "enabled": True},
-        {"id": "item_4", "label": "小吉", "weight": 20.0, "color": "#6ED3FF", "enabled": True},
-        {"id": "item_5", "label": "末吉", "weight": 15.0, "color": "#A0A0A0", "enabled": True},
-        {"id": "item_6", "label": "凶", "weight": 5.0, "color": "#333333", "enabled": True},
+        {"id": "item_1", "label": "大吉", "weight": 10, "color": "#FF4B4B", "enabled": True},
+        {"id": "item_2", "label": "吉", "weight": 30, "color": "#FF8F8F", "enabled": True},
+        {"id": "item_3", "label": "中吉", "weight": 20, "color": "#FFD700", "enabled": True},
+        {"id": "item_4", "label": "小吉", "weight": 20, "color": "#6ED3FF", "enabled": True},
+        {"id": "item_5", "label": "末吉", "weight": 15, "color": "#A0A0A0", "enabled": True},
+        {"id": "item_6", "label": "凶", "weight": 5, "color": "#333333", "enabled": True},
     ],
     "sound_enabled": True,
 }
@@ -46,82 +46,6 @@ def pick_roulette_winner(items: list[RouletteItem]) -> RouletteItem:
 
     weights = [item["weight"] for item in active_items]
     return random.choices(active_items, weights=weights, k=1)[0]
-
-
-def normalize_weights(items: list[RouletteItem]) -> list[RouletteItem]:
-    """重みの合計が100%になるように調整します。IDと有効状態は維持します。"""
-    if not items:
-        return []
-
-    # 有効な項目のみを計算対象にするが、リスト全体を返す
-    new_items = []
-    for item in items:
-        new_item = item.copy()
-        try:
-            new_item["weight"] = float(item.get("weight", 0.0))
-        except (ValueError, TypeError):
-            new_item["weight"] = 0.0
-        new_item["enabled"] = item.get("enabled", True)
-        new_items.append(new_item)
-
-    active_items = [item for item in new_items if item["enabled"]]
-    
-    if not active_items:
-        return new_items
-
-    total = sum(item["weight"] for item in active_items)
-
-    if total <= 0:
-        default_weight = 100.0 / len(active_items)
-        for item in active_items:
-            item["weight"] = round(default_weight, 2)
-    else:
-        for item in active_items:
-            # 小数点第2位まで保持
-            item["weight"] = round((item["weight"] / total) * 100.0, 2)
-
-    # 合計が100.0から微妙にずれる場合（丸め誤差）の調整
-    current_total = sum(item["weight"] for item in active_items)
-    if active_items and current_total != 100.0:
-        diff = round(100.0 - current_total, 2)
-        active_items[0]["weight"] = round(active_items[0]["weight"] + diff, 2)
-
-    return new_items
-
-
-def equalize_weights(items: list[RouletteItem]) -> list[RouletteItem]:
-    """有効なすべての項目の重みを均等（合計100%）に設定します。"""
-    if not items:
-        return []
-
-    active_items_count = sum(1 for item in items if item.get("enabled", True))
-    if active_items_count == 0:
-        return items
-
-    weight = round(100.0 / active_items_count, 2)
-
-    new_items = []
-    first_active_found = False
-    active_weight_sum = 0.0
-
-    for item in items:
-        new_item = item.copy()
-        if item.get("enabled", True):
-            new_item["weight"] = weight
-            active_weight_sum += weight
-            if not first_active_found:
-                first_active_idx = len(new_items)
-                first_active_found = True
-        else:
-            new_item["weight"] = 0.0
-        new_items.append(new_item)
-
-    # 丸め誤差調整
-    if first_active_found:
-        diff = round(100.0 - active_weight_sum, 2)
-        new_items[first_active_idx]["weight"] = round(new_items[first_active_idx]["weight"] + diff, 2)
-
-    return new_items
 
 
 def apply_color_preset(items: list[RouletteItem], preset_name: str) -> list[RouletteItem]:
@@ -159,7 +83,7 @@ def validate_roulette_config(config: dict[str, Any]) -> tuple[bool, str]:
 
 
 def migrate_roulette_config(config: dict[str, Any]) -> RouletteConfig:
-    """古い形式や不完全なデータから設定を最新の形式に復元します。IDがない場合は生成します。"""
+    """古い形式や不完全なデータから設定を最新の形式に復元します。"""
     new_config = DEFAULT_ROULETTE_CONFIG.copy()
 
     if not config:
@@ -176,7 +100,7 @@ def migrate_roulette_config(config: dict[str, Any]) -> RouletteConfig:
                 new_item: RouletteItem = {
                     "id": str(item.get("id", f"item_{int(time.time() * 1000)}_{i}")),
                     "label": str(item.get("label", "項目")),
-                    "weight": float(item.get("weight", 1.0)),
+                    "weight": int(item.get("weight", 1)),
                     "color": str(item.get("color", "#CCCCCC")),
                     "enabled": bool(item.get("enabled", True)),
                 }
