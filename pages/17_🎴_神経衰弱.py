@@ -86,7 +86,9 @@ st.markdown("""
 if "concentration_state" not in st.session_state or not hasattr(st.session_state.concentration_state, "mode"):
     # LocalStorage からの復旧を試みる
     saved_mode = storage.get_item("concentration_mode") or "battle"
-    saved_suits = storage.get_item("concentration_use_all_suits") == "true"
+    # 文字列 "true" を boolean に変換
+    saved_suits_raw = storage.get_item("concentration_use_all_suits")
+    saved_suits = (saved_suits_raw == "true")
     
     st.session_state.concentration_state = GameState(
         cards=create_deck(13, use_all_suits=saved_suits),
