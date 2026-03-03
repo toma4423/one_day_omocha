@@ -1,28 +1,29 @@
 import random
 from typing import Any
 
-# 日本のパチスロ（Aタイプ風）のデフォルト設定
-# 図柄（シンボル）：ID, 管理用ラベル, 重み(内部計算用), 画像URL
+# デフォルト設定
 DEFAULT_SYMBOLS = [
-    {"id": 1, "char": "🍒", "weight": 25.0, "image_url": None},  # チェリー
-    {"id": 2, "char": "🔔", "weight": 83.3, "image_url": None},  # ベル
-    {"id": 3, "char": "🍉", "weight": 12.5, "image_url": None},  # スイカ
-    {"id": 5, "char": "7️⃣", "weight": 3.9, "image_url": None},  # 7 (BIG)
-    {"id": 6, "char": "⬛", "weight": 2.5, "image_url": None},  # BAR (REG)
+    {"id": 1, "char": "🍒", "weight": 15.0, "image_url": None},
+    {"id": 2, "char": "🍋", "weight": 10.0, "image_url": None},
+    {"id": 3, "char": "🍉", "weight": 7.0, "image_url": None},
+    {"id": 4, "char": "🔔", "weight": 5.0, "image_url": None},
+    {"id": 5, "char": "⭐", "weight": 3.0, "image_url": None},
+    {"id": 6, "char": "7️⃣", "weight": 2.0, "image_url": None},
 ]
 
-# デフォルトの役（ペイアウト）設定
-# pattern: [左, 中, 右], denominator: 1/N の分母 (表示/設定用)
-# score: 払い出し枚数
+# デフォルトの役設定
 DEFAULT_PAYOUTS = [
-    {"pattern": [5, 5, 5], "name": "BIG BONUS (777)", "score": 300, "denominator": 256.0},
-    {"pattern": [6, 6, 6], "name": "REG BONUS (BAR)", "score": 100, "denominator": 400.0},
-    {"pattern": [2, 2, 2], "name": "ベル", "score": 8, "denominator": 12.0},
-    {"pattern": [3, 3, 3], "name": "スイカ", "score": 12, "denominator": 80.0},
-    {"pattern": [1, "ANY", "ANY"], "name": "チェリー", "score": 2, "denominator": 40.0},
+    {"pattern": [6, 6, 6], "name": "超大当り (777)", "score": 0, "denominator": 30.0},
+    {"pattern": [5, 5, 5], "name": "大当り (STAR)", "score": 0, "denominator": 25.0},
+    {"pattern": [4, 4, 4], "name": "ベル", "score": 0, "denominator": 20.0},
+    {"pattern": [3, 3, 3], "name": "スイカ", "score": 0, "denominator": 15.0},
+    {"pattern": [2, 2, 2], "name": "レモン", "score": 0, "denominator": 12.0},
+    {"pattern": [1, 1, 1], "name": "チェリー", "score": 0, "denominator": 10.0},
+    {"pattern": [1, 1, "ANY"], "name": "ミニチェリー", "score": 0, "denominator": 7.0},
 ]
 
-DEFAULT_SLOT_NAME = "ジャグラー風スロット"
+DEFAULT_SLOT_NAME = "標準スロット"
+
 
 
 def spin_reels(symbol_data: list[dict[str, Any]], count: int = 3) -> list[dict[str, Any]]:
