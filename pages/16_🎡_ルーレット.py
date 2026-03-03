@@ -216,6 +216,7 @@ with col_sidebar:
         to_delete_id = None
         move_up_idx = -1
         move_down_idx = -1
+        any_change = False
 
         for idx, item in enumerate(current_items):
             iid = item["id"]
@@ -223,7 +224,6 @@ with col_sidebar:
                 # 上段：ラベルと有効化
                 col_en, col_lab, col_weight = st.columns([0.5, 3.5, 1])
                 with col_en:
-                    # 有効・無効チェックボックス
                     new_enabled = st.checkbox(
                         "有効", value=item.get("enabled", True), key=f"enabled_{iid}", label_visibility="collapsed"
                     )
@@ -236,7 +236,7 @@ with col_sidebar:
                         "重み",
                         value=float(item["weight"]),
                         min_value=0.0,
-                        step=0.01, # 小数点第2位まで
+                        step=0.01,
                         format="%.2f",
                         key=f"weight_{iid}",
                         label_visibility="collapsed",
@@ -258,29 +258,37 @@ with col_sidebar:
                     if st.button("🗑️", key=f"del_{iid}", use_container_width=True):
                         to_delete_id = iid
 
-                new_items_list.append({
+                # 変更検知
+                updated_item = {
                     "id": iid, 
                     "label": new_label, 
                     "weight": new_weight, 
                     "color": new_color,
                     "enabled": new_enabled
-                })
+                }
+                new_items_list.append(updated_item)
+                
+                # いずれかの値が変更されていたらフラグを立てる
+                if updated_item != item:
+                    any_change = True
+
                 st.markdown("<hr style='margin: 5px 0 !important;'>", unsafe_allow_html=True)
 
-        # 並び替え・削除・更新処理
+        # 即時反映・並び替え・削除処理
         rerun_needed = False
         if to_delete_id:
             new_items_list = [it for it in new_items_list if it["id"] != to_delete_id]
             rerun_needed = True
         elif move_up_idx > 0:
-            # 入れ替え
             new_items_list[move_up_idx], new_items_list[move_up_idx - 1] = \
                 new_items_list[move_up_idx - 1], new_items_list[move_up_idx]
             rerun_needed = True
         elif move_down_idx >= 0 and move_down_idx < len(new_items_list) - 1:
-            # 入れ替え
             new_items_list[move_down_idx], new_items_list[move_down_idx + 1] = \
                 new_items_list[move_down_idx + 1], new_items_list[move_down_idx]
+            rerun_needed = True
+        elif any_change:
+            # 変更があった場合、セッション状態を更新して再描画
             rerun_needed = True
 
         if rerun_needed:
@@ -288,10 +296,10 @@ with col_sidebar:
             storage.set_item("roulette_config", st.session_state.roulette_config)
             st.rerun()
 
-        if st.button("💾 設定を保存して反映", use_container_width=True, type="primary"):
+        if st.button("⚖️ 重みを正規化して保存", use_container_width=True, type="primary"):
             st.session_state.roulette_config["items"] = normalize_weights(new_items_list)
             storage.set_item("roulette_config", st.session_state.roulette_config)
-            st.success("保存しました！")
+            st.success("正規化して保存しました！")
             st.rerun()
 
     st.session_state.roulette_config["sound_enabled"] = st.toggle(
