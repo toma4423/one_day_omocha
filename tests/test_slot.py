@@ -75,3 +75,32 @@ def test_evaluate_slot_spin_any():
     result = evaluate_slot_spin([{"id": 1}, {"id": 2}, {"id": 3}], payouts)
     assert result is not None
     assert result["name"] == "CHERRY"
+
+
+def test_full_config_load_and_validate():
+    # スロット作成ページから出力されるようなJSONデータを模したテスト
+    config_data = {
+        "name": "Custom Slot",
+        "symbols": [
+            {"id": 1, "char": "💎", "weight": 10.0},
+            {"id": 2, "char": "7", "weight": 5.0}
+        ],
+        "payouts": [
+            {"name": "Jackpot", "pattern": [2, 2, 2], "denominator": 100.0}
+        ]
+    }
+    
+    # 1. マイグレーション
+    migrated = migrate_slot_config(config_data)
+    assert migrated["name"] == "Custom Slot"
+    assert "image_url" in migrated["symbols"][0] # 補完されていること
+    
+    # 2. バリデーション
+    is_valid, msg = validate_slot_config(migrated)
+    assert is_valid is True
+    assert msg == ""
+    
+    # 3. 確率計算ができるか
+    probs = calculate_probabilities(migrated["symbols"], migrated["payouts"])
+    assert "hit_rates" in probs
+    assert probs["hit_rates"][0]["name"] == "Jackpot"

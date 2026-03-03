@@ -192,6 +192,27 @@ with tab2:
 with st.sidebar:
     st.header("⚙️ 設定")
     st.session_state.slot_sound_enabled = st.toggle("🔊 サウンドを有効にする", value=st.session_state.slot_sound_enabled)
+    
+    st.write("---")
+    st.subheader("📥 設定の読み込み")
+    uploaded_file = st.file_uploader("設定JSONを読み込む", type="json")
+    if uploaded_file and st.button("設定を反映", use_container_width=True):
+        try:
+            from src.utils.slot import migrate_slot_config, validate_slot_config
+            data = json.load(uploaded_file)
+            migrated = migrate_slot_config(data)
+            valid, msg = validate_slot_config(migrated)
+            if valid:
+                st.session_state.slot_config = migrated
+                storage.set_item("slot_config", migrated)
+                st.success("設定を反映しました！")
+                st.rerun()
+            else:
+                st.error(msg)
+        except Exception as e:
+            st.error(f"読込失敗: {e}")
+
+    st.write("---")
     if st.button("統計をリセット"):
         st.session_state.slot_spins = 0
         st.session_state.slot_counts = {}
