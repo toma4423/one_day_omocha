@@ -132,13 +132,10 @@ with st.container(border=True):
 
     for i, payout in enumerate(current_payouts):
         with st.expander(f"役 {i + 1}: {payout['name']} (1/{payout.get('denominator', '??')})"):
-            col_name, col_score, col_denom = st.columns([2, 1, 1])
+            col_name, col_denom = st.columns([3, 1])
             with col_name:
                 p_name = st.text_input("役名", payout["name"], key=f"p_name_{i}")
-            with col_score:
-                p_score = st.number_input("配当枚数(参考)", value=int(payout.get("score", 0)), min_value=0, key=f"p_score_{i}", help="当たった時に表示される仮想の払い出し枚数です。")
             with col_denom:
-                # エラー対策: value が min_value を下回らないようにガード
                 current_denom = float(payout.get("denominator", 10.0))
                 min_denom = 1.1
                 p_denom = st.number_input(
@@ -164,7 +161,7 @@ with st.container(border=True):
             
             updated_payouts.append({
                 "name": p_name, 
-                "score": p_score, 
+                "score": 0, # 配当枚数は不要
                 "denominator": p_denom,
                 "pattern": [p_1, p_2, p_3]
             })
@@ -175,7 +172,6 @@ with st.container(border=True):
     st.write("🆕 **新しい役を追加**")
     with st.expander("新規役の追加フォーム"):
         add_name = st.text_input("新しい役名", "新規役", key="add_name")
-        add_score = st.number_input("新しい配当枚数", value=10, key="add_score")
         add_denom = st.number_input("新しい分母 (1/N)", value=100.0, min_value=1.1, key="add_denom")
         ca1, ca2, ca3 = st.columns(3)
         with ca1:
@@ -186,7 +182,7 @@ with st.container(border=True):
             p_add3 = st.selectbox("右図柄 ID", symbol_ids, format_func=get_label, key="p_add3")
         if st.button("役を追加する", use_container_width=True):
             st.session_state.slot_config_edit["payouts"].append({
-                "name": add_name, "score": add_score, "denominator": add_denom, "pattern": [p_add1, p_add2, p_add3]
+                "name": add_name, "score": 0, "denominator": add_denom, "pattern": [p_add1, p_add2, p_add3]
             })
             st.rerun()
 
