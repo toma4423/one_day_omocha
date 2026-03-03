@@ -14,7 +14,8 @@ render_page_header()
 storage = SafeStorage(LocalStorage())
 
 # 基本的なカードスタイル定義
-st.markdown("""
+st.markdown(
+    """
 <style>
     /* 盤面（メインエリア）のカードボタンのみに適用 */
     [data-testid="stMain"] .stButton > button {
@@ -79,14 +80,14 @@ st.markdown("""
         padding: 0 2px !important;
     }
 </style>
-""", unsafe_allow_html=True)
+""",
+    unsafe_allow_html=True,
+)
 
 # セッション状態の初期化 (リロード時は最初から)
 if "concentration_state" not in st.session_state or not hasattr(st.session_state.concentration_state, "mode"):
     st.session_state.concentration_state = GameState(
-        cards=create_deck(13, use_all_suits=False),
-        mode="battle",
-        use_all_suits=False
+        cards=create_deck(13, use_all_suits=False), mode="battle", use_all_suits=False
     )
 
 state = st.session_state.concentration_state
@@ -98,7 +99,7 @@ col_s1, col_msg, col_s2 = st.columns([1, 2, 1])
 
 with col_s1:
     if state.mode == "battle":
-        is_active = (state.current_player == 0)
+        is_active = state.current_player == 0
         render_result_box(
             "Player 1",
             str(state.scores[0]),
@@ -117,7 +118,7 @@ with col_s1:
 
 with col_s2:
     if state.mode == "battle":
-        is_active = (state.current_player == 1)
+        is_active = state.current_player == 1
         render_result_box(
             "Player 2",
             str(state.scores[1]),
@@ -141,7 +142,7 @@ with col_msg:
             st.session_state.concentration_state = GameState(
                 cards=create_deck(13, use_all_suits=state.use_all_suits),
                 use_all_suits=state.use_all_suits,
-                mode=state.mode
+                mode=state.mode,
             )
             st.rerun()
 
@@ -157,13 +158,13 @@ for r in range(rows):
         idx = r * cards_per_row + c
         if idx < len(state.cards):
             card = state.cards[idx]
-            
+
             with cols[c]:
                 if card.is_matched:
                     # マッチ済み
                     st.markdown('<div class="card-matched">', unsafe_allow_html=True)
                     st.button("GET", key=f"card_{idx}", disabled=True, use_container_width=True)
-                    st.markdown('</div>', unsafe_allow_html=True)
+                    st.markdown("</div>", unsafe_allow_html=True)
                 elif card.is_flipped:
                     # 表
                     color_class = "red" if card.is_red else "black"
@@ -171,51 +172,47 @@ for r in range(rows):
                     # 改行を入れて縦に並べる
                     label = f"{card.rank}\n{card.suit}"
                     st.button(label, key=f"card_{idx}", disabled=True, use_container_width=True)
-                    st.markdown('</div>', unsafe_allow_html=True)
+                    st.markdown("</div>", unsafe_allow_html=True)
                 else:
                     # 裏（クリック可能）
                     st.markdown('<div class="card-back">', unsafe_allow_html=True)
                     if st.button("？", key=f"card_{idx}", use_container_width=True):
                         st.session_state.concentration_state = handle_card_click(state, idx)
                         st.rerun()
-                    st.markdown('</div>', unsafe_allow_html=True)
+                    st.markdown("</div>", unsafe_allow_html=True)
 
 # サイドバー設定
 with st.sidebar:
     st.header("⚙️ 設定・モード")
-    
+
     # モード選択
     mode_map = {"1人プレイ": "single", "2人対戦": "battle"}
     mode_labels = list(mode_map.keys())
     current_mode_idx = 1 if state.mode == "battle" else 0
-    
+
     selected_label = st.radio("ゲームモード", options=mode_labels, index=current_mode_idx)
     new_mode = mode_map[selected_label]
-    
+
     # カード枚数選択
     suit_options = ["初級 (2スート・26枚)", "上級 (全スート・52枚)"]
     current_suit_idx = 1 if state.use_all_suits else 0
     selected_suit_label = st.radio("カード枚数", options=suit_options, index=current_suit_idx)
-    new_use_all = (selected_suit_label == suit_options[1])
-    
+    new_use_all = selected_suit_label == suit_options[1]
+
     # 設定の反映
     if new_mode != state.mode or new_use_all != state.use_all_suits:
         if st.button("⚠️ 設定を反映してリセット"):
             st.session_state.concentration_state = GameState(
-                cards=create_deck(13, use_all_suits=new_use_all),
-                use_all_suits=new_use_all,
-                mode=new_mode
+                cards=create_deck(13, use_all_suits=new_use_all), use_all_suits=new_use_all, mode=new_mode
             )
             st.rerun()
 
     if st.button("🚨 ゲームをリセット", use_container_width=True):
         st.session_state.concentration_state = GameState(
-            cards=create_deck(13, use_all_suits=state.use_all_suits),
-            use_all_suits=state.use_all_suits,
-            mode=state.mode
+            cards=create_deck(13, use_all_suits=state.use_all_suits), use_all_suits=state.use_all_suits, mode=state.mode
         )
         st.rerun()
-    
+
     st.info("""
     **ルール:**
     - めくったカードが同じ数字なら「GET」になります。

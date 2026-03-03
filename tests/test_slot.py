@@ -46,11 +46,11 @@ def test_calculate_probabilities_rtp():
     # 1/10 で 10枚払い出し => 還元率 100%
     symbols = [{"id": 1, "char": "7", "weight": 1.0}]
     payouts = [{"name": "BIG", "pattern": [1, 1, 1], "score": 10, "denominator": 1.0}]
-    
+
     # 1種類しかないので確率は100%
     probs = calculate_probabilities(symbols, payouts)
-    assert probs["rtp"] == 1000.0 # 10枚 * 100% = 1000%
-    
+    assert probs["rtp"] == 1000.0  # 10枚 * 100% = 1000%
+
     # より現実的な例: 2種類(A, B)が1:1、AAAが10枚
     symbols = [
         {"id": 1, "char": "A", "weight": 1.0},
@@ -68,12 +68,12 @@ def test_solve_weights_from_denominators():
         {"id": 2, "char": "Blank", "weight": 1.0},
     ]
     payouts = [
-        {"name": "JACKPOT", "pattern": [1, 1, 1], "denominator": 8.0}, # 1/8 = 12.5%
+        {"name": "JACKPOT", "pattern": [1, 1, 1], "denominator": 8.0},  # 1/8 = 12.5%
     ]
-    
+
     new_symbols = solve_weights_from_denominators(symbols, payouts)
     probs = calculate_probabilities(new_symbols, payouts)
-    
+
     # 逆算後の確率が 1/8 (12.5%) に近いことを確認
     assert 11.0 <= probs["hit_rates"][0]["rate"] <= 14.0
 

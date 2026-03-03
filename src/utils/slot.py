@@ -4,11 +4,11 @@ from typing import Any
 # 日本のパチスロ（Aタイプ風）のデフォルト設定
 # 図柄（シンボル）：ID, 管理用ラベル, 重み(内部計算用), 画像URL
 DEFAULT_SYMBOLS = [
-    {"id": 1, "char": "🍒", "weight": 25.0, "image_url": None},      # チェリー
-    {"id": 2, "char": "🔔", "weight": 83.3, "image_url": None},      # ベル
-    {"id": 3, "char": "🍉", "weight": 12.5, "image_url": None},      # スイカ
-    {"id": 5, "char": "7️⃣", "weight": 3.9, "image_url": None},       # 7 (BIG)
-    {"id": 6, "char": "⬛", "weight": 2.5, "image_url": None},       # BAR (REG)
+    {"id": 1, "char": "🍒", "weight": 25.0, "image_url": None},  # チェリー
+    {"id": 2, "char": "🔔", "weight": 83.3, "image_url": None},  # ベル
+    {"id": 3, "char": "🍉", "weight": 12.5, "image_url": None},  # スイカ
+    {"id": 5, "char": "7️⃣", "weight": 3.9, "image_url": None},  # 7 (BIG)
+    {"id": 6, "char": "⬛", "weight": 2.5, "image_url": None},  # BAR (REG)
 ]
 
 # デフォルトの役（ペイアウト）設定
@@ -107,11 +107,11 @@ def migrate_slot_config(config: dict[str, Any]) -> dict[str, Any]:
             else:
                 new_pattern.append(item)
         new_p["pattern"] = new_pattern
-        
+
         # 分母（denominator）が欠落している場合の計算
         if "denominator" not in new_p:
-            new_p["denominator"] = 0.0 # 後で確率計算時に補完
-            
+            new_p["denominator"] = 0.0  # 後で確率計算時に補完
+
         new_payouts.append(new_p)
 
     return {
@@ -142,12 +142,12 @@ def calculate_probabilities(symbol_data: list[dict[str, Any]], payouts: list[dic
 
     results = []
     total_hit_prob = 0.0
-    total_expected_return = 0.0 # 還元率（RTP）計算用
+    total_expected_return = 0.0  # 還元率（RTP）計算用
 
     # 総当たり計算（3リール固定）
     if len(symbol_data) <= 15:
         pattern_counts: dict[str, float] = {p["name"]: 0.0 for p in payouts}
-        
+
         for s1 in symbol_data:
             p1 = s1["weight"] / total_weight
             for s2 in symbol_data:
@@ -193,7 +193,7 @@ def calculate_probabilities(symbol_data: list[dict[str, Any]], payouts: list[dic
             id_probs = {s["id"]: s["weight"] / total_weight for s in symbol_data}
             for item in p["pattern"]:
                 prob *= 1.0 if item == "ANY" else id_probs.get(item, 0.0)
-        
+
         denominator = round(1.0 / prob, 1) if prob > 0 else 0.0
         results.append({"name": p["name"], "rate": prob * 100, "denominator": denominator})
 
@@ -201,7 +201,7 @@ def calculate_probabilities(symbol_data: list[dict[str, Any]], payouts: list[dic
         "hit_rates": results,
         "total_hit_rate": total_hit_prob * 100,
         "miss_rate": max(0.0, (1.0 - total_hit_prob) * 100),
-        "rtp": total_expected_return * 100 # 還元率（%）
+        "rtp": total_expected_return * 100,  # 還元率（%）
     }
 
 
@@ -223,19 +223,19 @@ def solve_weights_from_denominators(
         denom = p.get("denominator", 0.0)
         if denom <= 0:
             continue
-        
+
         target_prob = 1.0 / denom
         pattern = p["pattern"]
-        
+
         # 簡易化: ANYを除いた図柄が均等に寄与すると仮定
         active_slots = [i for i, item in enumerate(pattern) if item != "ANY"]
         if not active_slots:
             continue
-            
+
         # 1つの図柄あたりの必要確率 p = target_prob ^ (1/出現回数)
         # 例: 1/7.3 のリプレイ (4,4,4) なら p = (1/7.3)^(1/3) ≒ 0.51
         # 例: 1/40 のチェリー (1, ANY, ANY) なら p = (1/40)^(1/1) = 0.025
-        
+
         # 実際には複数役で同じ図柄を使うため、最大値を採用
         unique_ids = set([pattern[i] for i in active_slots])
         for sym_id in unique_ids:
@@ -245,8 +245,8 @@ def solve_weights_from_denominators(
 
     # 合計確率が1.0を超えないようにスケーリング（ハズレ分を確保）
     total_req = sum(required_probs.values())
-    max_allowed = 0.95 # 5%はハズレ用に空ける
-    
+    max_allowed = 0.95  # 5%はハズレ用に空ける
+
     if total_req > max_allowed:
         scale = max_allowed / total_req
         for sym_id in required_probs:
@@ -255,16 +255,16 @@ def solve_weights_from_denominators(
 
     # 残りの確率を未割り当ての図柄または全図柄に均等配分
     remaining = 1.0 - total_req
-    
+
     # 役に使われていない図柄（ハズレ図柄）を特定
     used_ids = set()
     for p in payouts:
         for item in p["pattern"]:
             if item != "ANY":
                 used_ids.add(item)
-    
+
     unused_symbols = [s["id"] for s in symbol_data if s["id"] not in used_ids]
-    
+
     if unused_symbols and remaining > 0:
         # ハズレ専用図柄がある場合はそこに全配分
         p_extra = remaining / len(unused_symbols)

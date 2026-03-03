@@ -129,7 +129,7 @@ with col_main:
                 if item["id"] == winner["id"]:
                     winner_idx = i
                     break
-            
+
             st.session_state.roulette_last_winner = winner
             st.session_state.roulette_winner_index = winner_idx
             st.session_state.roulette_spin_trigger += 1
@@ -194,20 +194,26 @@ with col_sidebar:
             new_id = f"item_{int(time.time() * 1000)}"
             rand_color = f"#{random.randint(0, 0xFFFFFF):06x}"
             current_items.append(
-                {"id": new_id, "label": f"項目 {len(current_items) + 1}", "weight": 0, "color": rand_color, "enabled": True}
+                {
+                    "id": new_id,
+                    "label": f"項目 {len(current_items) + 1}",
+                    "weight": 0,
+                    "color": rand_color,
+                    "enabled": True,
+                }
             )
             st.session_state.roulette_config["items"] = current_items
             storage.set_item("roulette_config", st.session_state.roulette_config)
             st.rerun()
-            
+
         # 現在の合計を計算
         active_indices = [i for i, it in enumerate(current_items) if it.get("enabled", True)]
         total_weight = sum(current_items[i]["weight"] for i in active_indices)
-        
+
         if total_weight != 100:
             diff = 100 - total_weight
             st.warning(f"⚠️ 合計が {total_weight}% です（あと {diff}% 必要です）")
-            
+
             if st.button("⚖️ 残りを自動配分", use_container_width=True):
                 if active_indices:
                     n = len(active_indices)
@@ -216,18 +222,18 @@ with col_sidebar:
                     # 例: -10 // 3 = -4, -10 % 3 = 2 -> (-3,-3,-4) に配分
                     base_change = diff // n
                     remainder = diff % n
-                    
+
                     new_items = [it.copy() for it in current_items]
                     for count, idx in enumerate(active_indices):
                         adj = base_change + (1 if count < remainder else 0)
                         # マイナスにならないように調整しつつ加算
                         new_val = max(0, new_items[idx]["weight"] + adj)
                         new_items[idx]["weight"] = int(new_val)
-                    
+
                     # 最後に合計を再チェックし、max(0)でずれた分を微調整（念のため）
                     new_total = sum(new_items[i]["weight"] for i in active_indices)
                     if new_total != 100 and active_indices:
-                        new_items[active_indices[0]]["weight"] += (100 - new_total)
+                        new_items[active_indices[0]]["weight"] += 100 - new_total
 
                     st.session_state.roulette_config["items"] = new_items
                     storage.set_item("roulette_config", st.session_state.roulette_config)
@@ -287,7 +293,9 @@ with col_sidebar:
                     if st.button("↑", key=f"up_{iid}", use_container_width=True, disabled=(idx == 0)):
                         move_up_idx = idx
                 with col_down:
-                    if st.button("↓", key=f"down_{iid}", use_container_width=True, disabled=(idx == len(current_items) - 1)):
+                    if st.button(
+                        "↓", key=f"down_{iid}", use_container_width=True, disabled=(idx == len(current_items) - 1)
+                    ):
                         move_down_idx = idx
                 with col_del:
                     if st.button("🗑️", key=f"del_{iid}", use_container_width=True):
@@ -295,14 +303,14 @@ with col_sidebar:
 
                 # 変更検知
                 updated_item = {
-                    "id": iid, 
-                    "label": new_label, 
-                    "weight": new_weight, 
+                    "id": iid,
+                    "label": new_label,
+                    "weight": new_weight,
                     "color": new_color,
-                    "enabled": new_enabled
+                    "enabled": new_enabled,
                 }
                 new_items_list.append(updated_item)
-                
+
                 if updated_item != item:
                     any_change = True
 
@@ -314,12 +322,16 @@ with col_sidebar:
             new_items_list = [it for it in new_items_list if it["id"] != to_delete_id]
             rerun_needed = True
         elif move_up_idx > 0:
-            new_items_list[move_up_idx], new_items_list[move_up_idx - 1] = \
-                new_items_list[move_up_idx - 1], new_items_list[move_up_idx]
+            new_items_list[move_up_idx], new_items_list[move_up_idx - 1] = (
+                new_items_list[move_up_idx - 1],
+                new_items_list[move_up_idx],
+            )
             rerun_needed = True
         elif move_down_idx >= 0 and move_down_idx < len(new_items_list) - 1:
-            new_items_list[move_down_idx], new_items_list[move_down_idx + 1] = \
-                new_items_list[move_down_idx + 1], new_items_list[move_down_idx]
+            new_items_list[move_down_idx], new_items_list[move_down_idx + 1] = (
+                new_items_list[move_down_idx + 1],
+                new_items_list[move_down_idx],
+            )
             rerun_needed = True
         elif any_change:
             rerun_needed = True

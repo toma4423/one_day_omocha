@@ -22,7 +22,7 @@ class Card:
 @dataclass
 class GameState:
     cards: list[Card] = field(default_factory=list)
-    mode: str = "battle" # "single" or "battle"
+    mode: str = "battle"  # "single" or "battle"
     current_player: int = 0  # 0 or 1
     scores: list[int] = field(default_factory=lambda: [0, 0])
     selected_indices: list[int] = field(default_factory=list)
@@ -40,16 +40,16 @@ def create_deck(num_pairs: int = 13, use_all_suits: bool = False) -> list[Card]:
     """
     ranks = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"]
     suits = ["♠", "♥", "♣", "♦"] if use_all_suits else ["♠", "♥"]
-    
+
     selected_ranks = ranks[:num_pairs]
     deck = []
     card_id = 0
-    
+
     for rank in selected_ranks:
         for suit in suits:
             deck.append(Card(id=card_id, rank=rank, suit=suit))
             card_id += 1
-            
+
     random.shuffle(deck)
     return deck
 
@@ -83,12 +83,12 @@ def handle_card_click(state: GameState, index: int) -> GameState:
             card1.is_matched = True
             card2.is_matched = True
             state.scores[state.current_player] += 1
-            
+
             if state.mode == "battle":
                 state.message = f"プレイヤー{state.current_player + 1}がマッチ成功！もう一度引けます。"
             else:
                 state.message = "マッチ成功！"
-                
+
             # 全カードマッチ判定
             if all(c.is_matched for c in state.cards):
                 state.game_over = True

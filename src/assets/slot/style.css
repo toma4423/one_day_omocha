@@ -3,22 +3,25 @@
     justify-content: center;
     gap: 15px;
     background: #444;
-    padding: 20px;
+    padding: 30px 20px;
     border-radius: 20px;
-    border: 8px solid #222;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    border: 10px solid #222;
+    box-shadow: 0 15px 40px rgba(0,0,0,0.6);
     margin-bottom: 20px;
+    position: relative;
+    overflow: hidden;
 }
 
 .reel-window {
     width: 120px;
     height: 120px;
     background: white;
-    border: 4px solid #333;
-    border-radius: 10px;
+    border: 5px solid #333;
+    border-radius: 12px;
     overflow: hidden;
     position: relative;
-    box-shadow: inset 0 0 15px rgba(0,0,0,0.3);
+    box-shadow: inset 0 0 20px rgba(0,0,0,0.4);
+    z-index: 1;
 }
 
 .reel-strip {
@@ -26,10 +29,6 @@
     top: 0;
     left: 0;
     width: 100%;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    transition: transform 0.1s linear; /* 回転中はリニア */
 }
 
 .symbol {
@@ -39,7 +38,7 @@
     align-items: center;
     justify-content: center;
     font-size: 60px;
-    flex-shrink: 0;
+    user-select: none;
 }
 
 .symbol img {
@@ -48,7 +47,55 @@
     object-fit: contain;
 }
 
-/* 停止時の滑らかな減速アニメーション */
+/* 停止アニメーション */
 .reel-strip.stopping {
-    transition: transform 1.5s cubic-bezier(0.1, 0.7, 0.1, 1.0);
+    /* JavaScriptで制御 */
+}
+
+/* 結果表示オーバーレイ */
+.slot-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.0);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+    pointer-events: none;
+    transition: background 0.5s;
+}
+
+.slot-overlay.show {
+    background: rgba(0,0,0,0.4);
+}
+
+.win-announcement {
+    font-size: 40px;
+    font-weight: bold;
+    color: #ffeb3b;
+    text-shadow: 0 0 10px #f44336, 0 0 20px #f44336;
+    transform: scale(0);
+    transition: transform 0.5s cubic-bezier(0.17, 0.89, 0.32, 1.49);
+}
+
+.slot-overlay.show .win-announcement {
+    transform: scale(1.2);
+}
+
+/* 紙吹雪エフェクト */
+.confetti {
+    position: absolute;
+    width: 10px;
+    height: 10px;
+    top: -10px;
+    z-index: 5;
+    animation: confetti-fall 4s linear forwards;
+}
+
+@keyframes confetti-fall {
+    0% { transform: translateY(0) rotate(0deg); opacity: 1; }
+    100% { transform: translateY(300px) rotate(720deg); opacity: 0; }
 }

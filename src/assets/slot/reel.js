@@ -1,15 +1,28 @@
 let reels = [];
 let isSpinning = false;
-let startSound, winSound;
+let startSound = null;
+let winSound = null;
+
+// 音源の初期化（一度だけ行う）
+function initSounds() {
+    if (!startSound) {
+        startSound = new Audio("https://actions.google.com/sounds/v1/science_fiction/beep_button.ogg");
+    }
+    if (!winSound) {
+        winSound = new Audio("https://actions.google.com/sounds/v1/celebration/horns_hooray.ogg");
+    }
+}
 
 function setupSlot(config) {
     const container = document.getElementById('slot-container');
     container.innerHTML = '';
     reels = [];
-
-    // 音源の準備
-    startSound = new Audio("https://actions.google.com/sounds/v1/science_fiction/beep_button.ogg");
-    winSound = new Audio("https://actions.google.com/sounds/v1/celebration/horns_hooray.ogg");
+    
+    // 結果表示用のレイヤーを追加
+    const overlay = document.createElement('div');
+    overlay.id = 'slot-overlay';
+    overlay.className = 'slot-overlay';
+    container.appendChild(overlay);
 
     for (let i = 0; i < 3; i++) {
         const window = document.createElement('div');
@@ -19,17 +32,16 @@ function setupSlot(config) {
         strip.className = 'reel-strip';
         strip.id = `reel-${i}`;
         
-        // 初期図柄（config.initialReels）
-        const initialSymbol = config.initialReels[i];
-        renderSymbol(strip, initialSymbol);
+        renderSymbol(strip, config.initialReels[i]);
         
         window.appendChild(strip);
         container.appendChild(window);
         reels.push(strip);
     }
 
-    // スピン実行の検知
+    // スピン実行
     if (config.spinTrigger > 0 && !isSpinning) {
+        initSounds();
         startSpin(config);
     }
 }
@@ -38,7 +50,7 @@ function renderSymbol(parent, symbol) {
     const div = document.createElement('div');
     div.className = 'symbol';
     if (symbol.image_url) {
-        div.innerHTML = `<img src="${symbol.image_url}">`;
+        div.innerHTML = `<img src="${symbol.image_url}" onerror="this.src=''; this.innerText='${symbol.char}';">`;
     } else {
         div.textContent = symbol.char;
     }
@@ -47,57 +59,79 @@ function renderSymbol(parent, symbol) {
 
 function startSpin(config) {
     isSpinning = true;
-    if (config.soundEnabled) startSound.play();
+    const overlay = document.getElementById('slot-overlay');
+    overlay.classList.remove('show');
+    overlay.innerHTML = '';
+
+    // 始動音の再生
+    if (config.soundEnabled && startSound) {
+        startSound.currentTime = 0;
+        startSound.play().catch(e => console.log("Sound play blocked:", e));
+    }
+
+    const symbolHeight = 120;
+    const dummyCount = 30; // 回転量
 
     reels.forEach((strip, i) => {
-        // 回転演出用のダミー図柄を大量に追加
         strip.innerHTML = '';
-        
-        // 現在の図柄
         renderSymbol(strip, config.initialReels[i]);
         
-        // ダミー（20個くらい）
-        for (let d = 0; d < 20; d++) {
+        for (let d = 0; d < dummyCount; d++) {
             const randSym = config.symbols[Math.floor(Math.random() * config.symbols.length)];
             renderSymbol(strip, randSym);
         }
         
-        // 最終的な当たり図柄
         renderSymbol(strip, config.targetReels[i]);
 
-        // アニメーション開始
-        const symbolHeight = 120;
-        const totalHeight = (20 + 1) * symbolHeight;
-        
         strip.classList.remove('stopping');
         strip.style.transition = 'none';
         strip.style.transform = 'translateY(0)';
         
-        // 次のフレームでアニメーション実行
-        requestAnimationFrame(() => {
-            // 停止タイミングをずらす (0.5s, 1.0s, 1.5s)
+        const totalHeight = (dummyCount + 1) * symbolHeight;
+        
+        setTimeout(() => {
             strip.classList.add('stopping');
-            strip.style.transition = `transform ${1.5 + i * 0.5}s cubic-bezier(0.1, 0.7, 0.1, 1.0)`;
+            // 停止時間をずらす（パチスロ風）
+            const duration = 1.5 + (i * 0.6); 
+            strip.style.transition = `transform ${duration}s cubic-bezier(0.1, 0.4, 0.1, 1.1)`;
             strip.style.transform = `translateY(-${totalHeight}px)`;
-        });
+        }, 50);
     });
 
-    // 全リール停止後の処理 (一番遅いリールに合わせる)
+    // 全リール停止後（一番遅いリールが止まるタイミング）
+    const totalDuration = (1.5 + (2 * 0.6)) * 1000;
     setTimeout(() => {
         isSpinning = false;
-        if (config.isWin && config.soundEnabled) {
-            winSound.play();
+        if (config.isWin) {
+            showWinEffect(config);
         }
-    }, 1500 + 2 * 500);
+    }, totalDuration + 100);
 }
 
-function renderSymbol(parent, symbol) {
-    const div = document.createElement('div');
-    div.className = 'symbol';
-    if (symbol.image_url) {
-        div.innerHTML = `<img src="${symbol.image_url}">`;
-    } else {
-        div.textContent = symbol.char;
+function showWinEffect(config) {
+    const overlay = document.getElementById('slot-overlay');
+    overlay.innerHTML = `<div class="win-announcement">🎊 ${config.winName} 🎊</div>`;
+    overlay.classList.add('show');
+    
+    if (config.soundEnabled && winSound) {
+        winSound.currentTime = 0;
+        winSound.play().catch(e => console.log("Win sound play blocked:", e));
     }
-    parent.appendChild(div);
+    
+    // 簡易的な紙吹雪エフェクトをJSで追加
+    triggerConfetti();
+}
+
+function triggerConfetti() {
+    // 簡易的なパーティクル生成
+    const container = document.getElementById('slot-container');
+    for (let i = 0; i < 50; i++) {
+        const p = document.createElement('div');
+        p.className = 'confetti';
+        p.style.left = Math.random() * 100 + '%';
+        p.style.backgroundColor = `hsl(${Math.random() * 360}, 70%, 50%)`;
+        p.style.animationDelay = Math.random() * 2 + 's';
+        container.appendChild(p);
+        setTimeout(() => p.remove(), 4000);
+    }
 }

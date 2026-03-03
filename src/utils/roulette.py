@@ -103,10 +103,10 @@ def migrate_roulette_config(config: dict[str, Any]) -> RouletteConfig:
                     weight = int(round(float(raw_weight)))
                 except (ValueError, TypeError):
                     weight = 1
-                
+
                 new_item: RouletteItem = {
                     "id": str(item.get("id", f"item_{int(time.time() * 1000)}_{i}")),
-                    "label": str(item.get("label", f"項目 {i+1}")),
+                    "label": str(item.get("label", f"項目 {i + 1}")),
                     "weight": max(0, weight),
                     "color": str(item.get("color", "#CCCCCC")),
                     "enabled": bool(item.get("enabled", True)),

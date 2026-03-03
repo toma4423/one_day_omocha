@@ -147,7 +147,7 @@ col_input, col_result = st.columns([1.5, 1])
 with col_input:
     st.subheader(f"📝 ポイント・予定入力 ({display_days}日間)")
     reset_id = st.session_state.palmu_reset_counter
-    
+
     def on_point_change(idx):
         key = f"p_day_widget_{idx}_{reset_id}"
         st.session_state[f"palmu_day_{idx}"] = st.session_state[key]
@@ -156,7 +156,7 @@ with col_input:
     for i in range(1, display_days + 1):
         curr_d = start_date + timedelta(days=i - 1)
         val = st.session_state[f"palmu_day_{i}"]
-        is_skip = (val == "SKIP")
+        is_skip = val == "SKIP"
         bg_color = "#F5F5F5" if is_skip else "#E3F2FD"
 
         with st.container(border=True):
@@ -188,7 +188,11 @@ with col_input:
 
 with col_result:
     st.subheader("📈 ランク状況分析")
-    active_points = [st.session_state[f"palmu_day_{i}"] for i in range(1, display_days + 1) if st.session_state[f"palmu_day_{i}"] != "SKIP"]
+    active_points = [
+        st.session_state[f"palmu_day_{i}"]
+        for i in range(1, display_days + 1)
+        if st.session_state[f"palmu_day_{i}"] != "SKIP"
+    ]
     total = calculate_total_points(active_points[:7])
     status = evaluate_rank_status(total)
 
@@ -201,7 +205,7 @@ with col_result:
         }
         bg, fg = colors.get(status, ("#F5F5F5", "#333333"))
         render_result_box("判定結果", status, bg_color=bg, border_color=fg, text_color=fg, font_size=32)
-        
+
         st.metric("有効7日間の合計", f"{total} pt")
         if status != "ランクアップ":
             if status == "ランクダウン":
@@ -209,6 +213,7 @@ with col_result:
             st.success(f"🚀 ランクアップまで: あと **{points_needed_for_rank_up(total)}** pt")
         else:
             st.success("🎉 目標達成予定です！")
+
 
 @st.dialog("📏 配置を直感的に調整する", width="large")
 def show_palmu_editor(bg_bytes, fg_bytes, fg_w, fg_h, px, py, scale, anchor):
@@ -220,12 +225,12 @@ st.write("---")
 st.header("🗓️ 画像生成 & ライブプレビュー")
 with st.container(border=True):
     bg_file = st.file_uploader("🖼️ 背景画像をアップロード", type=["jpg", "png"], key="weekly_bg")
-    
+
     if bg_file:
         img_data = bg_file.getvalue()
         st.session_state.weekly_bg_cache = img_data
         storage.set_item(BG_CACHE_KEY, base64.b64encode(img_data).decode())
-    
+
     active_bg = st.session_state.get("weekly_bg_cache")
 
     try:
@@ -275,6 +280,7 @@ with st.container(border=True):
             from io import BytesIO
 
             from PIL import Image
+
             fg_img_size = Image.open(BytesIO(fg_bytes)).size
             fg_w, fg_h = fg_img_size
 
@@ -300,7 +306,7 @@ with st.container(border=True):
 
                 if st.button("🖱️ マウスで直感的に配置する (試験的機能)", use_container_width=True):
                     show_palmu_editor(active_bg, fg_bytes, fg_w, fg_h, px, py, scale, anchor)
-                
+
                 if st.button("🖼️ 背景画像をクリア", use_container_width=True):
                     st.session_state.weekly_bg_cache = None
                     storage.delete_item(BG_CACHE_KEY)

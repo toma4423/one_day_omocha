@@ -21,6 +21,7 @@ def test_pick_roulette_winner():
         winner = pick_roulette_winner(items)
         assert winner["label"] == "Always"
 
+
 def test_pick_roulette_winner_with_disabled():
     # 有効な項目のみが選ばれること
     items = [
@@ -56,12 +57,13 @@ def test_migrate_roulette_config_basic():
     assert migrated["items"][0]["enabled"] is True
     assert isinstance(migrated["items"][0]["weight"], int)
 
+
 def test_migrate_roulette_config_legacy_float():
     # float形式からの移行と丸め
     legacy_data = {
         "items": [
-            {"label": "A", "weight": 10.6}, # -> 11
-            {"label": "B", "weight": "20.4"} # -> 20 (文字列float)
+            {"label": "A", "weight": 10.6},  # -> 11
+            {"label": "B", "weight": "20.4"},  # -> 20 (文字列float)
         ],
     }
     migrated = migrate_roulette_config(legacy_data)
@@ -69,21 +71,23 @@ def test_migrate_roulette_config_legacy_float():
     assert migrated["items"][1]["weight"] == 20
     assert all(isinstance(it["weight"], int) for it in migrated["items"])
 
+
 def test_migrate_roulette_config_missing_fields():
     # 欠落フィールドの補完
     legacy_data = {
         "title": "New Title",
         "items": [
-            {"label": "A"} # weight, id, color, enabled が欠落
+            {"label": "A"}  # weight, id, color, enabled が欠落
         ],
     }
     migrated = migrate_roulette_config(legacy_data)
     item = migrated["items"][0]
     assert migrated["title"] == "New Title"
-    assert item["weight"] == 1 # デフォルト
+    assert item["weight"] == 1  # デフォルト
     assert item["enabled"] is True
     assert "id" in item
     assert item["color"] == "#CCCCCC"
+
 
 def test_migrate_roulette_config_invalid_data():
     # 完全に壊れたデータ
