@@ -1,14 +1,14 @@
 import json
-
 import pandas as pd
 import streamlit as st
 from streamlit_local_storage import LocalStorage
 
 from src.utils.slot import (
-    calculate_probabilities,
     evaluate_slot_spin,
     get_slot_config,
+    resolve_pattern_to_chars,
     spin_reels,
+    calculate_probabilities
 )
 from src.utils.storage import SafeStorage
 from src.utils.styles import render_donation_box, render_page_header
@@ -76,7 +76,7 @@ with col_main:
     def render_slot_machine(initial, target, symbols, trigger, sound, result):
         is_win = result is not None
         win_name = result["name"] if is_win else ""
-
+        
         html_template = f"""
         <style>{slot_css}</style>
         <div id="slot-container" class="slot-machine"></div>
@@ -102,14 +102,14 @@ with col_main:
         st.session_state.slot_config["symbols"],
         st.session_state.slot_spin_trigger,
         st.session_state.slot_sound_enabled,
-        st.session_state.slot_result,
+        st.session_state.slot_result
     )
 
     if st.button("🔥 レバーを叩く！", use_container_width=True, type="primary"):
         # 抽選
         final_reels = spin_reels(st.session_state.slot_config["symbols"])
         result = evaluate_slot_spin(final_reels, st.session_state.slot_config["payouts"])
-
+        
         # 状態更新
         st.session_state.slot_reels = st.session_state.slot_target_reels
         st.session_state.slot_target_reels = final_reels
@@ -117,61 +117,34 @@ with col_main:
         st.session_state.slot_spin_trigger += 1
         st.session_state.slot_spins += 1
         storage.set_item("slot_spins", st.session_state.slot_spins)
-
+        
         # 統計と履歴の更新
         res_name = result["name"] if result else "ハズレ"
         st.session_state.slot_counts[res_name] = st.session_state.slot_counts.get(res_name, 0) + 1
         storage.set_item("slot_counts", st.session_state.slot_counts)
-
+        
         reels_str = " ".join([s["char"] for s in final_reels])
-        st.session_state.slot_history.insert(
-            0,
-            {
-                "spin": st.session_state.slot_spins,
-                "time": get_jst_now().strftime("%Y-%m-%d %H:%M:%S"),
-                "result": res_name,
-                "reels": reels_str,
-            },
-        )
+        st.session_state.slot_history.insert(0, {
+            "spin": st.session_state.slot_spins,
+            "time": get_jst_now().strftime("%Y-%m-%d %H:%M:%S"),
+            "result": res_name,
+            "reels": reels_str
+        })
         storage.set_item("slot_history", st.session_state.slot_history)
         st.rerun()
 
 with col_sub:
     with st.container(border=True):
-        # JS演出完了を待つためのディレイ表示 (約3.5秒)
-        container_class = "strictly-delayed" if st.session_state.slot_spin_trigger > 0 else ""
-        st.markdown(f'<div class="{container_class}">', unsafe_allow_html=True)
-
-        if st.session_state.slot_result:
-            res = st.session_state.slot_result
-            st.success(f"🎊 {res['name']} 🎊")
-            # Pythonのバルーンは即座に出るため廃止し、JS側の紙吹雪に統合
-        elif st.session_state.slot_history and st.session_state.slot_history[0]["result"] == "ハズレ":
-            st.info("残念！もう一回！")
-        else:
-            st.markdown(
-                "<div style='height:150px; display:flex; align-items:center; justify-content:center; color:gray;'>レバーを叩いてね！</div>",
-                unsafe_allow_html=True,
-            )
-
-        st.markdown("</div>", unsafe_allow_html=True)
-
-# 強力な遅延表示用 CSS
-st.markdown(
-    """
-<style>
-@keyframes waitThenShow {
-    0% { opacity: 0; pointer-events: none; transform: translateY(10px); }
-    95% { opacity: 0; pointer-events: none; transform: translateY(10px); }
-    100% { opacity: 1; pointer-events: auto; transform: translateY(0); }
-}
-.strictly-delayed {
-    animation: waitThenShow 3.5s forwards; /* 停止時間に合わせる */
-}
-</style>
-""",
-    unsafe_allow_html=True,
-)
+        st.markdown(
+            "<div style='height:180px; display:flex; flex-direction:column; align-items:center; justify-content:center; color:#555;'>"
+            "<h3 style='margin-bottom:10px;'>🎮 遊び方</h3>"
+            "<p style='margin:2px 0;'>1. レバーを叩く</p>"
+            "<p style='margin:2px 0;'>2. リールが自動で停止</p>"
+            "<p style='margin:2px 0;'>3. 揃えば当たり！</p>"
+            "<p style='margin-top:15px; font-size:0.8em; color:gray;'>※ 結果はリール上に表示されます</p>"
+            "</div>",
+            unsafe_allow_html=True,
+        )
 
 st.write("")
 # --- 統計と履歴 ---
@@ -184,32 +157,22 @@ with tab1:
     total_spins = st.session_state.slot_spins
     probs = calculate_probabilities(symbols, payouts)
     theo_prob_map = {r["name"]: r["denominator"] for r in probs["hit_rates"]}
-
+    
     stats_data = []
     for p in payouts:
         name = p["name"]
         count = st.session_state.slot_counts.get(name, 0)
         theo_denom = theo_prob_map.get(name, 0.0)
         actual_denom = round(total_spins / count, 1) if count > 0 else 0.0
-        stats_data.append(
-            {
-                "役名": name,
-                "回数": count,
-                "理論確率 (1/N)": f"1/{theo_denom}",
-                "実戦確率 (1/N)": f"1/{actual_denom}" if actual_denom > 0 else "---",
-            }
-        )
-
+        stats_data.append({
+            "役名": name, "回数": count, "理論確率 (1/N)": f"1/{theo_denom}", "実戦確率 (1/N)": f"1/{actual_denom}" if actual_denom > 0 else "---"
+        })
+    
     miss_count = st.session_state.slot_counts.get("ハズレ", 0)
     actual_miss_rate = (miss_count / total_spins * 100) if total_spins > 0 else 0.0
-    stats_data.append(
-        {
-            "役名": "ハズレ",
-            "回数": miss_count,
-            "理論確率 (1/N)": f"{probs['miss_rate']:.1f}%",
-            "実戦確率 (1/N)": f"{actual_miss_rate:.1f}%",
-        }
-    )
+    stats_data.append({
+        "役名": "ハズレ", "回数": miss_count, "理論確率 (1/N)": f"{probs['miss_rate']:.1f}%", "実戦確率 (1/N)": f"{actual_miss_rate:.1f}%"
+    })
     st.table(stats_data)
 
 with tab2:
@@ -217,10 +180,9 @@ with tab2:
         df_hist = pd.DataFrame(st.session_state.slot_history)
         df_hist.columns = ["回転数", "時刻", "成立役", "出目"]
         c1, c2 = st.columns([3, 1])
-        with c1:
-            st.write(f"全 {len(df_hist)} 件の履歴")
+        with c1: st.write(f"全 {len(df_hist)} 件の履歴")
         with c2:
-            csv = df_hist.to_csv(index=False).encode("utf-8-sig")
+            csv = df_hist.to_csv(index=False).encode('utf-8-sig')
             st.download_button("📥 CSVで出力", csv, f"slot_history_{get_jst_now().strftime('%Y%m%d')}.csv", "text/csv")
         st.table(df_hist.head(100))
     else:
@@ -229,9 +191,7 @@ with tab2:
 # サイドバー
 with st.sidebar:
     st.header("⚙️ 設定")
-    st.session_state.slot_sound_enabled = st.toggle(
-        "🔊 サウンドを有効にする", value=st.session_state.slot_sound_enabled
-    )
+    st.session_state.slot_sound_enabled = st.toggle("🔊 サウンドを有効にする", value=st.session_state.slot_sound_enabled)
     if st.button("統計をリセット"):
         st.session_state.slot_spins = 0
         st.session_state.slot_counts = {}
