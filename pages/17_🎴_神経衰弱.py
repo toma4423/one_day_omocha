@@ -1,12 +1,18 @@
 import streamlit as st
 
+from streamlit_local_storage import LocalStorage
+
 from src.utils.concentration import GameState, create_deck, handle_card_click
+from src.utils.storage import SafeStorage
 from src.utils.styles import render_donation_box, render_page_header, render_result_box
 
 st.set_page_config(page_title="神経衰弱", page_icon="🎴", layout="wide")
 
 # グローバルスタイルの適用
 render_page_header()
+
+# SafeStorage の初期化
+storage = SafeStorage(LocalStorage())
 
 # 基本的なカードスタイル定義
 st.markdown("""
@@ -38,19 +44,20 @@ st.markdown("""
         font-size: 1.5rem !important;
     }
 
-    /* カード表面 - メインエリアのみ */
-    [data-testid="stMain"] .card-front-red button {
+    /* カード表面 - 赤 (ボタンとその中のテキスト両方に適用) */
+    [data-testid="stMain"] .card-front-red button,
+    [data-testid="stMain"] .card-front-red button p {
         background-color: #FFFFFF !important;
         color: #D32F2F !important;
-        border: 1.5px solid #D32F2F !important;
-        font-size: 1.1rem !important;
+        border-color: #D32F2F !important;
     }
     
-    [data-testid="stMain"] .card-front-black button {
+    /* カード表面 - 黒 */
+    [data-testid="stMain"] .card-front-black button,
+    [data-testid="stMain"] .card-front-black button p {
         background-color: #FFFFFF !important;
         color: #1A1A1A !important;
-        border: 1.5px solid #1A1A1A !important;
-        font-size: 1.1rem !important;
+        border-color: #1A1A1A !important;
     }
 
     /* 獲得済み - メインエリアのみ */
@@ -59,14 +66,13 @@ st.markdown("""
         color: #DDDDDD !important;
         border: 1px dashed #EEEEEE !important;
         opacity: 0.4 !important;
-        font-size: 0.8rem !important;
     }
 
     /* 改行設定 - メインエリアのみ */
     [data-testid="stMain"] .stButton > button div p {
         white-space: pre-line !important;
         line-height: 1.1 !important;
-        font-size: 1rem !important;
+        font-size: 1.2rem !important;
     }
 
     /* カラム間の隙間を詰める */
@@ -76,11 +82,16 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# セッション状態の初期化
+# セッション状態の初期化 (永続化対応)
 if "concentration_state" not in st.session_state or not hasattr(st.session_state.concentration_state, "mode"):
+    # LocalStorage からの復旧を試みる
+    saved_mode = storage.get_item("concentration_mode") or "battle"
+    saved_suits = storage.get_item("concentration_use_all_suits") == "true"
+    
     st.session_state.concentration_state = GameState(
-        cards=create_deck(13, use_all_suits=False),
-        mode="battle"
+        cards=create_deck(13, use_all_suits=saved_suits),
+        mode=saved_mode,
+        use_all_suits=saved_suits
     )
 
 state = st.session_state.concentration_state
@@ -171,6 +182,10 @@ for r in range(rows):
                     st.markdown('<div class="card-back">', unsafe_allow_html=True)
                     if st.button("？", key=f"card_{idx}", use_container_width=True):
                         st.session_state.concentration_state = handle_card_click(state, idx)
+                        # 状態が変化した可能性があるので保存（カードの状態自体は session_state で十分だが、
+                        # モードや設定の永続化を確実にするため）
+                        storage.set_item("concentration_mode", st.session_state.concentration_state.mode)
+                        storage.set_item("concentration_use_all_suits", "true" if st.session_state.concentration_state.use_all_suits else "false")
                         st.rerun()
                     st.markdown('</div>', unsafe_allow_html=True)
 
@@ -181,8 +196,11 @@ with st.sidebar:
     # モード選択
     mode_map = {"1人プレイ": "single", "2人対戦": "battle"}
     mode_labels = list(mode_map.keys())
-    current_mode_idx = 1 if state.mode == "battle" else 0
-    selected_label = st.radio("ゲームモード", options=mode_labels, index=current_mode_idx)
+    current_mode_idx = 0
+    if state.mode == "battle":
+        current_mode_idx = 1
+    
+    selected_label = st.selectbox("ゲームモード", options=mode_labels, index=current_mode_idx)
     new_mode = mode_map[selected_label]
     
     # カード枚数選択
@@ -191,7 +209,11 @@ with st.sidebar:
     selected_suit_label = st.radio("カード枚数", options=suit_options, index=current_suit_idx)
     new_use_all = (selected_suit_label == suit_options[1])
     
+    # 設定の即時保存
     if new_mode != state.mode or new_use_all != state.use_all_suits:
+        storage.set_item("concentration_mode", new_mode)
+        storage.set_item("concentration_use_all_suits", "true" if new_use_all else "false")
+        
         if st.button("⚠️ 設定を反映してリセット"):
             st.session_state.concentration_state = GameState(
                 cards=create_deck(13, use_all_suits=new_use_all),
