@@ -11,13 +11,13 @@ render_page_header()
 # 基本的なカードスタイル定義
 st.markdown("""
 <style>
-    /* カード全体のコンテナ */
-    .stButton > button {
+    /* 盤面（メインエリア）のカードボタンのみに適用 */
+    [data-testid="stMain"] .stButton > button {
         width: 100% !important;
-        max-width: 80px !important; /* 最大幅を制限して巨大化を防ぐ */
+        max-width: 80px !important;
         aspect-ratio: 5 / 7 !important;
         height: auto !important;
-        border-radius: 6px !important; /* 角丸も少し控えめに */
+        border-radius: 6px !important;
         font-weight: bold !important;
         transition: all 0.2s !important;
         box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
@@ -29,32 +29,32 @@ st.markdown("""
         align-items: center !important;
     }
     
-    /* カード裏面 */
-    .card-back button {
+    /* カード裏面 - メインエリアのみ */
+    [data-testid="stMain"] .card-back button {
         background: linear-gradient(135deg, #2C3E50 25%, #34495E 25%, #34495E 50%, #2C3E50 50%, #2C3E50 75%, #34495E 75%, #34495E 100%) !important;
         background-size: 10px 10px !important;
         border: 2px solid #ECF0F1 !important;
         color: white !important;
-        font-size: 1.5rem !important; /* 文字も小さく */
+        font-size: 1.5rem !important;
     }
 
-    /* カード表面 */
-    .card-front-red button {
+    /* カード表面 - メインエリアのみ */
+    [data-testid="stMain"] .card-front-red button {
         background-color: #FFFFFF !important;
         color: #D32F2F !important;
         border: 1.5px solid #D32F2F !important;
         font-size: 1.1rem !important;
     }
     
-    .card-front-black button {
+    [data-testid="stMain"] .card-front-black button {
         background-color: #FFFFFF !important;
         color: #1A1A1A !important;
         border: 1.5px solid #1A1A1A !important;
         font-size: 1.1rem !important;
     }
 
-    /* 獲得済み */
-    .card-matched button {
+    /* 獲得済み - メインエリアのみ */
+    [data-testid="stMain"] .card-matched button {
         background-color: #F9F9F9 !important;
         color: #DDDDDD !important;
         border: 1px dashed #EEEEEE !important;
@@ -62,8 +62,8 @@ st.markdown("""
         font-size: 0.8rem !important;
     }
 
-    /* 改行設定 */
-    .stButton > button div p {
+    /* 改行設定 - メインエリアのみ */
+    [data-testid="stMain"] .stButton > button div p {
         white-space: pre-line !important;
         line-height: 1.1 !important;
         font-size: 1rem !important;
