@@ -14,65 +14,64 @@ st.markdown("""
     /* カード全体のコンテナ */
     .stButton > button {
         width: 100% !important;
-        aspect-ratio: 5 / 7 !important; /* 縦長を強制 */
+        max-width: 80px !important; /* 最大幅を制限して巨大化を防ぐ */
+        aspect-ratio: 5 / 7 !important;
         height: auto !important;
-        border-radius: 10px !important;
+        border-radius: 6px !important; /* 角丸も少し控えめに */
         font-weight: bold !important;
         transition: all 0.2s !important;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1) !important;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
         padding: 0 !important;
+        margin: 0 auto !important;
         display: flex !important;
         flex-direction: column !important;
         justify-content: center !important;
         align-items: center !important;
-        overflow: hidden !important;
     }
     
     /* カード裏面 */
     .card-back button {
         background: linear-gradient(135deg, #2C3E50 25%, #34495E 25%, #34495E 50%, #2C3E50 50%, #2C3E50 75%, #34495E 75%, #34495E 100%) !important;
-        background-size: 15px 15px !important;
-        border: 4px solid #ECF0F1 !important;
+        background-size: 10px 10px !important;
+        border: 2px solid #ECF0F1 !important;
         color: white !important;
-        font-size: 2.5rem !important;
-    }
-    .card-back button:hover {
-        transform: translateY(-5px) !important;
-        border-color: #FFFFFF !important;
-        box-shadow: 0 8px 15px rgba(0,0,0,0.3) !important;
+        font-size: 1.5rem !important; /* 文字も小さく */
     }
 
-    /* カード表面 - 赤 */
+    /* カード表面 */
     .card-front-red button {
         background-color: #FFFFFF !important;
         color: #D32F2F !important;
-        border: 2px solid #D32F2F !important;
-        font-size: 1.5rem !important;
+        border: 1.5px solid #D32F2F !important;
+        font-size: 1.1rem !important;
     }
     
-    /* カード表面 - 黒 */
     .card-front-black button {
         background-color: #FFFFFF !important;
         color: #1A1A1A !important;
-        border: 2px solid #1A1A1A !important;
-        font-size: 1.5rem !important;
+        border: 1.5px solid #1A1A1A !important;
+        font-size: 1.1rem !important;
     }
 
     /* 獲得済み */
     .card-matched button {
-        background-color: #F0F0F0 !important;
-        color: #CCCCCC !important;
-        border: 2px dashed #DDDDDD !important;
-        opacity: 0.5 !important;
-        box-shadow: none !important;
-        pointer-events: none !important;
+        background-color: #F9F9F9 !important;
+        color: #DDDDDD !important;
+        border: 1px dashed #EEEEEE !important;
+        opacity: 0.4 !important;
+        font-size: 0.8rem !important;
     }
 
-    /* 改行を反映させるための設定 */
+    /* 改行設定 */
     .stButton > button div p {
         white-space: pre-line !important;
-        line-height: 1.2 !important;
-        font-size: 1.2rem !important;
+        line-height: 1.1 !important;
+        font-size: 1rem !important;
+    }
+
+    /* カラム間の隙間を詰める */
+    [data-testid="column"] {
+        padding: 0 2px !important;
     }
 </style>
 """, unsafe_allow_html=True)
