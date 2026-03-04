@@ -110,13 +110,13 @@ def render_donation_box(paypay_url: str, is_sidebar: bool = False) -> None:
 
     html = f"""
     <div style='background-color:#fff3f3; padding:20px; border-radius:16px; border:1px dashed #ff4b4b; text-align:center; margin: 20px 0;'>
-        <h3 style='margin-top:0; color:#ff4b4b; font-size:18px;'>⚡ 開発者にエナドリを奢る</h3>
+        <h3 style='margin-top:0; color:#ff4b4b; font-size:18px;'>⚡ 開発者にエナドリを奢る (PayPay)</h3>
         <p style='margin-bottom:15px; font-size:14px; color:#555;'>
-            開発者にエナジードリンクを奢って、さらに開発をさせましょう！
+            PayPayで開発者にエナジードリンクを奢って、さらに開発を加速させましょう！
         </p>
         <a href='{paypay_url}' target='_blank' style='text-decoration:none;'>
             <div style='background-color:#ff4b4b; color:white; padding:10px 24px; border-radius:30px; font-weight:bold; font-size:16px; box-shadow: 0 4px 10px rgba(255,75,75,0.3); display:inline-block; transition: transform 0.2s;'>
-                エナドリを差し入れる 🚀
+                PayPayでエナドリを差し入れる 🚀
             </div>
         </a>
     </div>
