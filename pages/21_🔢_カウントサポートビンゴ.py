@@ -13,48 +13,44 @@ st.set_page_config(page_title="カウントサポートビンゴ", page_icon="�
 # グローバルスタイルの適用
 render_page_header()
 
-# ビンゴ専用のコンパクトCSS
+# 外部CSSの読み込み
+try:
+    with open("src/assets/counter/style.css", encoding="utf-8") as f:
+        st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
+except Exception:
+    pass
+
+# ビンゴ専用の微調整CSS（既存のコンパクト化ロジックを維持・洗練）
 st.markdown(
     """
     <style>
     [data-testid="stVerticalBlock"] > div > div > div[data-testid="stVerticalBlock"] {
-        padding: 4px !important;
-        gap: 4px !important;
-    }
-    .st-emotion-cache-16idsys, .st-emotion-cache-1r6slb0 {
-        padding: 6px !important;
-        margin-bottom: 0px !important;
-    }
-    .stTextInput input, .stNumberInput input {
-        height: 32px !important;
         padding: 2px !important;
-        text-align: center !important;
+        gap: 2px !important;
     }
-    .stTextInput input {
-        font-size: 12px !important;
-        opacity: 0.7;
+    .bingo-card-container {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
     }
+    /* 入力欄をより中央に、ラベルを完全に消去 */
+    div[data-testid="stTextInput"] label, div[data-testid="stNumberInput"] label {
+        display: none !important;
+    }
+    /* 数値入力を強調 */
     .stNumberInput input {
-        font-size: 20px !important;
-        font-weight: 900 !important;
-        color: #007bff !important;
+        font-size: 22px !important;
+        background-color: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
     }
-    input::-webkit-outer-spin-button,
-    input::-webkit-inner-spin-button {
-        -webkit-appearance: none;
-        margin: 0;
-    }
-    input[type=number] {
-        -moz-appearance: textfield;
-    }
-    label { display: none !important; }
     </style>
 """,
     unsafe_allow_html=True,
 )
 
 st.markdown(
-    "<h1 style='text-align: center; margin-bottom: 5px;'>🔢 カウントサポートビンゴ</h1>", unsafe_allow_html=True
+    "<h1 style='text-align: center; margin-bottom: 10px;'>🔢 カウントサポートビンゴ</h1>", unsafe_allow_html=True
 )
 
 # --- ストレージ管理の定義 ---
@@ -62,21 +58,14 @@ storage = SafeStorage(LocalStorage())
 
 
 def get_current_version():
-    """
-    URLパラメータまたはLocalStorageから現在のデータバージョンを取得します。
-    数値として妥当でない場合は "1" を返します。
-    """
     v_raw = st.query_params.get("v", None)
     if v_raw:
-        # st.query_params の値がリストの場合や文字列の場合があるため安全に処理
         v_str = str(v_raw)
         if v_str.isdigit():
             return v_str
-
     v_store = storage.get_item("csb_ver", is_json=False)
     if v_store and str(v_store).isdigit():
         return str(v_store)
-
     return "1"
 
 
@@ -121,7 +110,7 @@ def load_from_storage():
         return False
 
 
-# 初期化ロジック
+# 初期化
 if "csb_rows" not in st.session_state:
     if not load_from_storage():
         st.session_state.csb_rows = 5
@@ -136,20 +125,71 @@ def on_change():
 current_rows = st.session_state.get("csb_rows", 5)
 current_cols = st.session_state.get("csb_cols", 5)
 
+# ビンゴ判定用データの準備
+bingo_matrix = []
+
 for r in range(current_rows):
     cols_ui = st.columns(current_cols)
+    row_data = []
     for c in range(current_cols):
         lk, ck = f"csb_label_{r}_{c}", f"csb_count_{r}_{c}"
         if lk not in st.session_state:
             st.session_state[lk] = f"項目 {r + 1}-{c + 1}"
         if ck not in st.session_state:
             st.session_state[ck] = 0
+
+        count_val = st.session_state[ck]
+        is_active = count_val > 0
+        row_data.append(is_active)
+
         with cols_ui[c]:
+            cell_class = "bingo-cell-active" if is_active else ""
             with st.container(border=True):
+                # IDを付与してJSから操作可能にする
+                st.markdown(f"<div id='cell-{r}-{c}' class='{cell_class}'>", unsafe_allow_html=True)
                 st.text_input(
                     f"L{r}{c}", key=lk, label_visibility="collapsed", on_change=on_change, placeholder="項目名"
                 )
                 st.number_input(f"N{r}{c}", key=ck, label_visibility="collapsed", step=1, on_change=on_change)
+                st.markdown("</div>", unsafe_allow_html=True)
+    bingo_matrix.append(row_data)
+
+# --- ビンゴ判定ロジック (JavaScript連携) ---
+bingo_indices = []  # 揃っているインデックスのリスト [[r,c], [r,c]...]
+
+# 1. 横の判定
+for r in range(current_rows):
+    if all(bingo_matrix[r]):
+        bingo_indices.extend([[r, c] for c in range(current_cols)])
+
+# 2. 縦の判定
+for c in range(current_cols):
+    if all(bingo_matrix[r][c] for r in range(current_rows)):
+        bingo_indices.extend([[r, c] for r in range(current_rows)])
+
+# 3. 斜めの判定（正方形の場合のみ）
+if current_rows == current_cols:
+    if all(bingo_matrix[i][i] for i in range(current_rows)):
+        bingo_indices.extend([[i, i] for i in range(current_rows)])
+    if all(bingo_matrix[i][current_cols - 1 - i] for i in range(current_rows)):
+        bingo_indices.extend([[i, current_cols - 1 - i] for i in range(current_rows)])
+
+# JavaScriptでハイライトを適用
+if bingo_indices:
+    # 重複削除
+    unique_indices = []
+    for pair in bingo_indices:
+        if pair not in unique_indices:
+            unique_indices.append(pair)
+
+    js_code = "".join(
+        [
+            f"document.getElementById('cell-{r}-{c}').parentElement.parentElement.parentElement.classList.add('bingo-line-complete');"
+            for r, c in unique_indices
+        ]
+    )
+    st.components.v1.html(f"<script>{js_code}</script>", height=0)
+    st.balloons()
 
 # --- データの保存と読み込み ---
 st.write("---")
@@ -171,15 +211,15 @@ with st.container(border=True):
         }
         json_str = json.dumps(current_state, indent=2, ensure_ascii=False)
         st.download_button(
-            label="📥 JSONを保存",
+            label="📥 現在の設定をJSONで保存",
             data=json_str,
             file_name=f"bingo_{get_jst_now().strftime('%Y%m%d')}.json",
             mime="application/json",
             use_container_width=True,
         )
     with c2:
-        uploaded_file = st.file_uploader("📤 JSONを読み込む", type="json", label_visibility="collapsed")
-        if uploaded_file and st.button("反映実行", use_container_width=True):
+        uploaded_file = st.file_uploader("📤 JSONを読み込んで復元", type="json", label_visibility="collapsed")
+        if uploaded_file and st.button("反映実行", use_container_width=True, type="primary"):
             try:
                 d = json.load(uploaded_file)
                 st.session_state.csb_rows, st.session_state.csb_cols = d["rows"], d["cols"]
@@ -202,19 +242,14 @@ with st.sidebar:
     st.number_input("列数", 1, 15, key="csb_cols", on_change=on_change)
     st.write("---")
     if st.button("🚨 全てリセット", use_container_width=True):
-        # LocalStorage 削除
         storage.delete_item(get_data_key())
-        # SessionState クリア
         for k in list(st.session_state.keys()):
             if k.startswith("csb_"):
                 del st.session_state[k]
-
-        # バージョン更新（安全な変換）
         try:
             current_v = int(get_current_version())
         except (ValueError, TypeError):
             current_v = 1
-
         new_v = 1 if current_v >= 100 else current_v + 1
         storage.set_item("csb_ver", str(new_v))
         st.query_params["v"] = str(new_v)

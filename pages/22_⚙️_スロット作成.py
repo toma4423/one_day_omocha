@@ -1,4 +1,5 @@
 import json
+
 import pandas as pd
 import streamlit as st
 from streamlit_local_storage import LocalStorage
@@ -10,7 +11,6 @@ from src.utils.slot import (
     calculate_probabilities,
     get_slot_config,
     migrate_slot_config,
-    solve_weights_from_denominators,
     validate_slot_config,
 )
 from src.utils.storage import SafeStorage
@@ -72,11 +72,13 @@ with st.container(border=True):
 
     current_symbols = st.session_state.slot_config_edit["symbols"]
     updated_symbols = []
-    
+
     for i, symbol in enumerate(current_symbols):
         col_id, col_sym, col_url, col_del = st.columns([1, 2, 4, 1])
         with col_id:
-            s_id = st.number_input("ID", value=int(symbol["id"]), min_value=1, key=f"s_id_{i}", label_visibility="collapsed")
+            s_id = st.number_input(
+                "ID", value=int(symbol["id"]), min_value=1, key=f"s_id_{i}", label_visibility="collapsed"
+            )
         with col_sym:
             s_char = st.text_input("ラベル", symbol["char"], key=f"s_char_{i}", label_visibility="collapsed")
         with col_url:
@@ -85,13 +87,10 @@ with st.container(border=True):
             if st.button("🗑️", key=f"s_del_{i}"):
                 st.session_state.slot_config_edit["symbols"].pop(i)
                 st.rerun()
-        
-        updated_symbols.append({
-            "id": s_id,
-            "char": s_char,
-            "weight": symbol.get("weight", 1.0),
-            "image_url": s_url if s_url else None
-        })
+
+        updated_symbols.append(
+            {"id": s_id, "char": s_char, "weight": symbol.get("weight", 1.0), "image_url": s_url if s_url else None}
+        )
 
     if updated_symbols != current_symbols:
         st.session_state.slot_config_edit["symbols"] = updated_symbols
@@ -118,10 +117,10 @@ st.write("")
 st.subheader("💰 役と出現率の設定")
 with st.container(border=True):
     st.info("どの図柄が揃ったら当たりにするか、その確率はいくらかを設定します。")
-    
+
     current_payouts = st.session_state.slot_config_edit["payouts"]
     updated_payouts = []
-    
+
     symbol_options_map = {s["id"]: f"{s['char']}" for s in updated_symbols}
     symbol_ids = ["ANY"] + sorted(list(symbol_options_map.keys()))
 
@@ -138,34 +137,57 @@ with st.container(border=True):
 
     for i, payout in enumerate(current_payouts):
         row_col1, row_col2, row_col3, row_col4, row_col5, row_col6 = st.columns([3, 2, 2, 2, 1.5, 0.5])
-        
+
         with row_col1:
             p_name = st.text_input("役名", payout["name"], key=f"p_name_{i}", label_visibility="collapsed")
-        
+
         with row_col2:
-            p_1 = st.selectbox("左", symbol_ids, index=symbol_ids.index(payout["pattern"][0]) if payout["pattern"][0] in symbol_ids else 0, format_func=get_label, key=f"p_1_{i}", label_visibility="collapsed")
-        
+            p_1 = st.selectbox(
+                "左",
+                symbol_ids,
+                index=symbol_ids.index(payout["pattern"][0]) if payout["pattern"][0] in symbol_ids else 0,
+                format_func=get_label,
+                key=f"p_1_{i}",
+                label_visibility="collapsed",
+            )
+
         with row_col3:
-            p_2 = st.selectbox("中", symbol_ids, index=symbol_ids.index(payout["pattern"][1]) if payout["pattern"][1] in symbol_ids else 0, format_func=get_label, key=f"p_2_{i}", label_visibility="collapsed")
-            
+            p_2 = st.selectbox(
+                "中",
+                symbol_ids,
+                index=symbol_ids.index(payout["pattern"][1]) if payout["pattern"][1] in symbol_ids else 0,
+                format_func=get_label,
+                key=f"p_2_{i}",
+                label_visibility="collapsed",
+            )
+
         with row_col4:
-            p_3 = st.selectbox("右", symbol_ids, index=symbol_ids.index(payout["pattern"][2]) if payout["pattern"][2] in symbol_ids else 0, format_func=get_label, key=f"p_3_{i}", label_visibility="collapsed")
-            
+            p_3 = st.selectbox(
+                "右",
+                symbol_ids,
+                index=symbol_ids.index(payout["pattern"][2]) if payout["pattern"][2] in symbol_ids else 0,
+                format_func=get_label,
+                key=f"p_3_{i}",
+                label_visibility="collapsed",
+            )
+
         with row_col5:
             current_denom = float(payout.get("denominator", 10.0))
-            p_denom = st.number_input("分母", value=max(current_denom, 1.1), min_value=1.1, step=0.1, key=f"p_denom_{i}", label_visibility="collapsed")
-            
+            p_denom = st.number_input(
+                "分母",
+                value=max(current_denom, 1.1),
+                min_value=1.1,
+                step=0.1,
+                key=f"p_denom_{i}",
+                label_visibility="collapsed",
+            )
+
         with row_col6:
             if st.button("🗑️", key=f"p_del_btn_{i}", help="この役を削除"):
                 st.session_state.slot_config_edit["payouts"].pop(i)
                 st.rerun()
-        
-        updated_payouts.append({
-            "name": p_name, 
-            "score": 0,
-            "denominator": p_denom,
-            "pattern": [p_1, p_2, p_3]
-        })
+
+        updated_payouts.append({"name": p_name, "score": 0, "denominator": p_denom, "pattern": [p_1, p_2, p_3]})
 
     if updated_payouts != current_payouts:
         st.session_state.slot_config_edit["payouts"] = updated_payouts
@@ -174,7 +196,9 @@ with st.container(border=True):
     st.write("🆕 **新しい役を追加**")
     ca1, ca2, ca3, ca4, ca5, ca6 = st.columns([3, 2, 2, 2, 1.5, 0.5])
     with ca1:
-        add_name = st.text_input("新規役名", "新規役", key="add_name", label_visibility="collapsed", placeholder="役名を入力")
+        add_name = st.text_input(
+            "新規役名", "新規役", key="add_name", label_visibility="collapsed", placeholder="役名を入力"
+        )
     with ca2:
         p_add1 = st.selectbox("左ID", symbol_ids, format_func=get_label, key="p_add1", label_visibility="collapsed")
     with ca3:
@@ -182,12 +206,14 @@ with st.container(border=True):
     with ca4:
         p_add3 = st.selectbox("右ID", symbol_ids, format_func=get_label, key="p_add3", label_visibility="collapsed")
     with ca5:
-        add_denom = st.number_input("新規分母", value=100.0, min_value=1.1, key="add_denom", label_visibility="collapsed")
+        add_denom = st.number_input(
+            "新規分母", value=100.0, min_value=1.1, key="add_denom", label_visibility="collapsed"
+        )
     with ca6:
         if st.button("➕", key="add_p_btn"):
-            st.session_state.slot_config_edit["payouts"].append({
-                "name": add_name, "score": 0, "denominator": add_denom, "pattern": [p_add1, p_add2, p_add3]
-            })
+            st.session_state.slot_config_edit["payouts"].append(
+                {"name": add_name, "score": 0, "denominator": add_denom, "pattern": [p_add1, p_add2, p_add3]}
+            )
             st.rerun()
 
 st.write("")
@@ -195,8 +221,13 @@ st.write("")
 # --- 確率計算とプレビュー ---
 st.subheader("🧮 確率計算とプレビュー")
 with st.container(border=True):
-    probs = calculate_probabilities(st.session_state.slot_config_edit["symbols"], st.session_state.slot_config_edit["payouts"])
-    st.metric("合計当り確率", f"{probs['total_hit_rate']:.2f}% (1/{100/probs['total_hit_rate'] if probs['total_hit_rate'] > 0 else 0:.1f})")
+    probs = calculate_probabilities(
+        st.session_state.slot_config_edit["symbols"], st.session_state.slot_config_edit["payouts"]
+    )
+    st.metric(
+        "合計当り確率",
+        f"{probs['total_hit_rate']:.2f}% (1/{100 / probs['total_hit_rate'] if probs['total_hit_rate'] > 0 else 0:.1f})",
+    )
 
     st.write("📊 **現在の設定一覧**")
     df_probs = pd.DataFrame(probs["hit_rates"])

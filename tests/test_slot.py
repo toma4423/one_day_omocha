@@ -65,7 +65,7 @@ def test_resolve_pattern_to_chars():
 
 def test_spin_reels():
     symbol_data = [{"id": 1, "char": "A", "weight": 1.0}]
-    payouts = [{"name": "Win", "pattern": [1, 1, 1], "denominator": 1.0}] # 100%当選
+    payouts = [{"name": "Win", "pattern": [1, 1, 1], "denominator": 1.0}]  # 100%当選
     result = spin_reels(symbol_data, payouts, 3)
     assert len(result) == 3
     assert result[0]["char"] == "A"
@@ -75,8 +75,8 @@ def test_spin_reels_priority():
     # 珍しい役が優先されるか
     symbols = [{"id": 1, "char": "A"}, {"id": 2, "char": "B"}]
     payouts = [
-        {"name": "Common", "pattern": [1, 1, 1], "denominator": 1.01}, # ほぼ当たる
-        {"name": "Rare", "pattern": [2, 2, 2], "denominator": 1.01},   # ほぼ当たる
+        {"name": "Common", "pattern": [1, 1, 1], "denominator": 1.01},  # ほぼ当たる
+        {"name": "Rare", "pattern": [2, 2, 2], "denominator": 1.01},  # ほぼ当たる
     ]
     # 実際にはランダムなので厳密なテストは難しいが、ロジックとしてエラーが出ないことを確認
     result = spin_reels(symbols, payouts, 3)
@@ -94,25 +94,20 @@ def test_full_config_load_and_validate():
     # スロット作成ページから出力されるようなJSONデータを模したテスト
     config_data = {
         "name": "Custom Slot",
-        "symbols": [
-            {"id": 1, "char": "💎", "weight": 10.0},
-            {"id": 2, "char": "7", "weight": 5.0}
-        ],
-        "payouts": [
-            {"name": "Jackpot", "pattern": [2, 2, 2], "denominator": 100.0}
-        ]
+        "symbols": [{"id": 1, "char": "💎", "weight": 10.0}, {"id": 2, "char": "7", "weight": 5.0}],
+        "payouts": [{"name": "Jackpot", "pattern": [2, 2, 2], "denominator": 100.0}],
     }
-    
+
     # 1. マイグレーション
     migrated = migrate_slot_config(config_data)
     assert migrated["name"] == "Custom Slot"
-    assert "image_url" in migrated["symbols"][0] # 補完されていること
-    
+    assert "image_url" in migrated["symbols"][0]  # 補完されていること
+
     # 2. バリデーション
     is_valid, msg = validate_slot_config(migrated)
     assert is_valid is True
     assert msg == ""
-    
+
     # 3. 確率計算ができるか
     probs = calculate_probabilities(migrated["symbols"], migrated["payouts"])
     assert "hit_rates" in probs

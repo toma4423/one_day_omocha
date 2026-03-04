@@ -25,14 +25,16 @@ DEFAULT_PAYOUTS = [
 DEFAULT_SLOT_NAME = "標準スロット"
 
 
-def spin_reels(symbol_data: list[dict[str, Any]], payouts: list[dict[str, Any]], count: int = 3) -> list[dict[str, Any]]:
+def spin_reels(
+    symbol_data: list[dict[str, Any]], payouts: list[dict[str, Any]], count: int = 3
+) -> list[dict[str, Any]]:
     """
     パチスロ式の内部抽選を行い、出目を決定します。
     """
     # 1. 内部抽選（フラグ抽選）
     # 分母の大きい（珍しい）役から順に抽選
     sorted_payouts = sorted(payouts, key=lambda x: x.get("denominator", 0), reverse=True)
-    
+
     winning_payout = None
     for p in sorted_payouts:
         denom = p.get("denominator", 0)
@@ -40,7 +42,7 @@ def spin_reels(symbol_data: list[dict[str, Any]], payouts: list[dict[str, Any]],
             if random.random() < (1.0 / denom):
                 winning_payout = p
                 break
-    
+
     # 2. 出目の決定
     if winning_payout:
         # 当選した役のパターンを表示
@@ -57,7 +59,7 @@ def spin_reels(symbol_data: list[dict[str, Any]], payouts: list[dict[str, Any]],
         return result
     else:
         # ハズレ：ランダムに回すが、役が揃わないようにする
-        for _ in range(10): # 最大10回試行（無限ループ防止）
+        for _ in range(10):  # 最大10回試行（無限ループ防止）
             weights = [s.get("weight", 1.0) for s in symbol_data]
             result = random.choices(symbol_data, weights=weights, k=count)
             if not evaluate_slot_spin(result, payouts):

@@ -1,4 +1,5 @@
 import json
+
 import pandas as pd
 import streamlit as st
 from streamlit_local_storage import LocalStorage
@@ -6,9 +7,7 @@ from streamlit_local_storage import LocalStorage
 from src.utils.slot import (
     evaluate_slot_spin,
     get_slot_config,
-    resolve_pattern_to_chars,
     spin_reels,
-    calculate_probabilities
 )
 from src.utils.storage import SafeStorage
 from src.utils.styles import render_donation_box, render_page_header
@@ -76,7 +75,7 @@ with col_main:
     def render_slot_machine(initial, target, symbols, trigger, sound, result):
         is_win = result is not None
         win_name = result["name"] if is_win else ""
-        
+
         html_template = f"""
         <style>{slot_css}</style>
         <div id="slot-container" class="slot-machine"></div>
@@ -102,18 +101,14 @@ with col_main:
         st.session_state.slot_config["symbols"],
         st.session_state.slot_spin_trigger,
         st.session_state.slot_sound_enabled,
-        st.session_state.slot_result
+        st.session_state.slot_result,
     )
 
     if st.button("🔥 レバーを叩く！", use_container_width=True, type="primary"):
         # Python側で先に抽選
-        final_reels = spin_reels(
-            st.session_state.slot_config["symbols"],
-            st.session_state.slot_config["payouts"]
-        )
+        final_reels = spin_reels(st.session_state.slot_config["symbols"], st.session_state.slot_config["payouts"])
         result = evaluate_slot_spin(final_reels, st.session_state.slot_config["payouts"])
 
-        
         # 状態更新
         st.session_state.slot_reels = st.session_state.slot_target_reels
         st.session_state.slot_target_reels = final_reels
@@ -121,19 +116,22 @@ with col_main:
         st.session_state.slot_spin_trigger += 1
         st.session_state.slot_spins += 1
         storage.set_item("slot_spins", st.session_state.slot_spins)
-        
+
         # 統計と履歴の更新
         res_name = result["name"] if result else "ハズレ"
         st.session_state.slot_counts[res_name] = st.session_state.slot_counts.get(res_name, 0) + 1
         storage.set_item("slot_counts", st.session_state.slot_counts)
-        
+
         reels_str = " ".join([s["char"] for s in final_reels])
-        st.session_state.slot_history.insert(0, {
-            "spin": st.session_state.slot_spins,
-            "time": get_jst_now().strftime("%Y-%m-%d %H:%M:%S"),
-            "result": res_name,
-            "reels": reels_str
-        })
+        st.session_state.slot_history.insert(
+            0,
+            {
+                "spin": st.session_state.slot_spins,
+                "time": get_jst_now().strftime("%Y-%m-%d %H:%M:%S"),
+                "result": res_name,
+                "reels": reels_str,
+            },
+        )
         storage.set_item("slot_history", st.session_state.slot_history)
         st.rerun()
 
@@ -161,7 +159,7 @@ current_payouts = current_config["payouts"]
 with tab1:
     st.subheader("成立履歴の統計")
     total_spins = st.session_state.slot_spins
-    
+
     stats_data = []
     # 役ごとの統計
     for p in current_payouts:
@@ -169,21 +167,13 @@ with tab1:
         count = st.session_state.slot_counts.get(name, 0)
         # 設定値を直接取得（1/N形式）
         denom = p.get("denominator", "??")
-        
-        stats_data.append({
-            "役名": name,
-            "回数": count,
-            "確率 (1/N)": f"1/{denom}"
-        })
-    
+
+        stats_data.append({"役名": name, "回数": count, "確率 (1/N)": f"1/{denom}"})
+
     # ハズレの統計
     miss_count = st.session_state.slot_counts.get("ハズレ", 0)
-    stats_data.append({
-        "役名": "ハズレ",
-        "回数": miss_count,
-        "確率 (1/N)": "---"
-    })
-    
+    stats_data.append({"役名": "ハズレ", "回数": miss_count, "確率 (1/N)": "---"})
+
     st.table(stats_data)
     st.caption(f"現在の設定「{current_config.get('name')}」に基づいた集計結果です。")
 
@@ -192,9 +182,10 @@ with tab2:
         df_hist = pd.DataFrame(st.session_state.slot_history)
         df_hist.columns = ["回転数", "時刻", "成立役", "出目"]
         c1, c2 = st.columns([3, 1])
-        with c1: st.write(f"全 {len(df_hist)} 件の履歴")
+        with c1:
+            st.write(f"全 {len(df_hist)} 件の履歴")
         with c2:
-            csv = df_hist.to_csv(index=False).encode('utf-8-sig')
+            csv = df_hist.to_csv(index=False).encode("utf-8-sig")
             st.download_button("📥 CSVで出力", csv, f"slot_history_{get_jst_now().strftime('%Y%m%d')}.csv", "text/csv")
         st.table(df_hist.head(100))
     else:
@@ -203,14 +194,17 @@ with tab2:
 # サイドバー
 with st.sidebar:
     st.header("⚙️ 設定")
-    st.session_state.slot_sound_enabled = st.toggle("🔊 サウンドを有効にする", value=st.session_state.slot_sound_enabled)
-    
+    st.session_state.slot_sound_enabled = st.toggle(
+        "🔊 サウンドを有効にする", value=st.session_state.slot_sound_enabled
+    )
+
     st.write("---")
     st.subheader("📥 設定の読み込み")
     uploaded_file = st.file_uploader("設定JSONを読み込む", type="json")
     if uploaded_file and st.button("設定を反映", use_container_width=True, type="primary"):
         try:
             from src.utils.slot import migrate_slot_config, validate_slot_config
+
             data = json.load(uploaded_file)
             migrated = migrate_slot_config(data)
             valid, msg = validate_slot_config(migrated)

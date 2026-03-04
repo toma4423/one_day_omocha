@@ -17,6 +17,13 @@ st.set_page_config(page_title="カウントサポート", page_icon="🔢", layo
 # グローバルスタイルの適用
 render_page_header()
 
+# 外部CSSの読み込み
+try:
+    with open("src/assets/counter/style.css", encoding="utf-8") as f:
+        st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
+except Exception:
+    pass
+
 # SafeStorage の初期化
 storage = SafeStorage(LocalStorage())
 CS_STORAGE_KEY = "cs_data"
@@ -67,33 +74,35 @@ init_cs_state()
 
 def weighted_counter_ui(label: str, key_val: str, key_weight: str):
     with st.container(border=True):
-        st.markdown(f"#### {label} カウンター")
+        st.markdown(f"<div class='custom-counter-container'><h4>{label} カウンター</h4></div>", unsafe_allow_html=True)
         col_val, col_w = st.columns([2, 1])
         reset_id = st.session_state.cs_reset_counter
         with col_val:
             st.session_state[key_val] = st.number_input(
                 f"{label}の数",
-                value=st.session_state[key_val],
+                value=int(st.session_state[key_val]),
                 key=f"w_{key_val}_{reset_id}",
                 on_change=save_to_storage,
+                step=1,
             )
         with col_w:
             st.session_state[key_weight] = st.number_input(
                 f"{label}の倍率",
-                value=st.session_state[key_weight],
+                value=float(st.session_state[key_weight]),
                 key=f"w_{key_weight}_{reset_id}",
                 step=0.1,
                 on_change=save_to_storage,
             )
         current_weighted = calculate_weighted_value(st.session_state[key_val], st.session_state[key_weight])
         st.markdown(
-            f"<p style='text-align:right; color:gray; font-size:14px;'>算出値: {current_weighted:.1f}</p>",
+            f"<p style='text-align:right; color:#007bff; font-weight:bold; font-size:16px;'>算出値: {current_weighted:.1f}</p>",
             unsafe_allow_html=True,
         )
     return current_weighted
 
 
 st.title("🔢 カウントサポート")
+st.markdown("数値や倍率を変更すると、自動的に計算と保存が行われます。")
 
 # --- メインエリア ---
 col_main1, col_main2 = st.columns(2)
@@ -103,14 +112,14 @@ with col_main1:
     val_x = weighted_counter_ui("X", "cs_x", "cs_weight_x")
     val_y = weighted_counter_ui("Y", "cs_y", "cs_weight_y")
     st.write("")
-    render_result_box("X - Y", f"{calculate_diff_xy(val_x, val_y):.1f}")
+    render_result_box("X - Y の差分", f"{calculate_diff_xy(val_x, val_y):.1f}")
 
 with col_main2:
     st.subheader("📊 追加集計")
     val_z = weighted_counter_ui("Z", "cs_z", "cs_weight_z")
     st.write("")
     render_result_box(
-        "最終スコア",
+        "最終スコア (X-Y+Z)",
         f"{calculate_final_score(val_x, val_y, val_z):.1f}",
         bg_color="#E8F5E9",
         border_color="#2E7D32",
@@ -134,15 +143,15 @@ with st.container(border=True):
         }
         json_str = json.dumps(current_data, indent=2)
         st.download_button(
-            "📥 JSONを保存",
+            "📥 現在の状態をJSONで保存",
             json_str,
             f"cs_{get_jst_now().strftime('%Y%m%d')}.json",
             "application/json",
             use_container_width=True,
         )
     with c2:
-        uploaded_file = st.file_uploader("📤 JSONを読み込む", type="json", label_visibility="collapsed")
-        if uploaded_file and st.button("反映実行", use_container_width=True):
+        uploaded_file = st.file_uploader("📤 保存したJSONを読み込む", type="json", label_visibility="collapsed")
+        if uploaded_file and st.button("反映実行", use_container_width=True, type="primary"):
             try:
                 data_load = json.load(uploaded_file)
                 st.session_state.cs_x = data_load.get("x", 0)
@@ -160,7 +169,7 @@ with st.container(border=True):
 # --- サイドバー ---
 with st.sidebar:
     st.header("⚙️ 設定")
-    if st.button("全てリセット", use_container_width=True):
+    if st.button("🚨 全てリセット", use_container_width=True, help="全ての数値を0に戻し、LocalStorageを削除します。"):
         st.session_state.cs_x = 0
         st.session_state.cs_y = 0
         st.session_state.cs_z = 0
