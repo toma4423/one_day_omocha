@@ -44,6 +44,7 @@ st.markdown("<h1 style='text-align: center;'>🔢 カウントサポートビン
 storage = SafeStorage(LocalStorage())
 DATA_KEY = "csb_data_v2"
 
+
 def validate_and_save():
     rows = st.session_state.get("csb_rows", 5)
     cols = st.session_state.get("csb_cols", 5)
@@ -62,9 +63,11 @@ def validate_and_save():
     }
     storage.set_item(DATA_KEY, data)
 
+
 def load_from_storage():
     data = storage.get_item(DATA_KEY, is_json=True)
-    if not data: return False
+    if not data:
+        return False
     try:
         # まず行数・列数をセット
         st.session_state.csb_rows = data.get("rows", 5)
@@ -75,7 +78,9 @@ def load_from_storage():
             st.session_state[f"csb_label_{r}_{c}"] = cell.get("label", "")
             st.session_state[f"csb_count_{r}_{c}"] = cell.get("count", 0)
         return True
-    except Exception: return False
+    except Exception:
+        return False
+
 
 # --- 初期化とデータ復元 ---
 if "csb_rows" not in st.session_state:
@@ -83,8 +88,10 @@ if "csb_rows" not in st.session_state:
         st.session_state.csb_rows = 5
         st.session_state.csb_cols = 5
 
+
 def on_change():
     validate_and_save()
+
 
 # --- メイングリッド描画 ---
 current_rows = st.session_state.csb_rows
@@ -96,21 +103,25 @@ for r in range(current_rows):
     row_data = []
     for c in range(current_cols):
         lk, ck = f"csb_label_{r}_{c}", f"csb_count_{r}_{c}"
-        
+
         # セッションにキーがない場合の初期化（フォールバック）
-        if lk not in st.session_state: st.session_state[lk] = f"項目 {r + 1}-{c + 1}"
-        if ck not in st.session_state: st.session_state[ck] = 0
-        
+        if lk not in st.session_state:
+            st.session_state[lk] = f"項目 {r + 1}-{c + 1}"
+        if ck not in st.session_state:
+            st.session_state[ck] = 0
+
         count_val = st.session_state[ck]
         is_active = count_val > 0
         row_data.append(is_active)
-        
+
         with cols_ui[c]:
             cell_class = "bingo-cell-active" if is_active else ""
             with st.container(border=True):
                 st.markdown(f"<div id='cell-{r}-{c}' class='{cell_class}'>", unsafe_allow_html=True)
                 # key を固定することで Session State と直接連動させる
-                st.text_input(f"L{r}{c}", key=lk, label_visibility="collapsed", on_change=on_change, placeholder="項目名")
+                st.text_input(
+                    f"L{r}{c}", key=lk, label_visibility="collapsed", on_change=on_change, placeholder="項目名"
+                )
                 st.number_input(f"N{r}{c}", key=ck, label_visibility="collapsed", step=1, on_change=on_change)
                 st.markdown("</div>", unsafe_allow_html=True)
     bingo_matrix.append(row_data)
@@ -118,18 +129,28 @@ for r in range(current_rows):
 # --- ビンゴ判定 ---
 bingo_indices = []
 for r in range(current_rows):
-    if all(bingo_matrix[r]): bingo_indices.extend([[r, c] for c in range(current_cols)])
+    if all(bingo_matrix[r]):
+        bingo_indices.extend([[r, c] for c in range(current_cols)])
 for c in range(current_cols):
-    if all(bingo_matrix[r][c] for r in range(current_rows)): bingo_indices.extend([[r, c] for r in range(current_rows)])
+    if all(bingo_matrix[r][c] for r in range(current_rows)):
+        bingo_indices.extend([[r, c] for r in range(current_rows)])
 if current_rows == current_cols:
-    if all(bingo_matrix[i][i] for i in range(current_rows)): bingo_indices.extend([[i, i] for i in range(current_rows)])
-    if all(bingo_matrix[i][current_cols - 1 - i] for i in range(current_rows)): bingo_indices.extend([[i, current_cols - 1 - i] for i in range(current_rows)])
+    if all(bingo_matrix[i][i] for i in range(current_rows)):
+        bingo_indices.extend([[i, i] for i in range(current_rows)])
+    if all(bingo_matrix[i][current_cols - 1 - i] for i in range(current_rows)):
+        bingo_indices.extend([[i, current_cols - 1 - i] for i in range(current_rows)])
 
 if bingo_indices:
     unique_indices = []
     for pair in bingo_indices:
-        if pair not in unique_indices: unique_indices.append(pair)
-    js_highlight = "".join([f"document.getElementById('cell-{r}-{c}').parentElement.parentElement.parentElement.classList.add('bingo-line-complete');" for r, c in unique_indices])
+        if pair not in unique_indices:
+            unique_indices.append(pair)
+    js_highlight = "".join(
+        [
+            f"document.getElementById('cell-{r}-{c}').parentElement.parentElement.parentElement.classList.add('bingo-line-complete');"
+            for r, c in unique_indices
+        ]
+    )
     st.components.v1.html(f"<script>{js_highlight}</script>", height=0)
     st.balloons()
 
@@ -137,8 +158,25 @@ if bingo_indices:
 with st.container(border=True):
     c1, c2 = st.columns(2)
     with c1:
-        current_state = {"rows": st.session_state.csb_rows, "cols": st.session_state.csb_cols, "cells": {f"{r}_{c}": {"label": st.session_state.get(f"csb_label_{r}_{c}"), "count": st.session_state.get(f"csb_count_{r}_{c}")} for r in range(st.session_state.csb_rows) for c in range(st.session_state.csb_cols)}}
-        st.download_button(label="📥 保存", data=json.dumps(current_state, indent=2, ensure_ascii=False), file_name=f"bingo_{get_jst_now().strftime('%Y%m%d')}.json", mime="application/json", use_container_width=True)
+        current_state = {
+            "rows": st.session_state.csb_rows,
+            "cols": st.session_state.csb_cols,
+            "cells": {
+                f"{r}_{c}": {
+                    "label": st.session_state.get(f"csb_label_{r}_{c}"),
+                    "count": st.session_state.get(f"csb_count_{r}_{c}"),
+                }
+                for r in range(st.session_state.csb_rows)
+                for c in range(st.session_state.csb_cols)
+            },
+        }
+        st.download_button(
+            label="📥 保存",
+            data=json.dumps(current_state, indent=2, ensure_ascii=False),
+            file_name=f"bingo_{get_jst_now().strftime('%Y%m%d')}.json",
+            mime="application/json",
+            use_container_width=True,
+        )
     with c2:
         uploaded_file = st.file_uploader("📤 復元", type="json", label_visibility="collapsed")
         if uploaded_file and st.button("反映", use_container_width=True, type="primary"):
@@ -151,7 +189,8 @@ with st.container(border=True):
                     st.session_state[f"csb_count_{r}_{c}"] = cell["count"]
                 validate_and_save()
                 st.rerun()
-            except Exception: st.error("失敗")
+            except Exception:
+                st.error("失敗")
 
 # --- サイドバー ---
 with st.sidebar:
@@ -159,9 +198,9 @@ with st.sidebar:
     st.number_input("行数", 1, 15, key="csb_rows", on_change=on_change)
     st.number_input("列数", 1, 15, key="csb_cols", on_change=on_change)
     st.write("---")
-    
+
     st.subheader("🚨 リセット")
-    
+
     # Session State を直接操作するスムーズなリセット
     with st.popover("🔢 カウントのみリセット", use_container_width=True):
         st.warning("全てのカウントを0に戻します。項目名は残ります。")

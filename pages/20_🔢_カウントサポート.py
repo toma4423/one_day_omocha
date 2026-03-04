@@ -26,11 +26,12 @@ except Exception:
 
 # SafeStorage の初期化
 storage = SafeStorage(LocalStorage())
-CS_STORAGE_KEY = "cs_data_v2" # キーを刷新して安定化
+CS_STORAGE_KEY = "cs_data_v2"  # キーを刷新して安定化
 
 # セッション状態の初期化
 if "cs_reset_id" not in st.session_state:
     st.session_state.cs_reset_id = 0
+
 
 def save_to_storage():
     data = {
@@ -42,6 +43,7 @@ def save_to_storage():
         "weight_z": st.session_state.get("cs_weight_z", 1.0),
     }
     storage.set_item(CS_STORAGE_KEY, data)
+
 
 def load_from_storage():
     data = storage.get_item(CS_STORAGE_KEY, is_json=True)
@@ -55,6 +57,7 @@ def load_from_storage():
         return True
     return False
 
+
 # 初期化ロジック
 if "cs_x" not in st.session_state:
     if not load_from_storage():
@@ -64,6 +67,7 @@ if "cs_x" not in st.session_state:
         st.session_state.cs_weight_x = 1.0
         st.session_state.cs_weight_y = 1.0
         st.session_state.cs_weight_z = 1.0
+
 
 def weighted_counter_ui(label: str, key_val: str, key_weight: str):
     rid = st.session_state.cs_reset_id
@@ -76,7 +80,7 @@ def weighted_counter_ui(label: str, key_val: str, key_weight: str):
                 value=int(st.session_state.get(key_val, 0)),
                 key=f"{key_val}_{rid}",
                 on_change=save_to_storage,
-                step=1
+                step=1,
             )
         with col_w:
             st.session_state[key_weight] = st.number_input(
@@ -92,6 +96,7 @@ def weighted_counter_ui(label: str, key_val: str, key_weight: str):
             unsafe_allow_html=True,
         )
     return current_weighted
+
 
 st.title("🔢 カウントサポート")
 st.markdown("数値や倍率を変更すると、自動的に計算と保存が行われます。")
@@ -122,8 +127,21 @@ with st.container(border=True):
     st.subheader("📁 データの保存と読み込み")
     c1, c2 = st.columns(2)
     with c1:
-        current_data = {"x": st.session_state.cs_x, "y": st.session_state.cs_y, "z": st.session_state.cs_z, "weight_x": st.session_state.cs_weight_x, "weight_y": st.session_state.cs_weight_y, "weight_z": st.session_state.cs_weight_z}
-        st.download_button("📥 保存", json.dumps(current_data, indent=2), f"cs_{get_jst_now().strftime('%Y%m%d')}.json", "application/json", use_container_width=True)
+        current_data = {
+            "x": st.session_state.cs_x,
+            "y": st.session_state.cs_y,
+            "z": st.session_state.cs_z,
+            "weight_x": st.session_state.cs_weight_x,
+            "weight_y": st.session_state.cs_weight_y,
+            "weight_z": st.session_state.cs_weight_z,
+        }
+        st.download_button(
+            "📥 保存",
+            json.dumps(current_data, indent=2),
+            f"cs_{get_jst_now().strftime('%Y%m%d')}.json",
+            "application/json",
+            use_container_width=True,
+        )
     with c2:
         uploaded_file = st.file_uploader("📤 復元", type="json", label_visibility="collapsed")
         if uploaded_file and st.button("反映", use_container_width=True, type="primary", key="btn_apply_cs"):
@@ -139,7 +157,8 @@ with st.container(border=True):
                 save_to_storage()
                 st.success("反映しました！")
                 st.rerun()
-            except Exception: st.error("読込失敗")
+            except Exception:
+                st.error("読込失敗")
 
 with st.sidebar:
     st.header("⚙️ 設定")
