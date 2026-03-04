@@ -20,35 +20,62 @@ try:
 except Exception:
     pass
 
-# ビンゴ専用の微調整CSS
+# ビンゴ専用「超コンパクト」CSS
 st.markdown(
     """
     <style>
+    /* 画面全体の余白を削減 */
+    .main .block-container {
+        padding-top: 1rem !important;
+        padding-bottom: 0rem !important;
+    }
+    /* タイトルの隙間を詰める */
+    h1 {
+        margin-top: -30px !important;
+        margin-bottom: 0px !important;
+        font-size: 1.8rem !important;
+    }
+    /* グリッドコンテナの余白を極限まで排除 */
     [data-testid="stVerticalBlock"] > div > div > div[data-testid="stVerticalBlock"] {
-        padding: 2px !important;
+        padding: 0px !important;
         gap: 2px !important;
     }
+    /* st.container(border=True) の内部余白を圧縮 */
+    div[data-testid="stElementContainer"] div.st-emotion-cache-16idsys, 
+    div[data-testid="stElementContainer"] div.st-emotion-cache-1r6slb0 {
+        padding: 4px !important;
+        margin: 0px !important;
+    }
+    /* 入力欄の高さとフォントをビンゴ用に最適化 */
+    .stTextInput input {
+        height: 24px !important;
+        font-size: 11px !important;
+        padding: 0 4px !important;
+        margin-bottom: 2px !important;
+    }
+    .stNumberInput input {
+        height: 32px !important;
+        font-size: 20px !important;
+        font-weight: 900 !important;
+        padding: 0 !important;
+    }
+    /* ラベルを完全に消去 */
     div[data-testid="stTextInput"] label, div[data-testid="stNumberInput"] label {
         display: none !important;
     }
-    .stNumberInput input {
-        font-size: 22px !important;
-        background-color: transparent !important;
-        border: none !important;
-        box-shadow: none !important;
+    /* スピンボタン（増減矢印）を非表示にして横幅を確保 */
+    input::-webkit-outer-spin-button, input::-webkit-inner-spin-button {
+        -webkit-appearance: none; margin: 0;
     }
-    /* リセット時のフェードアウトアニメーション */
-    .resetting {
-        transition: opacity 0.5s ease;
-        opacity: 0 !important;
-    }
+    /* セパレーターの隙間 */
+    hr { margin: 0.5rem 0 !important; }
     </style>
 """,
     unsafe_allow_html=True,
 )
 
 st.markdown(
-    "<h1 style='text-align: center; margin-bottom: 10px;'>🔢 カウントサポートビンゴ</h1>", unsafe_allow_html=True
+    "<h1 style='text-align: center;'>🔢 カウントサポートビンゴ</h1>", unsafe_allow_html=True
 )
 
 # --- ストレージ管理の定義 ---
@@ -130,8 +157,6 @@ if "reset_action" in st.query_params:
         new_v = 1 if current_v >= 100 else current_v + 1
         storage.set_item("csb_ver", str(new_v))
         st.query_params["v"] = str(new_v)
-    
-    # 処理が終わったらクエリパラメータを消してリロード
     del st.query_params["reset_action"]
     st.rerun()
 
@@ -180,21 +205,14 @@ if bingo_indices:
     st.balloons()
 
 # --- データの保存と読み込み ---
-st.write("---")
 with st.container(border=True):
-    st.subheader("📁 データの保存と読み込み")
     c1, c2 = st.columns(2)
     with c1:
-        current_state = {
-            "rows": st.session_state.csb_rows,
-            "cols": st.session_state.csb_cols,
-            "cells": {f"{r}_{c}": {"label": st.session_state.get(f"csb_label_{r}_{c}"), "count": st.session_state.get(f"csb_count_{r}_{c}")} for r in range(st.session_state.csb_rows) for c in range(st.session_state.csb_cols)},
-        }
-        json_str = json.dumps(current_state, indent=2, ensure_ascii=False)
-        st.download_button(label="📥 現在の設定をJSONで保存", data=json_str, file_name=f"bingo_{get_jst_now().strftime('%Y%m%d')}.json", mime="application/json", use_container_width=True)
+        current_state = {"rows": st.session_state.csb_rows, "cols": st.session_state.csb_cols, "cells": {f"{r}_{c}": {"label": st.session_state.get(f"csb_label_{r}_{c}"), "count": st.session_state.get(f"csb_count_{r}_{c}")} for r in range(st.session_state.csb_rows) for c in range(st.session_state.csb_cols)}}
+        st.download_button(label="📥 保存", data=json.dumps(current_state, indent=2, ensure_ascii=False), file_name=f"bingo_{get_jst_now().strftime('%Y%m%d')}.json", mime="application/json", use_container_width=True)
     with c2:
-        uploaded_file = st.file_uploader("📤 JSONを読み込んで復元", type="json", label_visibility="collapsed")
-        if uploaded_file and st.button("反映実行", use_container_width=True, type="primary"):
+        uploaded_file = st.file_uploader("📤 復元", type="json", label_visibility="collapsed")
+        if uploaded_file and st.button("反映", use_container_width=True, type="primary"):
             try:
                 d = json.load(uploaded_file)
                 st.session_state.csb_rows, st.session_state.csb_cols = d["rows"], d["cols"]
@@ -206,42 +224,18 @@ with st.container(border=True):
                     st.session_state[f"csb_count_{r}_{c}"] = cell["count"]
                 validate_and_save()
                 st.rerun()
-            except Exception: st.error("不正な形式です")
+            except Exception: st.error("失敗")
 
-# --- サイドバー (JSリセット実装) ---
+# --- サイドバー ---
 with st.sidebar:
     st.header("⚙️ 設定")
     st.number_input("行数", 1, 15, key="csb_rows", on_change=on_change)
     st.number_input("列数", 1, 15, key="csb_cols", on_change=on_change)
     st.write("---")
-    
-    # JavaScriptを用いたリセットボタン
     st.subheader("🚨 リセット")
-    
-    # 1. カウントのみリセット (JS確認付き)
     if st.button("🔢 カウントのみ0にする", use_container_width=True):
-        js_confirm = """
-        <script>
-        if (window.confirm('全てのカウントを0に戻しますか？（項目名は残ります）')) {
-            const url = new URL(window.parent.location.href);
-            url.searchParams.set('reset_action', 'count_only');
-            window.parent.location.href = url.href;
-        }
-        </script>
-        """
-        st.components.v1.html(js_confirm, height=0)
-
-    # 2. 全てリセット (JS確認付き)
-    if st.button("🚨 全てリセット", use_container_width=True, type="secondary", help="項目名も含めて完全に初期化します"):
-        js_confirm_all = """
-        <script>
-        if (window.confirm('項目名も含めて、全てのデータを完全に消去しますか？')) {
-            const url = new URL(window.parent.location.href);
-            url.searchParams.set('reset_action', 'all');
-            window.parent.location.href = url.href;
-        }
-        </script>
-        """
-        st.components.v1.html(js_confirm_all, height=0)
+        st.components.v1.html("<script>if(window.confirm('カウントを0に戻しますか？')){const u=new URL(window.parent.location.href);u.searchParams.set('reset_action','count_only');window.parent.location.href=u.href;}</script>", height=0)
+    if st.button("🚨 全てリセット", use_container_width=True, type="secondary"):
+        st.components.v1.html("<script>if(window.confirm('全てのデータを消去しますか？')){const u=new URL(window.parent.location.href);u.searchParams.set('reset_action','all');window.parent.location.href=u.href;}</script>", height=0)
 
 render_donation_box("https://qr.paypay.ne.jp/p2p01_jsHjvMAenqfvI10s", is_sidebar=True)
