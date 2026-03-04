@@ -3,7 +3,7 @@ from streamlit_local_storage import LocalStorage
 
 from src.utils.kurohige import KurohigeState, init_kurohige_state
 from src.utils.storage import SafeStorage
-from src.utils.styles import render_donation_box, render_page_header
+from src.utils.styles import render_donation_box, render_grid_board, render_page_header
 
 st.set_page_config(page_title="黒ひげ危機一発", page_icon="☠️", layout="centered")
 
@@ -45,7 +45,7 @@ except Exception:
     kh_js = ""
     kh_css = ""
 
-# JSコンポーネントのレンダリング
+# JSアニメーション部分のレンダリング
 html_template = f"""
 <style>{kh_css}</style>
 <div id="kurohige-app"></div>
@@ -53,43 +53,40 @@ html_template = f"""
     {kh_js}
     const config = {state.model_dump_json()};
     setupKurohige(config);
-
-    // JS側からのクリックイベントをリッスン
-    window.addEventListener('slot_clicked', (e) => {{
-        const index = e.detail.index;
-        // Streamlit 側に値を渡すために hidden input と button を使うか、
-        // URL query params を使う方法がある。
-        // ここでは最も確実な URL query params 方式を採用。
-        const url = new URL(window.location.href);
-        url.searchParams.set('click_idx', index);
-        window.parent.location.href = url.href;
-    }});
 </script>
 """
+st.components.v1.html(html_template, height=300)
 
-# Streamlit の Component 経由で JS を実行
-# ※ st.components.v1.html は iframe なので、親ウィンドウへの通信が必要
-# 今回はシンプルに、クリックされた index を st.query_params で受け取る
-st.components.v1.html(html_template, height=550)
+st.write("")
 
-# クエリパラメータの監視
-query_params = st.query_params
-if "click_idx" in query_params:
-    idx = int(query_params["click_idx"])
-    # パラメータをクリア
-    st.query_params.clear()
+# 状態表示
+if state.status == "boom":
+    st.error("🚀 ドカン！！！黒ひげが飛んでいきました！")
+else:
+    st.info(f"🗡️ 現在 {len(state.clicked_slots)} 本の剣が刺さっています。")
 
-    if idx not in state.clicked_slots and state.status == "playing":
+# 穴（ボタン）の表示
+cols_per_row = 6
+
+
+def render_slot(idx):
+    slot_num = idx + 1
+    is_clicked = idx in state.clicked_slots
+    is_boom = state.status == "boom" and idx == state.target_slot
+
+    label = f"{slot_num}\n🗡️" if is_clicked else (f"{slot_num}\n💥" if is_boom else f"{slot_num}")
+    disabled = is_clicked or state.status == "boom"
+
+    btn_type = "primary" if is_clicked else ("secondary" if not is_boom else "primary")
+
+    if st.button(label, key=f"k_{idx}", disabled=disabled, use_container_width=True, type=btn_type):
         state.click_slot(idx)
         storage.set_item("kurohige_state_v2", state.model_dump())
         if state.status == "boom":
             st.snow()
         st.rerun()
 
-# 状態表示
-if state.status == "boom":
-    st.error("ドカン！！！黒ひげが飛んでいきました！")
-elif state.status == "playing":
-    st.info(f"現在 {len(state.clicked_slots)} 本の剣が刺さっています。")
+
+render_grid_board(state.num_slots, cols_per_row, render_slot)
 
 render_donation_box("https://qr.paypay.ne.jp/p2p01_jsHjvMAenqfvI10s", is_sidebar=True)
