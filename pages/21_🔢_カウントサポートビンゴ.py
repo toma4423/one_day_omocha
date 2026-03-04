@@ -42,20 +42,12 @@ st.markdown(
 st.markdown("<h1 style='text-align: center;'>🔢 カウントサポートビンゴ</h1>", unsafe_allow_html=True)
 
 storage = SafeStorage(LocalStorage())
-
-def get_current_version():
-    v_raw = st.query_params.get("v", "1")
-    return str(v_raw)
-
-def get_data_key(version=None):
-    v = version if version else get_current_version()
-    return f"csb_data_v{v}"
+DATA_KEY = "csb_data_v2"
 
 def validate_and_save():
     rows = st.session_state.get("csb_rows", 5)
     cols = st.session_state.get("csb_cols", 5)
     data = {
-        "version": get_current_version(),
         "updated_at": get_jst_now().isoformat(),
         "rows": rows,
         "cols": cols,
@@ -68,11 +60,10 @@ def validate_and_save():
             for c in range(cols)
         },
     }
-    storage.set_item(get_data_key(), data)
-    storage.set_item("csb_ver", get_current_version())
+    storage.set_item(DATA_KEY, data)
 
 def load_from_storage():
-    data = storage.get_item(get_data_key(), is_json=True)
+    data = storage.get_item(DATA_KEY, is_json=True)
     if not data: return False
     try:
         st.session_state.csb_rows, st.session_state.csb_cols = data.get("rows", 5), data.get("cols", 5)
@@ -83,36 +74,21 @@ def load_from_storage():
         return True
     except Exception: return False
 
-# 初期化
+# セッション状態の初期化
+if "csb_reset_id" not in st.session_state:
+    st.session_state.csb_reset_id = 0
 if "csb_rows" not in st.session_state:
-    load_from_storage() or (st.session_state.update({"csb_rows": 5, "csb_cols": 5}))
-
-# --- クエリパラメータによるJSリセット命令の処理 ---
-if "reset_action" in st.query_params:
-    action = st.query_params["reset_action"]
-    if action == "count_only":
-        # セッションとストレージの両方を確実に更新
-        rows, cols = st.session_state.get("csb_rows", 5), st.session_state.get("csb_cols", 5)
-        for r in range(rows):
-            for c in range(cols):
-                st.session_state[f"csb_count_{r}_{c}"] = 0
-        validate_and_save() # 0の状態を保存
-    elif action == "all":
-        storage.delete_item(get_data_key())
-        for k in list(st.session_state.keys()):
-            if k.startswith("csb_"): del st.session_state[k]
-        storage.set_item("csb_ver", "1")
-    
-    # パラメータを除去してリロード
-    st.query_params.clear()
-    st.rerun()
+    if not load_from_storage():
+        st.session_state.csb_rows = 5
+        st.session_state.csb_cols = 5
 
 def on_change():
     validate_and_save()
 
 # --- メイングリッド ---
-current_rows = st.session_state.get("csb_rows", 5)
-current_cols = st.session_state.get("csb_cols", 5)
+current_rows = st.session_state.csb_rows
+current_cols = st.session_state.csb_cols
+rid = st.session_state.csb_reset_id
 bingo_matrix = []
 
 for r in range(current_rows):
@@ -120,6 +96,7 @@ for r in range(current_rows):
     row_data = []
     for c in range(current_cols):
         lk, ck = f"csb_label_{r}_{c}", f"csb_count_{r}_{c}"
+        # キーが存在しない場合のフォールバック
         if lk not in st.session_state: st.session_state[lk] = f"項目 {r + 1}-{c + 1}"
         if ck not in st.session_state: st.session_state[ck] = 0
         
@@ -131,8 +108,8 @@ for r in range(current_rows):
             cell_class = "bingo-cell-active" if is_active else ""
             with st.container(border=True):
                 st.markdown(f"<div id='cell-{r}-{c}' class='{cell_class}'>", unsafe_allow_html=True)
-                st.text_input(f"L{r}{c}", key=lk, label_visibility="collapsed", on_change=on_change, placeholder="項目名")
-                st.number_input(f"N{r}{c}", key=ck, label_visibility="collapsed", step=1, on_change=on_change)
+                st.text_input(f"L{r}{c}", key=f"{lk}_{rid}", value=st.session_state[lk], label_visibility="collapsed", on_change=on_change, placeholder="項目名")
+                st.number_input(f"N{r}{c}", key=f"{ck}_{rid}", value=int(st.session_state[ck]), label_visibility="collapsed", step=1, on_change=on_change)
                 st.markdown("</div>", unsafe_allow_html=True)
     bingo_matrix.append(row_data)
 
@@ -162,7 +139,7 @@ with st.container(border=True):
         st.download_button(label="📥 保存", data=json.dumps(current_state, indent=2, ensure_ascii=False), file_name=f"bingo_{get_jst_now().strftime('%Y%m%d')}.json", mime="application/json", use_container_width=True)
     with c2:
         uploaded_file = st.file_uploader("📤 復元", type="json", label_visibility="collapsed")
-        if uploaded_file and st.button("反映", use_container_width=True, type="primary"):
+        if uploaded_file and st.button("反映", key="btn_apply_json", use_container_width=True, type="primary"):
             try:
                 d = json.load(uploaded_file)
                 st.session_state.csb_rows, st.session_state.csb_cols = d["rows"], d["cols"]
@@ -172,6 +149,7 @@ with st.container(border=True):
                     r, c = pos.split("_")
                     st.session_state[f"csb_label_{r}_{c}"] = cell["label"]
                     st.session_state[f"csb_count_{r}_{c}"] = cell["count"]
+                st.session_state.csb_reset_id += 1 
                 validate_and_save()
                 st.rerun()
             except Exception: st.error("失敗")
@@ -182,10 +160,29 @@ with st.sidebar:
     st.number_input("行数", 1, 15, key="csb_rows", on_change=on_change)
     st.number_input("列数", 1, 15, key="csb_cols", on_change=on_change)
     st.write("---")
+    
     st.subheader("🚨 リセット")
-    if st.button("🔢 カウントのみ0にする", use_container_width=True):
-        st.components.v1.html("<script>if(window.confirm('カウントを0に戻しますか？')){const u=new URL(window.parent.location.href);u.searchParams.set('reset_action','count_only');window.parent.location.href=u.href;}</script>", height=0)
-    if st.button("🚨 全てリセット", use_container_width=True, type="secondary"):
-        st.components.v1.html("<script>if(window.confirm('全てのデータを消去しますか？')){const u=new URL(window.parent.location.href);u.searchParams.set('reset_action','all');window.parent.location.href=u.href;}</script>", height=0)
+    
+    with st.popover("🔢 カウントのみリセット", use_container_width=True):
+        st.warning("全てのカウントを0に戻します。項目名は残ります。")
+        if st.button("実行する", key="confirm_count_reset", type="primary", use_container_width=True):
+            for r in range(st.session_state.csb_rows):
+                for c in range(st.session_state.csb_cols):
+                    st.session_state[f"csb_count_{r}_{c}"] = 0
+            st.session_state.csb_reset_id += 1
+            validate_and_save()
+            st.rerun()
+
+    with st.popover("🚨 全てリセット", use_container_width=True):
+        st.error("項目名も含めて全てのデータを完全に消去します。")
+        if st.button("実行する", key="confirm_all_reset", type="primary", use_container_width=True):
+            storage.delete_item(DATA_KEY)
+            # 管理キー以外を削除
+            keep_keys = {"csb_reset_id"}
+            for k in list(st.session_state.keys()):
+                if k.startswith("csb_") and k not in keep_keys:
+                    del st.session_state[k]
+            st.session_state.csb_reset_id += 1
+            st.rerun()
 
 render_donation_box("https://qr.paypay.ne.jp/p2p01_jsHjvMAenqfvI10s", is_sidebar=True)

@@ -26,11 +26,11 @@ except Exception:
 
 # SafeStorage の初期化
 storage = SafeStorage(LocalStorage())
-CS_STORAGE_KEY = "cs_data"
+CS_STORAGE_KEY = "cs_data_v2" # キーを刷新して安定化
 
 # セッション状態の初期化
-if "cs_reset_counter" not in st.session_state:
-    st.session_state.cs_reset_counter = 0
+if "cs_reset_id" not in st.session_state:
+    st.session_state.cs_reset_id = 0
 
 def save_to_storage():
     data = {
@@ -55,49 +55,34 @@ def load_from_storage():
         return True
     return False
 
-def init_cs_state():
-    if "cs_x" not in st.session_state:
-        if not load_from_storage():
-            st.session_state.cs_x = 0
-            st.session_state.cs_y = 0
-            st.session_state.cs_z = 0
-            st.session_state.cs_weight_x = 1.0
-            st.session_state.cs_weight_y = 1.0
-            st.session_state.cs_weight_z = 1.0
-
-init_cs_state()
-
-# --- JSリセット命令の処理 ---
-if "reset_action" in st.query_params:
-    storage.delete_item(CS_STORAGE_KEY)
-    st.session_state.cs_x = 0
-    st.session_state.cs_y = 0
-    st.session_state.cs_z = 0
-    st.session_state.cs_weight_x = 1.0
-    st.session_state.cs_weight_y = 1.0
-    st.session_state.cs_weight_z = 1.0
-    st.session_state.cs_reset_counter += 1
-    del st.query_params["reset_action"]
-    st.rerun()
+# 初期化ロジック
+if "cs_x" not in st.session_state:
+    if not load_from_storage():
+        st.session_state.cs_x = 0
+        st.session_state.cs_y = 0
+        st.session_state.cs_z = 0
+        st.session_state.cs_weight_x = 1.0
+        st.session_state.cs_weight_y = 1.0
+        st.session_state.cs_weight_z = 1.0
 
 def weighted_counter_ui(label: str, key_val: str, key_weight: str):
+    rid = st.session_state.cs_reset_id
     with st.container(border=True):
         st.markdown(f"<div class='custom-counter-container'><h4>{label} カウンター</h4></div>", unsafe_allow_html=True)
         col_val, col_w = st.columns([2, 1])
-        reset_id = st.session_state.cs_reset_counter
         with col_val:
             st.session_state[key_val] = st.number_input(
                 f"{label}の数",
-                value=int(st.session_state[key_val]),
-                key=f"w_{key_val}_{reset_id}",
+                value=int(st.session_state.get(key_val, 0)),
+                key=f"{key_val}_{rid}",
                 on_change=save_to_storage,
                 step=1
             )
         with col_w:
             st.session_state[key_weight] = st.number_input(
                 f"{label}の倍率",
-                value=float(st.session_state[key_weight]),
-                key=f"w_{key_weight}_{reset_id}",
+                value=float(st.session_state.get(key_weight, 1.0)),
+                key=f"{key_weight}_{rid}",
                 step=0.1,
                 on_change=save_to_storage,
             )
@@ -138,14 +123,19 @@ with st.container(border=True):
     c1, c2 = st.columns(2)
     with c1:
         current_data = {"x": st.session_state.cs_x, "y": st.session_state.cs_y, "z": st.session_state.cs_z, "weight_x": st.session_state.cs_weight_x, "weight_y": st.session_state.cs_weight_y, "weight_z": st.session_state.cs_weight_z}
-        st.download_button("📥 現在の状態をJSONで保存", json.dumps(current_data, indent=2), f"cs_{get_jst_now().strftime('%Y%m%d')}.json", "application/json", use_container_width=True)
+        st.download_button("📥 保存", json.dumps(current_data, indent=2), f"cs_{get_jst_now().strftime('%Y%m%d')}.json", "application/json", use_container_width=True)
     with c2:
-        uploaded_file = st.file_uploader("📤 保存したJSONを読み込む", type="json", label_visibility="collapsed")
-        if uploaded_file and st.button("反映実行", use_container_width=True, type="primary"):
+        uploaded_file = st.file_uploader("📤 復元", type="json", label_visibility="collapsed")
+        if uploaded_file and st.button("反映", use_container_width=True, type="primary", key="btn_apply_cs"):
             try:
                 data_load = json.load(uploaded_file)
-                st.session_state.cs_x, st.session_state.cs_y, st.session_state.cs_z = data_load.get("x", 0), data_load.get("y", 0), data_load.get("z", 0)
-                st.session_state.cs_weight_x, st.session_state.cs_weight_y, st.session_state.cs_weight_z = data_load.get("weight_x", 1.0), data_load.get("weight_y", 1.0), data_load.get("weight_z", 1.0)
+                st.session_state.cs_x = data_load.get("x", 0)
+                st.session_state.cs_y = data_load.get("y", 0)
+                st.session_state.cs_z = data_load.get("z", 0)
+                st.session_state.cs_weight_x = data_load.get("weight_x", 1.0)
+                st.session_state.cs_weight_y = data_load.get("weight_y", 1.0)
+                st.session_state.cs_weight_z = data_load.get("weight_z", 1.0)
+                st.session_state.cs_reset_id += 1
                 save_to_storage()
                 st.success("反映しました！")
                 st.rerun()
@@ -153,16 +143,18 @@ with st.container(border=True):
 
 with st.sidebar:
     st.header("⚙️ 設定")
-    if st.button("🚨 全てリセット", use_container_width=True, help="数値を0に戻し、LocalStorageを削除します"):
-        js_confirm = """
-        <script>
-        if (window.confirm('全ての数値をリセットして初期状態に戻しますか？')) {
-            const url = new URL(window.parent.location.href);
-            url.searchParams.set('reset_action', 'all');
-            window.parent.location.href = url.href;
-        }
-        </script>
-        """
-        st.components.v1.html(js_confirm, height=0)
+    st.write("---")
+    st.subheader("🚨 リセット")
+    with st.popover("🚨 全てリセット", use_container_width=True):
+        st.error("全ての数値をリセットして初期状態に戻します。")
+        if st.button("実行する", key="confirm_cs_reset", type="primary", use_container_width=True):
+            storage.delete_item(CS_STORAGE_KEY)
+            # 管理キー以外を削除
+            keep_keys = {"cs_reset_id"}
+            for k in list(st.session_state.keys()):
+                if k.startswith("cs_") and k not in keep_keys:
+                    del st.session_state[k]
+            st.session_state.cs_reset_id += 1
+            st.rerun()
 
 render_donation_box("https://qr.paypay.ne.jp/p2p01_jsHjvMAenqfvI10s", is_sidebar=True)
