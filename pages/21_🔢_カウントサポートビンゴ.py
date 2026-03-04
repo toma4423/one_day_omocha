@@ -96,7 +96,6 @@ for r in range(current_rows):
     row_data = []
     for c in range(current_cols):
         lk, ck = f"csb_label_{r}_{c}", f"csb_count_{r}_{c}"
-        # キーが存在しない場合のフォールバック
         if lk not in st.session_state: st.session_state[lk] = f"項目 {r + 1}-{c + 1}"
         if ck not in st.session_state: st.session_state[ck] = 0
         
@@ -108,8 +107,24 @@ for r in range(current_rows):
             cell_class = "bingo-cell-active" if is_active else ""
             with st.container(border=True):
                 st.markdown(f"<div id='cell-{r}-{c}' class='{cell_class}'>", unsafe_allow_html=True)
-                st.text_input(f"L{r}{c}", key=f"{lk}_{rid}", value=st.session_state[lk], label_visibility="collapsed", on_change=on_change, placeholder="項目名")
-                st.number_input(f"N{r}{c}", key=f"{ck}_{rid}", value=int(st.session_state[ck]), label_visibility="collapsed", step=1, on_change=on_change)
+                # 項目名入力: valueにセッションの値を明示
+                st.session_state[lk] = st.text_input(
+                    f"L{r}{c}", 
+                    key=f"{lk}_{rid}", 
+                    value=st.session_state[lk], 
+                    label_visibility="collapsed", 
+                    on_change=on_change, 
+                    placeholder="項目名"
+                )
+                # 数値入力: valueにセッションの値を明示
+                st.session_state[ck] = st.number_input(
+                    f"N{r}{c}", 
+                    key=f"{ck}_{rid}", 
+                    value=int(st.session_state[ck]), 
+                    label_visibility="collapsed", 
+                    step=1, 
+                    on_change=on_change
+                )
                 st.markdown("</div>", unsafe_allow_html=True)
     bingo_matrix.append(row_data)
 
@@ -139,7 +154,7 @@ with st.container(border=True):
         st.download_button(label="📥 保存", data=json.dumps(current_state, indent=2, ensure_ascii=False), file_name=f"bingo_{get_jst_now().strftime('%Y%m%d')}.json", mime="application/json", use_container_width=True)
     with c2:
         uploaded_file = st.file_uploader("📤 復元", type="json", label_visibility="collapsed")
-        if uploaded_file and st.button("反映", key="btn_apply_json", use_container_width=True, type="primary"):
+        if uploaded_file and st.button("反映", use_container_width=True, type="primary"):
             try:
                 d = json.load(uploaded_file)
                 st.session_state.csb_rows, st.session_state.csb_cols = d["rows"], d["cols"]
@@ -163,21 +178,25 @@ with st.sidebar:
     
     st.subheader("🚨 リセット")
     
+    # 1. カウントのみリセット (ラベルは保持)
     with st.popover("🔢 カウントのみリセット", use_container_width=True):
         st.warning("全てのカウントを0に戻します。項目名は残ります。")
         if st.button("実行する", key="confirm_count_reset", type="primary", use_container_width=True):
+            # カウントだけを0にする
             for r in range(st.session_state.csb_rows):
                 for c in range(st.session_state.csb_cols):
                     st.session_state[f"csb_count_{r}_{c}"] = 0
+            
+            # reset_idを増やすことでウィジェットを再描画させ、新しい値を適用
             st.session_state.csb_reset_id += 1
             validate_and_save()
             st.rerun()
 
+    # 2. 全てリセット (完全に初期化)
     with st.popover("🚨 全てリセット", use_container_width=True):
         st.error("項目名も含めて全てのデータを完全に消去します。")
         if st.button("実行する", key="confirm_all_reset", type="primary", use_container_width=True):
             storage.delete_item(DATA_KEY)
-            # 管理キー以外を削除
             keep_keys = {"csb_reset_id"}
             for k in list(st.session_state.keys()):
                 if k.startswith("csb_") and k not in keep_keys:
