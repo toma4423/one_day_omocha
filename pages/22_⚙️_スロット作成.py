@@ -40,16 +40,14 @@ with st.expander("📖 はじめてのスロット作りガイド（クリック
     
     #### 1. 「分母 (1/N)」ってなに？
     当たりやすさを決める数字です。**「数字が小さいほど当たりやすい」**と覚えてください。
-    - **10.0** と入力 ➡ 10回に1回くらい当たります（当たりやすい！）
-    - **100.0** と入力 ➡ 100回に1回くらい当たります
-    - **256.0** と入力 ➡ なかなか当たりません（パチスロの大当たりの定番！）
+    - **10.0** と入力 ➡ 10回に1回くらい当たります
+    - **256.0** と入力 ➡ 256回に1回くらい当たります
 
     #### 2. おすすめの定番設定
     迷ったらこの数字を入れてみてください：
-    - **リプレイ風**: 1/7.3
-    - **ベル（小役）風**: 1/12.0
-    - **チェリー風**: 1/40.0
-    - **大当たり（777）**: 1/256.0
+    - **当たりやすい役**: 1/7.0 〜 1/15.0
+    - **ちょっと珍しい役**: 1/30.0 〜 1/100.0
+    - **大当たり（777）**: 1/200.0 〜 1/300.0
     """)
 
 # --- 設定：名前 ---
@@ -65,7 +63,7 @@ st.write("")
 # --- 図柄の編集 ---
 st.subheader("🖼️ 図柄（シンボル）の編集")
 with st.container(border=True):
-    st.info("図柄のIDやラベルを設定します。画像URLを入れると、その画像がリールに表示されます。")
+    st.info("リールに表示される図柄を定義します。")
     hc1, hc2, hc3, hc4 = st.columns([1, 2, 4, 1])
     hc1.caption("ID")
     hc2.caption("管理用ラベル")
@@ -119,68 +117,74 @@ st.write("")
 # --- 役の編集 ---
 st.subheader("💰 役と出現率の設定")
 with st.container(border=True):
-    st.write("各役が **『何回に1回当たるか（分母）』** を設定します。")
+    st.info("どの図柄が揃ったら当たりにするか、その確率はいくらかを設定します。")
     
     current_payouts = st.session_state.slot_config_edit["payouts"]
     updated_payouts = []
     
-    symbol_options_map = {s["id"]: f"{s['id']}: {s['char']}" for s in updated_symbols}
+    symbol_options_map = {s["id"]: f"{s['char']}" for s in updated_symbols}
     symbol_ids = ["ANY"] + sorted(list(symbol_options_map.keys()))
 
     def get_label(sid):
-        return "ANY (何でも)" if sid == "ANY" else symbol_options_map.get(sid, str(sid))
+        return "ANY" if sid == "ANY" else f"{sid}: {symbol_options_map.get(sid, str(sid))}"
+
+    # ヘッダー
+    h1, h2, h3, h4, h5 = st.columns([3, 2, 2, 2, 1])
+    h1.caption("役名")
+    h2.caption("左リール")
+    h3.caption("中リール")
+    h4.caption("右リール")
+    h5.caption("確率(1/N)")
 
     for i, payout in enumerate(current_payouts):
-        with st.expander(f"役 {i + 1}: {payout['name']} (1/{payout.get('denominator', '??')})"):
-            col_name, col_denom = st.columns([3, 1])
-            with col_name:
-                p_name = st.text_input("役名", payout["name"], key=f"p_name_{i}")
-            with col_denom:
-                current_denom = float(payout.get("denominator", 10.0))
-                min_denom = 1.1
-                p_denom = st.number_input(
-                    "分母 (1/N)", 
-                    value=max(current_denom, min_denom), 
-                    min_value=min_denom, 
-                    step=0.1, 
-                    key=f"p_denom_{i}",
-                    help="この役が成立する確率の分母です。1/N の N を入力してください。"
-                )
+        row_col1, row_col2, row_col3, row_col4, row_col5, row_col6 = st.columns([3, 2, 2, 2, 1.5, 0.5])
+        
+        with row_col1:
+            p_name = st.text_input("役名", payout["name"], key=f"p_name_{i}", label_visibility="collapsed")
+        
+        with row_col2:
+            p_1 = st.selectbox("左", symbol_ids, index=symbol_ids.index(payout["pattern"][0]) if payout["pattern"][0] in symbol_ids else 0, format_func=get_label, key=f"p_1_{i}", label_visibility="collapsed")
+        
+        with row_col3:
+            p_2 = st.selectbox("中", symbol_ids, index=symbol_ids.index(payout["pattern"][1]) if payout["pattern"][1] in symbol_ids else 0, format_func=get_label, key=f"p_2_{i}", label_visibility="collapsed")
             
-            cp1, cp2, cp3 = st.columns(3)
-            with cp1:
-                p_1 = st.selectbox("左", symbol_ids, index=symbol_ids.index(payout["pattern"][0]) if payout["pattern"][0] in symbol_ids else 0, format_func=get_label, key=f"p_1_{i}")
-            with cp2:
-                p_2 = st.selectbox("中", symbol_ids, index=symbol_ids.index(payout["pattern"][1]) if payout["pattern"][1] in symbol_ids else 0, format_func=get_label, key=f"p_2_{i}")
-            with cp3:
-                p_3 = st.selectbox("右", symbol_ids, index=symbol_ids.index(payout["pattern"][2]) if payout["pattern"][2] in symbol_ids else 0, format_func=get_label, key=f"p_3_{i}")
+        with row_col4:
+            p_3 = st.selectbox("右", symbol_ids, index=symbol_ids.index(payout["pattern"][2]) if payout["pattern"][2] in symbol_ids else 0, format_func=get_label, key=f"p_3_{i}", label_visibility="collapsed")
             
-            if st.button("この役を削除", key=f"p_del_btn_{i}"):
+        with row_col5:
+            current_denom = float(payout.get("denominator", 10.0))
+            p_denom = st.number_input("分母", value=max(current_denom, 1.1), min_value=1.1, step=0.1, key=f"p_denom_{i}", label_visibility="collapsed")
+            
+        with row_col6:
+            if st.button("🗑️", key=f"p_del_btn_{i}", help="この役を削除"):
                 st.session_state.slot_config_edit["payouts"].pop(i)
                 st.rerun()
-            
-            updated_payouts.append({
-                "name": p_name, 
-                "score": 0, # 配当枚数は不要
-                "denominator": p_denom,
-                "pattern": [p_1, p_2, p_3]
-            })
+        
+        updated_payouts.append({
+            "name": p_name, 
+            "score": 0,
+            "denominator": p_denom,
+            "pattern": [p_1, p_2, p_3]
+        })
 
     if updated_payouts != current_payouts:
         st.session_state.slot_config_edit["payouts"] = updated_payouts
 
+    st.write("---")
     st.write("🆕 **新しい役を追加**")
-    with st.expander("新規役の追加フォーム"):
-        add_name = st.text_input("新しい役名", "新規役", key="add_name")
-        add_denom = st.number_input("新しい分母 (1/N)", value=100.0, min_value=1.1, key="add_denom")
-        ca1, ca2, ca3 = st.columns(3)
-        with ca1:
-            p_add1 = st.selectbox("左図柄 ID", symbol_ids, format_func=get_label, key="p_add1")
-        with ca2:
-            p_add2 = st.selectbox("中図柄 ID", symbol_ids, format_func=get_label, key="p_add2")
-        with ca3:
-            p_add3 = st.selectbox("右図柄 ID", symbol_ids, format_func=get_label, key="p_add3")
-        if st.button("役を追加する", use_container_width=True):
+    ca1, ca2, ca3, ca4, ca5, ca6 = st.columns([3, 2, 2, 2, 1.5, 0.5])
+    with ca1:
+        add_name = st.text_input("新規役名", "新規役", key="add_name", label_visibility="collapsed", placeholder="役名を入力")
+    with ca2:
+        p_add1 = st.selectbox("左ID", symbol_ids, format_func=get_label, key="p_add1", label_visibility="collapsed")
+    with ca3:
+        p_add2 = st.selectbox("中ID", symbol_ids, format_func=get_label, key="p_add2", label_visibility="collapsed")
+    with ca4:
+        p_add3 = st.selectbox("右ID", symbol_ids, format_func=get_label, key="p_add3", label_visibility="collapsed")
+    with ca5:
+        add_denom = st.number_input("新規分母", value=100.0, min_value=1.1, key="add_denom", label_visibility="collapsed")
+    with ca6:
+        if st.button("➕", key="add_p_btn"):
             st.session_state.slot_config_edit["payouts"].append({
                 "name": add_name, "score": 0, "denominator": add_denom, "pattern": [p_add1, p_add2, p_add3]
             })
@@ -188,32 +192,18 @@ with st.container(border=True):
 
 st.write("")
 
-# --- 確率計算と反映 ---
+# --- 確率計算とプレビュー ---
 st.subheader("🧮 確率計算とプレビュー")
 with st.container(border=True):
-    st.warning("⚠️ **重要**: 分母を変更した後は、必ず下の『確率を逆算して反映』ボタンを押してください。")
-    col_calc, col_info = st.columns([1, 2])
-    
-    with col_calc:
-        if st.button("🔥 確率を逆算して反映", use_container_width=True, type="primary"):
-            new_syms = solve_weights_from_denominators(
-                st.session_state.slot_config_edit["symbols"],
-                st.session_state.slot_config_edit["payouts"]
-            )
-            st.session_state.slot_config_edit["symbols"] = new_syms
-            st.success("逆算完了！")
-            st.rerun()
-            
-    with col_info:
-        probs = calculate_probabilities(st.session_state.slot_config_edit["symbols"], st.session_state.slot_config_edit["payouts"])
-        st.metric("合計当り確率", f"{probs['total_hit_rate']:.2f}% (1/{100/probs['total_hit_rate']:.1f})")
+    probs = calculate_probabilities(st.session_state.slot_config_edit["symbols"], st.session_state.slot_config_edit["payouts"])
+    st.metric("合計当り確率", f"{probs['total_hit_rate']:.2f}% (1/{100/probs['total_hit_rate'] if probs['total_hit_rate'] > 0 else 0:.1f})")
 
-    st.write("📊 **現在の詳細確率**")
+    st.write("📊 **現在の設定一覧**")
     df_probs = pd.DataFrame(probs["hit_rates"])
     if not df_probs.empty:
         df_probs["1/N"] = df_probs["denominator"].apply(lambda x: f"1/{x}")
         df_probs = df_probs[["name", "1/N", "rate"]]
-        df_probs.columns = ["役名", "出現確率 (分母)", "出現確率 (%)"]
+        df_probs.columns = ["役名", "設定確率 (分母)", "出現確率 (%)"]
         st.table(df_probs)
 
 # --- データの保存と読み込み ---
