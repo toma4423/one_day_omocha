@@ -55,7 +55,7 @@ html_template = f"""
     setupKurohige(config);
 </script>
 """
-st.components.v1.html(html_template, height=300)
+st.components.v1.html(html_template, height=450)
 
 st.write("")
 
