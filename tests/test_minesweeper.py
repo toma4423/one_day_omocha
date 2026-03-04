@@ -1,65 +1,59 @@
-import numpy as np
-import pytest
-
-from src.utils.minesweeper import create_board, is_game_won, reveal_tile
+from src.utils.minesweeper import MinesweeperState, init_minesweeper_state
 
 
-def test_create_board_dimensions():
-    w, h, mines = 10, 8, 10
-    board = create_board(w, h, mines)
-    assert board.shape == (h, w)
-    assert np.sum(board == -1) == mines
+def test_minesweeper_initialization():
+    state = init_minesweeper_state(10, 8, 10)
+    assert state.width == 10
+    assert state.height == 8
+    count = sum(row.count(-1) for row in state.board)
+    assert count == 10
 
 
-def test_create_board_invalid_mines():
-    with pytest.raises(ValueError):
-        create_board(5, 5, 25)
+def test_minesweeper_flood_fill():
+    # 4x4のボードで中央付近に爆弾がある場合
+    state = MinesweeperState(width=4, height=4, num_mines=1)
+    # 1 1 1 0
+    # 1 -1 1 0
+    # 1 1 1 0
+    # 0 0 0 0
+    state.board = [[1, 1, 1, 0], [1, -1, 1, 0], [1, 1, 1, 0], [0, 0, 0, 0]]
+    state.revealed = [[False] * 4 for _ in range(4)]
+    state.flags = [[False] * 4 for _ in range(4)]
+    state.status = "playing"
+
+    # 端 (3,3) を開く (0なので周囲が開くはず)
+    state.reveal_tile(3, 3)
+    # 爆弾に隣接する1のタイルまで開かれる
+    assert state.revealed[3][3] == True
+    assert state.revealed[0][3] == True
+    assert state.revealed[1][2] == True
+    assert state.revealed[1][1] == False  # 爆弾
 
 
-def test_create_board_invalid_dimensions():
-    with pytest.raises(ValueError):
-        create_board(0, 5, 2)
+def test_minesweeper_win_condition():
+    # 4x4, 1爆弾
+    state = MinesweeperState(width=4, height=4, num_mines=1)
+    state.board = [[0] * 4 for _ in range(4)]
+    state.board[3][3] = -1
+    state.revealed = [[False] * 4 for _ in range(4)]
+    state.flags = [[False] * 4 for _ in range(4)]
+    state.status = "playing"
+
+    # 爆弾以外をすべて開く (flood fillで一気に開く)
+    state.reveal_tile(0, 0)
+
+    assert state.status == "won"
 
 
-def test_reveal_tile_simple():
-    w, h = 3, 3
-    # 0 1 -1
-    # 0 1  1
-    # 0 0  0
-    board = np.array([[0, 1, -1], [0, 1, 1], [0, 0, 0]])
-    revealed = np.zeros((h, w), dtype=bool)
-    flags = np.zeros((h, w), dtype=bool)
+def test_minesweeper_lost_condition():
+    state = MinesweeperState(width=4, height=4, num_mines=1)
+    state.board = [[0] * 4 for _ in range(4)]
+    state.board[3][3] = -1
+    state.revealed = [[False] * 4 for _ in range(4)]
+    state.flags = [[False] * 4 for _ in range(4)]
+    state.status = "playing"
 
-    # 0を開くと周囲も開くはず
-    new_revealed = reveal_tile(2, 0, w, h, board, revealed, flags)
-    # すべての0と、それに隣接する1が開かれるはず
-    # この例では、左2列と下の行が全部開く（爆弾以外）
-    assert new_revealed[0, 0] == True
-    assert new_revealed[0, 1] == True
-    assert new_revealed[0, 2] == False  # 爆弾
-    assert new_revealed[1, 0] == True
-    assert new_revealed[1, 1] == True
-    assert new_revealed[1, 2] == True
-    assert new_revealed[2, 0] == True
-    assert new_revealed[2, 1] == True
-    assert new_revealed[2, 2] == True
-
-
-def test_reveal_tile_with_flag():
-    w, h = 3, 3
-    board = np.zeros((h, w), dtype=int)
-    revealed = np.zeros((h, w), dtype=bool)
-    flags = np.zeros((h, w), dtype=bool)
-    flags[0, 0] = True
-
-    new_revealed = reveal_tile(0, 0, w, h, board, revealed, flags)
-    assert new_revealed[0, 0] == False
-
-
-def test_is_game_won():
-    board = np.array([[0, -1], [1, 1]])
-    revealed = np.array([[True, False], [True, True]])
-    assert is_game_won(board, revealed) == True
-
-    revealed[0, 0] = False
-    assert is_game_won(board, revealed) == False
+    state.reveal_tile(3, 3)
+    assert state.status == "lost"
+    # 爆弾が表示されること
+    assert state.revealed[3][3] == True

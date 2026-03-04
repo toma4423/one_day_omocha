@@ -1,66 +1,130 @@
 import random
+from typing import Literal
 
-import numpy as np
+from pydantic import BaseModel, Field
 
 
-def create_board(w: int, h: int, mines: int) -> np.ndarray:
+class MinesweeperState(BaseModel):
     """
-    指定された幅、高さ、爆弾の数でボードを初期化します。
-    -1: 爆弾
-    0-8: 周囲の爆弾数
+    マインスイーパーのゲーム状態を管理するモデルです。
     """
-    if mines >= w * h:
-        raise ValueError("爆弾の数はマスの数より少なく設定してください。")
-    if w <= 0 or h <= 0:
-        raise ValueError("幅と高さは1以上に設定してください。")
 
-    board = np.zeros((h, w), dtype=int)
-    mines_pos = random.sample(range(w * h), mines)
-    for p in mines_pos:
-        board[p // w, p % w] = -1
+    width: int = Field(8, ge=4, le=20)
+    height: int = Field(8, ge=4, le=20)
+    num_mines: int = Field(10, ge=1)
+    # ボードの値 (-1: 爆弾, 0-8: 周囲の爆弾数)
+    board: list[list[int]] = Field(default_factory=list)
+    # 開かれたマスの状態
+    revealed: list[list[bool]] = Field(default_factory=list)
+    # フラグの状態
+    flags: list[list[bool]] = Field(default_factory=list)
+    # ゲームステータス
+    status: Literal["ready", "playing", "won", "lost"] = "ready"
 
-    # 周囲の爆弾数を計算
-    for r in range(h):
-        for c in range(w):
-            if board[r, c] == -1:
-                continue
-            count = 0
+    def reset(self, w: int | None = None, h: int | None = None, mines: int | None = None) -> None:
+        """
+        ボードを初期化し、ゲームをリセットします。
+        """
+        if w is not None:
+            self.width = w
+        if h is not None:
+            self.height = h
+        if mines is not None:
+            self.num_mines = mines
+
+        if self.num_mines >= self.width * self.height:
+            self.num_mines = (self.width * self.height) // 5
+
+        # ボードの初期化
+        self.board = [[0 for _ in range(self.width)] for _ in range(self.height)]
+        self.revealed = [[False for _ in range(self.width)] for _ in range(self.height)]
+        self.flags = [[False for _ in range(self.width)] for _ in range(self.height)]
+        self.status = "playing"
+
+        # 爆弾の配置
+        mine_positions = random.sample(range(self.width * self.height), self.num_mines)
+        for pos in mine_positions:
+            r, c = pos // self.width, pos % self.width
+            self.board[r][c] = -1
+
+        # 周囲の爆弾数を計算
+        for r in range(self.height):
+            for c in range(self.width):
+                if self.board[r][c] == -1:
+                    continue
+                count = 0
+                for dr in [-1, 0, 1]:
+                    for dc in [-1, 0, 1]:
+                        if dr == 0 and dc == 0:
+                            continue
+                        nr, nc = r + dr, c + dc
+                        if 0 <= nr < self.height and 0 <= nc < self.width:
+                            if self.board[nr][nc] == -1:
+                                count += 1
+                self.board[r][c] = count
+
+    def reveal_tile(self, r: int, c: int) -> str:
+        """
+        指定されたマスを開きます。
+        """
+        if self.status != "playing" or self.flags[r][c] or self.revealed[r][c]:
+            return self.status
+
+        if self.board[r][c] == -1:
+            self.status = "lost"
+            # 爆弾をすべて開く
+            for i in range(self.height):
+                for j in range(self.width):
+                    if self.board[i][j] == -1:
+                        self.revealed[i][j] = True
+            return self.status
+
+        self._flood_fill(r, c)
+
+        # 勝利判定
+        if self._check_win():
+            self.status = "won"
+
+        return self.status
+
+    def _flood_fill(self, r: int, c: int) -> None:
+        """
+        再帰的にタイルを開きます（0の場合）。
+        """
+        if not (0 <= r < self.height and 0 <= c < self.width) or self.revealed[r][c] or self.flags[r][c]:
+            return
+
+        self.revealed[r][c] = True
+
+        if self.board[r][c] == 0:
             for dr in [-1, 0, 1]:
                 for dc in [-1, 0, 1]:
-                    if 0 <= r + dr < h and 0 <= c + dc < w:
-                        if board[r + dr, c + dc] == -1:
-                            count += 1
-            board[r, c] = count
-    return board
+                    if dr == 0 and dc == 0:
+                        continue
+                    self._flood_fill(r + dr, c + dc)
+
+    def toggle_flag(self, r: int, c: int) -> None:
+        """
+        フラグを切り替えます。
+        """
+        if self.status == "playing" and not self.revealed[r][c]:
+            self.flags[r][c] = not self.flags[r][c]
+
+    def _check_win(self) -> bool:
+        """
+        すべての安全なタイルが開かれたかチェックします。
+        """
+        for r in range(self.height):
+            for c in range(self.width):
+                if self.board[r][c] != -1 and not self.revealed[r][c]:
+                    return False
+        return True
 
 
-def reveal_tile(
-    r: int, c: int, w: int, h: int, board: np.ndarray, revealed: np.ndarray, flags: np.ndarray
-) -> np.ndarray:
+def init_minesweeper_state(w: int = 8, h: int = 8, mines: int = 10) -> MinesweeperState:
     """
-    指定された座標のマスを開きます。0の場合は周囲も再帰的に開きます。
-    revealedを更新して返します。
+    初期状態の MinesweeperState を生成します。
     """
-    if not (0 <= r < h and 0 <= c < w):
-        return revealed
-    if revealed[r, c] or flags[r, c]:
-        return revealed
-
-    revealed[r, c] = True
-
-    # 0の場合は周囲も開く
-    if board[r, c] == 0:
-        for dr in [-1, 0, 1]:
-            for dc in [-1, 0, 1]:
-                if dr == 0 and dc == 0:
-                    continue
-                reveal_tile(r + dr, c + dc, w, h, board, revealed, flags)
-    return revealed
-
-
-def is_game_won(board: np.ndarray, revealed: np.ndarray) -> bool:
-    """
-    爆弾以外のすべてのマスが開かれているか判定します。
-    """
-    unrevealed_safe = np.sum((board != -1) & (~revealed))
-    return bool(unrevealed_safe == 0)
+    state = MinesweeperState(width=w, height=h, num_mines=mines)
+    state.reset()
+    return state

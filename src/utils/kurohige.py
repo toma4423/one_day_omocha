@@ -1,26 +1,48 @@
 import random
+from typing import Literal
+
+from pydantic import BaseModel, Field
 
 
-def init_kurohige(num_slots: int) -> int:
+class KurohigeState(BaseModel):
     """
-    当たり（爆発）のインデックスをランダムに決定します。
+    黒ひげ危機一発のゲーム状態を管理するモデルです。
     """
-    if num_slots <= 0:
-        raise ValueError("穴の数は1以上に設定してください。")
-    return random.randint(0, num_slots - 1)
+
+    num_slots: int = Field(12, ge=4, le=24)
+    target_slot: int = -1
+    clicked_slots: list[int] = Field(default_factory=list)
+    status: Literal["ready", "playing", "boom"] = "ready"
+
+    def reset(self, num_slots: int | None = None) -> None:
+        """
+        ゲームをリセットします。
+        """
+        if num_slots is not None:
+            self.num_slots = num_slots
+        self.target_slot = random.randint(0, self.num_slots - 1)
+        self.clicked_slots = []
+        self.status = "playing"
+
+    def click_slot(self, idx: int) -> str:
+        """
+        スロットをクリック（剣を刺す）します。
+        """
+        if self.status != "playing" or idx in self.clicked_slots:
+            return self.status
+
+        if idx == self.target_slot:
+            self.status = "boom"
+        else:
+            self.clicked_slots.append(idx)
+
+        return self.status
 
 
-def check_slot(idx: int, target: int) -> str:
+def init_kurohige_state(num_slots: int = 12) -> KurohigeState:
     """
-    指定されたインデックスが当たりかどうかを判定します。
+    初期状態の KurohigeState を生成します。
     """
-    if idx == target:
-        return "boom"
-    return "safe"
-
-
-def is_already_clicked(idx: int, clicked_list: list[int]) -> bool:
-    """
-    すでにクリックされたインデックスかどうかを確認します。
-    """
-    return idx in clicked_list
+    state = KurohigeState(num_slots=num_slots)
+    state.reset()
+    return state

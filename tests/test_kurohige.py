@@ -1,29 +1,43 @@
-import pytest
-
-from src.utils.kurohige import check_slot, init_kurohige, is_already_clicked
+from src.utils.kurohige import KurohigeState, init_kurohige_state
 
 
-def test_init_kurohige():
-    num_slots = 12
-    for _ in range(100):
-        target = init_kurohige(num_slots)
-        assert 0 <= target < num_slots
+def test_kurohige_initialization():
+    state = init_kurohige_state(12)
+    assert state.num_slots == 12
+    assert 0 <= state.target_slot < 12
+    assert state.status == "playing"
+    assert len(state.clicked_slots) == 0
 
 
-def test_init_kurohige_invalid():
-    with pytest.raises(ValueError):
-        init_kurohige(0)
+def test_kurohige_reset():
+    state = init_kurohige_state(12)
+    state.click_slot(0)
+    state.reset(16)
+    assert state.num_slots == 16
+    assert len(state.clicked_slots) == 0
+    assert state.status == "playing"
 
 
-def test_check_slot():
-    target = 5
-    assert check_slot(5, target) == "boom"
-    assert check_slot(4, target) == "safe"
-    assert check_slot(6, target) == "safe"
+def test_kurohige_click_safe():
+    state = KurohigeState(num_slots=12, target_slot=5)
+    state.status = "playing"
+    res = state.click_slot(3)
+    assert res == "playing"
+    assert 3 in state.clicked_slots
 
 
-def test_is_already_clicked():
-    clicked_list = [1, 3, 5]
-    assert is_already_clicked(1, clicked_list) == True
-    assert is_already_clicked(2, clicked_list) == False
-    assert is_already_clicked(5, clicked_list) == True
+def test_kurohige_click_boom():
+    state = KurohigeState(num_slots=12, target_slot=5)
+    state.status = "playing"
+    res = state.click_slot(5)
+    assert res == "boom"
+    assert state.status == "boom"
+
+
+def test_kurohige_invalid_click():
+    state = KurohigeState(num_slots=12, target_slot=5)
+    state.status = "playing"
+    state.click_slot(3)
+    # 同じところをクリックしても何も起きない
+    state.click_slot(3)
+    assert len(state.clicked_slots) == 1

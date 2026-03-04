@@ -1,98 +1,101 @@
-import numpy as np
 import streamlit as st
+from streamlit_local_storage import LocalStorage
 
-from src.utils.minesweeper import create_board, is_game_won, reveal_tile
-from src.utils.styles import render_donation_box, render_grid_board, render_page_header
+from src.utils.minesweeper import MinesweeperState, init_minesweeper_state
+from src.utils.storage import SafeStorage
+from src.utils.styles import render_donation_box, render_page_header
 
 st.set_page_config(page_title="マインスイーパー", page_icon="💣", layout="centered")
 
 # グローバルスタイルの適用
 render_page_header()
 
-st.markdown("<h1 style='text-align: center;'>💣 マインスイーパー</h1>", unsafe_allow_html=True)
+# SafeStorage の初期化
+storage = SafeStorage(LocalStorage())
 
 # セッション状態の初期化
-if "ms_status" not in st.session_state:
-    st.session_state.ms_status = "ready"
+if "ms_state" not in st.session_state:
+    saved_state = storage.get_item("ms_state_v2", is_json=True)
+    if saved_state:
+        st.session_state.ms_state = MinesweeperState(**saved_state)
+    else:
+        st.session_state.ms_state = init_minesweeper_state()
 
+state: MinesweeperState = st.session_state.ms_state
 
-def init_minesweeper(w, h, mines):
-    board = create_board(w, h, mines)
-    st.session_state.ms_board = board
-    st.session_state.ms_revealed = np.zeros((h, w), dtype=bool)
-    st.session_state.ms_flags = np.zeros((h, w), dtype=bool)
-    st.session_state.ms_status = "playing"
+st.markdown("<h1 style='text-align: center;'>💣 マインスイーパー</h1>", unsafe_allow_html=True)
 
-
-def reveal(r, c, w, h):
-    st.session_state.ms_revealed = reveal_tile(
-        r, c, w, h, st.session_state.ms_board, st.session_state.ms_revealed, st.session_state.ms_flags
-    )
-
-
+# --- サイドバー設定 ---
 with st.sidebar:
     st.header("⚙️ 設定")
-    ms_w = st.number_input("幅", 4, 15, 8)
-    ms_h = st.number_input("高さ", 4, 15, 8)
-    ms_mines = st.number_input("爆弾の数", 1, (ms_w * ms_h) - 1, 10)
+    ms_w = st.number_input("幅", 4, 20, state.width)
+    ms_h = st.number_input("高さ", 4, 20, state.height)
+    ms_mines = st.number_input("爆弾の数", 1, (ms_w * ms_h) - 1, state.num_mines)
 
-    # サイズまたは爆弾の数が変わった場合にステータスをリセット
-    if "ms_board" in st.session_state:
-        current_mines = np.sum(st.session_state.ms_board == -1)
-        if st.session_state.ms_board.shape != (ms_h, ms_w) or current_mines != ms_mines:
-            st.session_state.ms_status = "ready"
-
-    ms_mode = st.radio("操作モード", ["オープン 🔓", "フラグ 🚩"], index=0)
-    if st.button("ゲームをリセット", use_container_width=True):
-        st.session_state.ms_status = "ready"
+    if st.button("ゲームをリセット", use_container_width=True, type="primary"):
+        state.reset(ms_w, ms_h, ms_mines)
+        storage.set_item("ms_state_v2", state.model_dump())
         st.rerun()
 
-# ゲームの初期化
-if st.session_state.ms_status == "ready":
-    init_minesweeper(ms_w, ms_h, ms_mines)
+# --- メインエリア ---
+# JS/CSSの読み込み
+try:
+    with open("src/assets/minesweeper/board.js", encoding="utf-8") as f:
+        ms_js = f.read()
+    with open("src/assets/minesweeper/style.css", encoding="utf-8") as f:
+        ms_css = f.read()
+except Exception:
+    ms_js = ""
+    ms_css = ""
 
+# JSコンポーネントのレンダリング
+html_template = f"""
+<style>{ms_css}</style>
+<div id="ms-app"></div>
+<script>
+    {ms_js}
+    const config = {state.model_dump_json()};
+    setupMinesweeper(config);
 
-# 描画
-def render_cell(idx):
-    r, c = idx // ms_w, idx % ms_w
-    label, disabled, key = "", False, f"ms_{r}_{c}"
+    // JS側からのアクションイベントをリッスン
+    window.addEventListener('ms_action', (e) => {{
+        const {{ r, c, action }} = e.detail;
+        const url = new URL(window.location.href);
+        url.searchParams.set('ms_r', r);
+        url.searchParams.set('ms_c', c);
+        url.searchParams.set('ms_action', action);
+        window.parent.location.href = url.href;
+    }});
+</script>
+"""
 
-    if st.session_state.ms_revealed[r, c]:
-        val = st.session_state.ms_board[r, c]
-        label = "💣" if val == -1 else (str(val) if val > 0 else "")
-        disabled = True
-    elif st.session_state.ms_flags[r, c]:
-        label = "🚩"
+st.components.v1.html(html_template, height=min(600, state.height * 40 + 100))
 
-    # ゲーム終了時の表示
-    if st.session_state.ms_status in ["won", "lost"]:
-        if st.session_state.ms_board[r, c] == -1:
-            label = "💣"
-        disabled = True
+# クエリパラメータの監視
+query_params = st.query_params
+if "ms_r" in query_params and "ms_c" in query_params:
+    r = int(query_params["ms_r"])
+    c = int(query_params["ms_c"])
+    action = query_params["ms_action"]
 
-    # タイルの色設定 (Streamlitのボタンには直接色指定できないが、種別で分ける)
-    btn_type = "secondary"
-    if st.session_state.ms_revealed[r, c]:
-        btn_type = "primary"
+    st.query_params.clear()
 
-    if st.button(label if label else "　", key=key, disabled=disabled, use_container_width=True, type=btn_type):
-        if ms_mode == "オープン 🔓":
-            if st.session_state.ms_board[r, c] == -1:
-                st.session_state.ms_status = "lost"
-                st.error("ドカン！ゲームオーバー")
-            else:
-                reveal(r, c, ms_w, ms_h)
-                # クリア判定
-                if is_game_won(st.session_state.ms_board, st.session_state.ms_revealed):
-                    st.session_state.ms_status = "won"
-                    st.balloons()
-                    st.success("クリア！おめでとう！")
-        else:
-            st.session_state.ms_flags[r, c] = not st.session_state.ms_flags[r, c]
-        st.rerun()
+    if action == "reveal":
+        state.reveal_tile(r, c)
+    elif action == "flag":
+        state.toggle_flag(r, c)
 
+    storage.set_item("ms_state_v2", state.model_dump())
+    if state.status == "won":
+        st.balloons()
+    st.rerun()
 
-with st.container(border=True):
-    render_grid_board(ms_w * ms_h, ms_w, render_cell)
+# 状態表示
+if state.status == "won":
+    st.success("🎉 クリア！おめでとうございます！")
+elif state.status == "lost":
+    st.error("💣 ドカン！ゲームオーバーです。")
+else:
+    st.info(f"🚩 爆弾の数: {state.num_mines}")
 
 render_donation_box("https://qr.paypay.ne.jp/p2p01_jsHjvMAenqfvI10s", is_sidebar=True)

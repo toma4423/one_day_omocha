@@ -1,95 +1,95 @@
 import streamlit as st
 from streamlit_local_storage import LocalStorage
 
-from src.utils.kurohige import check_slot, init_kurohige
+from src.utils.kurohige import KurohigeState, init_kurohige_state
 from src.utils.storage import SafeStorage
-from src.utils.styles import (
-    render_donation_box,
-    render_grid_board,
-    render_page_header,
-)
+from src.utils.styles import render_donation_box, render_page_header
 
 st.set_page_config(page_title="黒ひげ危機一発", page_icon="☠️", layout="centered")
 
 # グローバルスタイルの適用
 render_page_header()
 
-st.markdown("<h1 style='text-align: center;'>☠️ 黒ひげ危機一発</h1>", unsafe_allow_html=True)
-
 # SafeStorage の初期化
 storage = SafeStorage(LocalStorage())
 
 # セッション状態の初期化
-if "kurohige_status" not in st.session_state:
-    saved_status = storage.get_item("kh_status")
-    st.session_state.kurohige_status = saved_status if saved_status else "ready"
-
-if "kurohige_target" not in st.session_state:
-    saved_target = storage.get_item("kh_target")
-    st.session_state.kurohige_target = int(saved_target) if saved_target is not None else -1
-
-if "kurohige_clicked" not in st.session_state:
-    saved_clicked = storage.get_item("kh_clicked")
-    st.session_state.kurohige_clicked = saved_clicked if saved_clicked else []
-
-
-def reset_game(num_slots):
-    st.session_state.kurohige_target = init_kurohige(num_slots)
-    st.session_state.kurohige_clicked = []
-    st.session_state.kurohige_status = "playing"
-    # ストレージも更新
-    storage.set_item("kh_target", st.session_state.kurohige_target)
-    storage.set_item("kh_clicked", [])
-    storage.set_item("kh_status", "playing")
-
-
-num_slots = st.sidebar.slider("穴の数", 4, 24, 12)
-
-# ゲーム開始またはリセット
-if st.session_state.kurohige_status == "ready" or st.sidebar.button("リセット"):
-    reset_game(num_slots)
-    st.rerun()
-
-# 状態に応じたヘッダー表示
-with st.container(border=True):
-    if st.session_state.kurohige_status == "boom":
-        st.markdown(
-            "<h1 style='text-align:center; font-size:100px; margin:0;'>🚀 🏴‍☠️</h1><h2 style='text-align:center; color:#ff4b4b; font-weight:900;'>ドカン！！！</h2>",
-            unsafe_allow_html=True,
-        )
-        st.snow()
+if "kh_state" not in st.session_state:
+    saved_state = storage.get_item("kurohige_state_v2", is_json=True)
+    if saved_state:
+        st.session_state.kh_state = KurohigeState(**saved_state)
     else:
-        st.markdown("<h1 style='text-align:center; font-size:100px; margin:0;'>🛢️</h1>", unsafe_allow_html=True)
-        st.markdown(
-            "<p style='text-align:center; color:gray;'>剣を刺して黒ひげを飛ばさないように気をつけて！</p>",
-            unsafe_allow_html=True,
-        )
+        st.session_state.kh_state = init_kurohige_state()
 
-st.write("")
+state: KurohigeState = st.session_state.kh_state
 
-# 穴（ボタン）の表示
-cols_per_row = 4
+st.markdown("<h1 style='text-align: center;'>☠️ 黒ひげ危機一発</h1>", unsafe_allow_html=True)
 
+# --- サイドバー設定 ---
+with st.sidebar:
+    st.header("⚙️ 設定")
+    num_slots = st.slider("穴の数", 4, 24, state.num_slots)
+    if st.button("ゲームをリセット", use_container_width=True, type="primary"):
+        state.reset(num_slots)
+        storage.set_item("kurohige_state_v2", state.model_dump())
+        st.rerun()
 
-def render_slot(idx):
-    slot_num = idx + 1
-    # すでにクリックされたか、爆発済みの場合は無効化
-    if idx in st.session_state.kurohige_clicked:
-        st.button(f"{slot_num}\n🗡️ ｾｰﾌ", key=f"k_{idx}", disabled=True, use_container_width=True)
-    elif st.session_state.kurohige_status == "boom":
-        st.button(f"{slot_num}\n🕳️", key=f"k_{idx}", disabled=True, use_container_width=True)
-    else:
-        # 番号付きのボタン
-        if st.button(f"{slot_num}\n❓", key=f"k_{idx}", use_container_width=True, type="secondary"):
-            if check_slot(idx, st.session_state.kurohige_target) == "boom":
-                st.session_state.kurohige_status = "boom"
-                storage.set_item("kh_status", "boom")
-            else:
-                st.session_state.kurohige_clicked.append(idx)
-                storage.set_item("kh_clicked", st.session_state.kurohige_clicked)
-            st.rerun()
+# --- メインエリア ---
+# JS/CSSの読み込み
+try:
+    with open("src/assets/kurohige/barrel.js", encoding="utf-8") as f:
+        kh_js = f.read()
+    with open("src/assets/kurohige/style.css", encoding="utf-8") as f:
+        kh_css = f.read()
+except Exception:
+    kh_js = ""
+    kh_css = ""
 
+# JSコンポーネントのレンダリング
+html_template = f"""
+<style>{kh_css}</style>
+<div id="kurohige-app"></div>
+<script>
+    {kh_js}
+    const config = {state.model_dump_json()};
+    setupKurohige(config);
 
-render_grid_board(num_slots, cols_per_row, render_slot)
+    // JS側からのクリックイベントをリッスン
+    window.addEventListener('slot_clicked', (e) => {{
+        const index = e.detail.index;
+        // Streamlit 側に値を渡すために hidden input と button を使うか、
+        // URL query params を使う方法がある。
+        // ここでは最も確実な URL query params 方式を採用。
+        const url = new URL(window.location.href);
+        url.searchParams.set('click_idx', index);
+        window.parent.location.href = url.href;
+    }});
+</script>
+"""
+
+# Streamlit の Component 経由で JS を実行
+# ※ st.components.v1.html は iframe なので、親ウィンドウへの通信が必要
+# 今回はシンプルに、クリックされた index を st.query_params で受け取る
+st.components.v1.html(html_template, height=550)
+
+# クエリパラメータの監視
+query_params = st.query_params
+if "click_idx" in query_params:
+    idx = int(query_params["click_idx"])
+    # パラメータをクリア
+    st.query_params.clear()
+
+    if idx not in state.clicked_slots and state.status == "playing":
+        state.click_slot(idx)
+        storage.set_item("kurohige_state_v2", state.model_dump())
+        if state.status == "boom":
+            st.snow()
+        st.rerun()
+
+# 状態表示
+if state.status == "boom":
+    st.error("ドカン！！！黒ひげが飛んでいきました！")
+elif state.status == "playing":
+    st.info(f"現在 {len(state.clicked_slots)} 本の剣が刺さっています。")
 
 render_donation_box("https://qr.paypay.ne.jp/p2p01_jsHjvMAenqfvI10s", is_sidebar=True)
