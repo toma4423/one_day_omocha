@@ -24,73 +24,28 @@ except Exception:
 st.markdown(
     """
     <style>
-    /* 画面全体の余白を削減 */
-    .main .block-container {
-        padding-top: 1rem !important;
-        padding-bottom: 0rem !important;
-    }
-    /* タイトルの隙間を詰める */
-    h1 {
-        margin-top: -30px !important;
-        margin-bottom: 0px !important;
-        font-size: 1.8rem !important;
-    }
-    /* グリッドコンテナの余白を極限まで排除 */
-    [data-testid="stVerticalBlock"] > div > div > div[data-testid="stVerticalBlock"] {
-        padding: 0px !important;
-        gap: 2px !important;
-    }
-    /* st.container(border=True) の内部余白を圧縮 */
+    .main .block-container { padding-top: 1rem !important; padding-bottom: 0rem !important; }
+    h1 { margin-top: -30px !important; margin-bottom: 0px !important; font-size: 1.8rem !important; }
+    [data-testid="stVerticalBlock"] > div > div > div[data-testid="stVerticalBlock"] { padding: 0px !important; gap: 2px !important; }
     div[data-testid="stElementContainer"] div.st-emotion-cache-16idsys, 
-    div[data-testid="stElementContainer"] div.st-emotion-cache-1r6slb0 {
-        padding: 4px !important;
-        margin: 0px !important;
-    }
-    /* 入力欄の高さとフォントをビンゴ用に最適化 */
-    .stTextInput input {
-        height: 24px !important;
-        font-size: 11px !important;
-        padding: 0 4px !important;
-        margin-bottom: 2px !important;
-    }
-    .stNumberInput input {
-        height: 32px !important;
-        font-size: 20px !important;
-        font-weight: 900 !important;
-        padding: 0 !important;
-    }
-    /* ラベルを完全に消去 */
-    div[data-testid="stTextInput"] label, div[data-testid="stNumberInput"] label {
-        display: none !important;
-    }
-    /* スピンボタン（増減矢印）を非表示にして横幅を確保 */
-    input::-webkit-outer-spin-button, input::-webkit-inner-spin-button {
-        -webkit-appearance: none; margin: 0;
-    }
-    /* セパレーターの隙間 */
+    div[data-testid="stElementContainer"] div.st-emotion-cache-1r6slb0 { padding: 4px !important; margin: 0px !important; }
+    .stTextInput input { height: 24px !important; font-size: 11px !important; padding: 0 4px !important; margin-bottom: 2px !important; }
+    .stNumberInput input { height: 32px !important; font-size: 20px !important; font-weight: 900 !important; padding: 0 !important; }
+    div[data-testid="stTextInput"] label, div[data-testid="stNumberInput"] label { display: none !important; }
+    input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
     hr { margin: 0.5rem 0 !important; }
     </style>
 """,
     unsafe_allow_html=True,
 )
 
-st.markdown(
-    "<h1 style='text-align: center;'>🔢 カウントサポートビンゴ</h1>", unsafe_allow_html=True
-)
+st.markdown("<h1 style='text-align: center;'>🔢 カウントサポートビンゴ</h1>", unsafe_allow_html=True)
 
-# --- ストレージ管理の定義 ---
 storage = SafeStorage(LocalStorage())
 
 def get_current_version():
-    v_raw = st.query_params.get("v", None)
-    if v_raw:
-        v_str = str(v_raw)
-        if v_str.isdigit():
-            return v_str
-    v_store = storage.get_item("csb_ver", is_json=False)
-    if v_store and str(v_store).isdigit():
-        return str(v_store)
-    return "1"
+    v_raw = st.query_params.get("v", "1")
+    return str(v_raw)
 
 def get_data_key(version=None):
     v = version if version else get_current_version()
@@ -118,8 +73,7 @@ def validate_and_save():
 
 def load_from_storage():
     data = storage.get_item(get_data_key(), is_json=True)
-    if not data:
-        return False
+    if not data: return False
     try:
         st.session_state.csb_rows, st.session_state.csb_cols = data.get("rows", 5), data.get("cols", 5)
         for pos, cell in data.get("cells", {}).items():
@@ -127,38 +81,34 @@ def load_from_storage():
             st.session_state[f"csb_label_{r}_{c}"] = cell.get("label", "")
             st.session_state[f"csb_count_{r}_{c}"] = cell.get("count", 0)
         return True
-    except Exception:
-        return False
+    except Exception: return False
 
+# 初期化
 if "csb_rows" not in st.session_state:
-    if not load_from_storage():
-        st.session_state.csb_rows = 5
-        st.session_state.csb_cols = 5
+    load_from_storage() or (st.session_state.update({"csb_rows": 5, "csb_cols": 5}))
 
-def on_change():
-    validate_and_save()
-
-# --- クエリパラメータによるJSリセット命令の受信 ---
+# --- クエリパラメータによるJSリセット命令の処理 ---
 if "reset_action" in st.query_params:
     action = st.query_params["reset_action"]
     if action == "count_only":
-        for k in st.session_state.keys():
-            if k.startswith("csb_count_"):
-                st.session_state[k] = 0
-        validate_and_save()
+        # セッションとストレージの両方を確実に更新
+        rows, cols = st.session_state.get("csb_rows", 5), st.session_state.get("csb_cols", 5)
+        for r in range(rows):
+            for c in range(cols):
+                st.session_state[f"csb_count_{r}_{c}"] = 0
+        validate_and_save() # 0の状態を保存
     elif action == "all":
         storage.delete_item(get_data_key())
         for k in list(st.session_state.keys()):
             if k.startswith("csb_"): del st.session_state[k]
-        try:
-            current_v = int(get_current_version())
-        except (ValueError, TypeError):
-            current_v = 1
-        new_v = 1 if current_v >= 100 else current_v + 1
-        storage.set_item("csb_ver", str(new_v))
-        st.query_params["v"] = str(new_v)
-    del st.query_params["reset_action"]
+        storage.set_item("csb_ver", "1")
+    
+    # パラメータを除去してリロード
+    st.query_params.clear()
     st.rerun()
+
+def on_change():
+    validate_and_save()
 
 # --- メイングリッド ---
 current_rows = st.session_state.get("csb_rows", 5)
@@ -186,7 +136,7 @@ for r in range(current_rows):
                 st.markdown("</div>", unsafe_allow_html=True)
     bingo_matrix.append(row_data)
 
-# --- ビンゴ判定ロジック ---
+# --- ビンゴ判定 ---
 bingo_indices = []
 for r in range(current_rows):
     if all(bingo_matrix[r]): bingo_indices.extend([[r, c] for c in range(current_cols)])
