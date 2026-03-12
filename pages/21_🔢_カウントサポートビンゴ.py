@@ -133,7 +133,6 @@ if bingo_indices:
         ]
     )
     st.components.v1.html(f"<script>{js_highlight}</script>", height=0)
-    st.balloons()
 
 # --- データの保存と読み込み ---
 with st.container(border=True):
