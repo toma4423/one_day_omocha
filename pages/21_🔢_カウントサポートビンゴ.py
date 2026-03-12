@@ -1,31 +1,12 @@
 import json
 
 import streamlit as st
-from pydantic import BaseModel
 from streamlit_local_storage import LocalStorage
 
+from src.utils.count_support import BingoBoard
 from src.utils.storage import SafeStorage
 from src.utils.styles import render_donation_box, render_page_header
 from src.utils.time import get_jst_now
-
-
-# モデル定義
-class BingoCell(BaseModel):
-    label: str
-    count: int = 0
-
-
-class BingoBoard(BaseModel):
-    rows: int = 5
-    cols: int = 5
-    cells: dict[str, BingoCell] = {}  # key: "r_c"
-
-    def get_cell(self, r: int, c: int) -> BingoCell:
-        key = f"{r}_{c}"
-        if key not in self.cells:
-            self.cells[key] = BingoCell(label=f"項目 {r + 1}-{c + 1}")
-        return self.cells[key]
-
 
 # ページの設定
 st.set_page_config(page_title="カウントサポートビンゴ", page_icon="🔢", layout="wide")
@@ -62,7 +43,7 @@ st.markdown(
 st.markdown("<h1 style='text-align: center;'>🔢 カウントサポートビンゴ</h1>", unsafe_allow_html=True)
 
 storage = SafeStorage(LocalStorage())
-DATA_KEY = "csb_data_v3"
+DATA_KEY = "csb_data_v4"  # バージョンを上げて整合性を確保
 
 # --- 初期化とデータ復元 ---
 if "csb_board" not in st.session_state:
@@ -72,7 +53,11 @@ if "csb_board" not in st.session_state:
     else:
         st.session_state.csb_board = BingoBoard()
 
+if "csb_reset_id" not in st.session_state:
+    st.session_state.csb_reset_id = 0
+
 board: BingoBoard = st.session_state.csb_board
+reset_id = st.session_state.csb_reset_id
 
 
 def save_to_storage():
@@ -95,15 +80,24 @@ for r in range(board.rows):
             with st.container(border=True):
                 st.markdown(f"<div id='cell-{r}-{c}' class='{cell_class}'>", unsafe_allow_html=True)
 
+                # keyに reset_id を含めることで強制リセットを可能にする
                 new_label = st.text_input(
-                    f"L{r}{c}", value=cell.label, key=f"lk_{r}_{c}", label_visibility="collapsed", placeholder="項目名"
+                    f"L{r}{c}",
+                    value=cell.label,
+                    key=f"lk_{r}_{c}_{reset_id}",
+                    label_visibility="collapsed",
+                    placeholder="項目名",
                 )
                 if new_label != cell.label:
                     cell.label = new_label
                     save_to_storage()
 
                 new_count = st.number_input(
-                    f"N{r}{c}", value=cell.count, key=f"ck_{r}_{c}", label_visibility="collapsed", step=1
+                    f"N{r}{c}",
+                    value=cell.count,
+                    key=f"ck_{r}_{c}_{reset_id}",
+                    label_visibility="collapsed",
+                    step=1,
                 )
                 if new_count != cell.count:
                     cell.count = new_count
@@ -158,6 +152,7 @@ with st.container(border=True):
             try:
                 d = json.load(uploaded_file)
                 st.session_state.csb_board = BingoBoard(**d)
+                st.session_state.csb_reset_id += 1
                 save_to_storage()
                 st.rerun()
             except Exception:
@@ -166,11 +161,13 @@ with st.container(border=True):
 # --- サイドバー ---
 with st.sidebar:
     st.header("⚙️ 設定")
+    # 行数・列数の変更時も reset_id を上げてウィジェットを再描画させる
     new_rows = st.number_input("行数", 1, 15, value=board.rows)
     new_cols = st.number_input("列数", 1, 15, value=board.cols)
     if new_rows != board.rows or new_cols != board.cols:
         board.rows = new_rows
         board.cols = new_cols
+        st.session_state.csb_reset_id += 1
         save_to_storage()
         st.rerun()
 
@@ -178,13 +175,14 @@ with st.sidebar:
     st.subheader("🚨 リセット")
 
     if st.button("🔢 カウントのみリセット", use_container_width=True):
-        for cell in board.cells.values():
-            cell.count = 0
+        board.reset_counts_only()
+        st.session_state.csb_reset_id += 1
         save_to_storage()
         st.rerun()
 
     if st.button("🚨 全てリセット", use_container_width=True, type="primary"):
         st.session_state.csb_board = BingoBoard()
+        st.session_state.csb_reset_id += 1
         save_to_storage()
         st.rerun()
 
