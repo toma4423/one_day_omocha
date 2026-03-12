@@ -96,11 +96,12 @@ def main():
         processed_image_bytes = process_image(original_img, params)
 
         # プレビューとダウンロード
-        col_prev, col_info = st.columns([2, 1])
+        col_prev, col_info = st.columns([1, 1])
 
         with col_prev:
             st.subheader("👁️ プレビュー")
-            st.image(processed_image_bytes, use_container_width=True)
+            # プレビューを適切なサイズに制限
+            st.image(processed_image_bytes, width=400)
 
         with col_info:
             st.subheader("📄 情報")
