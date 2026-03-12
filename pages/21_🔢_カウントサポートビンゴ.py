@@ -30,11 +30,29 @@ st.markdown(
     [data-testid="stVerticalBlock"] > div > div > div[data-testid="stVerticalBlock"] { padding: 0px !important; gap: 2px !important; }
     div[data-testid="stElementContainer"] div.st-emotion-cache-16idsys, 
     div[data-testid="stElementContainer"] div.st-emotion-cache-1r6slb0 { padding: 4px !important; margin: 0px !important; }
+    
+    /* 入力欄の基本スタイル */
     .stTextInput input { height: 24px !important; font-size: 11px !important; padding: 0 4px !important; margin-bottom: 2px !important; }
     .stNumberInput input { height: 32px !important; font-size: 20px !important; font-weight: 900 !important; padding: 0 !important; }
     div[data-testid="stTextInput"] label, div[data-testid="stNumberInput"] label { display: none !important; }
     input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
     hr { margin: 0.5rem 0 !important; }
+
+    /* モバイル向けの調整 */
+    @media (max-width: 768px) {
+        /* カラムを無理に縦に並べず、横並びを維持しつつフォントを小さくする */
+        [data-testid="column"] {
+            min-width: 0 !important;
+            flex: 1 1 0% !important;
+            padding: 0 1px !important;
+        }
+        .stTextInput input { font-size: 9px !important; height: 20px !important; }
+        .stNumberInput input { font-size: 16px !important; height: 28px !important; }
+        
+        /* 画面からはみ出さないようにパディングを極限まで削る */
+        div[data-testid="stElementContainer"] div.st-emotion-cache-16idsys, 
+        div[data-testid="stElementContainer"] div.st-emotion-cache-1r6slb0 { padding: 2px !important; }
+    }
     </style>
 """,
     unsafe_allow_html=True,

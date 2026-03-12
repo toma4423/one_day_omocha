@@ -86,7 +86,8 @@ def weighted_counter_ui(idx: int):
 st.title("🔢 カウントサポート")
 st.markdown("数値や倍率を変更すると、自動的に計算と保存が行われます。")
 
-col_main1, col_main2 = st.columns(2)
+# モバイルでは縦に並べる
+col_main1, col_main2 = st.columns([1, 1])
 with col_main1:
     st.subheader("📊 基本集計")
     val_x = weighted_counter_ui(0)

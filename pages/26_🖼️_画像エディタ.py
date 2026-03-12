@@ -7,10 +7,13 @@ from streamlit_local_storage import LocalStorage
 
 from src.utils.image_editor import ImageProcessParams, load_image_with_orientation, process_image
 from src.utils.storage import SafeStorage
-from src.utils.styles import render_donation_box
+from src.utils.styles import render_donation_box, render_page_header
 
 # ページ設定
 st.set_page_config(page_title="画像リサイズ | 今日のおもちゃ箱", page_icon="🖼️", layout="wide")
+
+# グローバルスタイルの適用
+render_page_header()
 
 # ストレージ初期化
 storage = SafeStorage(LocalStorage())
@@ -44,7 +47,7 @@ def main():
     st.divider()
     st.subheader("⚙️ 編集設定")
 
-    col_cfg1, col_cfg2 = st.columns(2)
+    col_cfg1, col_cfg2 = st.columns([1, 1])
 
     with col_cfg1:
         # アスペクト比プリセット
@@ -100,7 +103,8 @@ def main():
 
         with col_prev:
             st.subheader("👁️ プレビュー")
-            st.image(processed_image_bytes, width=400)
+            # スマホではuse_container_width=Trueで画面幅に合わせる
+            st.image(processed_image_bytes, use_container_width=True)
 
         with col_info:
             st.subheader("📄 情報")

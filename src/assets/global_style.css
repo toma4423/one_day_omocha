@@ -75,3 +75,32 @@ body {
     text-align: center;
     margin-top: 10px;
 }
+
+/* モバイル最適化 (Media Queries) */
+@media (max-width: 768px) {
+    /* メインコンテナの余白を削って広く使う */
+    .main .block-container {
+        padding-left: 1rem !important;
+        padding-right: 1rem !important;
+        padding-top: 2rem !important;
+    }
+
+    /* ボタンを押しやすく */
+    .stButton > button {
+        width: 100% !important;
+        margin-bottom: 8px !important;
+    }
+
+    /* 大きな数値のサイズ調整 */
+    .large-value {
+        font-size: 40px !important;
+    }
+
+    /* 2カラムを縦並びにするための補助 (Streamlitのカラムは標準で縦並びになるが、パディングを調整) */
+    [data-testid="column"] {
+        width: 100% !important;
+        flex: 1 1 100% !important;
+        padding: 0 !important;
+    }
+}
+
