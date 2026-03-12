@@ -1,11 +1,31 @@
 import json
 
 import streamlit as st
+from pydantic import BaseModel
 from streamlit_local_storage import LocalStorage
 
 from src.utils.storage import SafeStorage
 from src.utils.styles import render_donation_box, render_page_header
 from src.utils.time import get_jst_now
+
+
+# モデル定義
+class BingoCell(BaseModel):
+    label: str
+    count: int = 0
+
+
+class BingoBoard(BaseModel):
+    rows: int = 5
+    cols: int = 5
+    cells: dict[str, BingoCell] = {}  # key: "r_c"
+
+    def get_cell(self, r: int, c: int) -> BingoCell:
+        key = f"{r}_{c}"
+        if key not in self.cells:
+            self.cells[key] = BingoCell(label=f"項目 {r + 1}-{c + 1}")
+        return self.cells[key]
+
 
 # ページの設定
 st.set_page_config(page_title="カウントサポートビンゴ", page_icon="🔢", layout="wide")
@@ -42,103 +62,70 @@ st.markdown(
 st.markdown("<h1 style='text-align: center;'>🔢 カウントサポートビンゴ</h1>", unsafe_allow_html=True)
 
 storage = SafeStorage(LocalStorage())
-DATA_KEY = "csb_data_v2"
-
-
-def validate_and_save():
-    rows = st.session_state.get("csb_rows", 5)
-    cols = st.session_state.get("csb_cols", 5)
-    data = {
-        "updated_at": get_jst_now().isoformat(),
-        "rows": rows,
-        "cols": cols,
-        "cells": {
-            f"{r}_{c}": {
-                "label": st.session_state.get(f"csb_label_{r}_{c}", f"項目 {r + 1}-{c + 1}"),
-                "count": st.session_state.get(f"csb_count_{r}_{c}", 0),
-            }
-            for r in range(rows)
-            for c in range(cols)
-        },
-    }
-    storage.set_item(DATA_KEY, data)
-
-
-def load_from_storage():
-    data = storage.get_item(DATA_KEY, is_json=True)
-    if not data:
-        return False
-    try:
-        # まず行数・列数をセット
-        st.session_state.csb_rows = data.get("rows", 5)
-        st.session_state.csb_cols = data.get("cols", 5)
-        # 各セルの値をセット
-        for pos, cell in data.get("cells", {}).items():
-            r, c = pos.split("_")
-            st.session_state[f"csb_label_{r}_{c}"] = cell.get("label", "")
-            st.session_state[f"csb_count_{r}_{c}"] = cell.get("count", 0)
-        return True
-    except Exception:
-        return False
-
+DATA_KEY = "csb_data_v3"
 
 # --- 初期化とデータ復元 ---
-if "csb_rows" not in st.session_state:
-    if not load_from_storage():
-        st.session_state.csb_rows = 5
-        st.session_state.csb_cols = 5
+if "csb_board" not in st.session_state:
+    saved = storage.get_item(DATA_KEY, is_json=True)
+    if saved:
+        st.session_state.csb_board = BingoBoard(**saved)
+    else:
+        st.session_state.csb_board = BingoBoard()
+
+board: BingoBoard = st.session_state.csb_board
 
 
-def on_change():
-    validate_and_save()
+def save_to_storage():
+    storage.set_item(DATA_KEY, board.model_dump())
 
 
 # --- メイングリッド描画 ---
-current_rows = st.session_state.csb_rows
-current_cols = st.session_state.csb_cols
 bingo_matrix = []
 
-for r in range(current_rows):
-    cols_ui = st.columns(current_cols)
-    row_data = []
-    for c in range(current_cols):
-        lk, ck = f"csb_label_{r}_{c}", f"csb_count_{r}_{c}"
-
-        # セッションにキーがない場合の初期化（フォールバック）
-        if lk not in st.session_state:
-            st.session_state[lk] = f"項目 {r + 1}-{c + 1}"
-        if ck not in st.session_state:
-            st.session_state[ck] = 0
-
-        count_val = st.session_state[ck]
-        is_active = count_val > 0
-        row_data.append(is_active)
+for r in range(board.rows):
+    cols_ui = st.columns(board.cols)
+    row_status = []
+    for c in range(board.cols):
+        cell = board.get_cell(r, c)
+        is_active = cell.count > 0
+        row_status.append(is_active)
 
         with cols_ui[c]:
             cell_class = "bingo-cell-active" if is_active else ""
             with st.container(border=True):
                 st.markdown(f"<div id='cell-{r}-{c}' class='{cell_class}'>", unsafe_allow_html=True)
-                # key を固定することで Session State と直接連動させる
-                st.text_input(
-                    f"L{r}{c}", key=lk, label_visibility="collapsed", on_change=on_change, placeholder="項目名"
+
+                new_label = st.text_input(
+                    f"L{r}{c}", value=cell.label, key=f"lk_{r}_{c}", label_visibility="collapsed", placeholder="項目名"
                 )
-                st.number_input(f"N{r}{c}", key=ck, label_visibility="collapsed", step=1, on_change=on_change)
+                if new_label != cell.label:
+                    cell.label = new_label
+                    save_to_storage()
+
+                new_count = st.number_input(
+                    f"N{r}{c}", value=cell.count, key=f"ck_{r}_{c}", label_visibility="collapsed", step=1
+                )
+                if new_count != cell.count:
+                    cell.count = new_count
+                    save_to_storage()
+                    st.rerun()
+
                 st.markdown("</div>", unsafe_allow_html=True)
-    bingo_matrix.append(row_data)
+    bingo_matrix.append(row_status)
 
 # --- ビンゴ判定 ---
 bingo_indices = []
-for r in range(current_rows):
+for r in range(board.rows):
     if all(bingo_matrix[r]):
-        bingo_indices.extend([[r, c] for c in range(current_cols)])
-for c in range(current_cols):
-    if all(bingo_matrix[r][c] for r in range(current_rows)):
-        bingo_indices.extend([[r, c] for r in range(current_rows)])
-if current_rows == current_cols:
-    if all(bingo_matrix[i][i] for i in range(current_rows)):
-        bingo_indices.extend([[i, i] for i in range(current_rows)])
-    if all(bingo_matrix[i][current_cols - 1 - i] for i in range(current_rows)):
-        bingo_indices.extend([[i, current_cols - 1 - i] for i in range(current_rows)])
+        bingo_indices.extend([[r, c] for c in range(board.cols)])
+for c in range(board.cols):
+    if all(bingo_matrix[r][c] for r in range(board.rows)):
+        bingo_indices.extend([[r, c] for r in range(board.rows)])
+if board.rows == board.cols:
+    if all(bingo_matrix[i][i] for i in range(board.rows)):
+        bingo_indices.extend([[i, i] for i in range(board.rows)])
+    if all(bingo_matrix[i][board.cols - 1 - i] for i in range(board.rows)):
+        bingo_indices.extend([[i, board.cols - 1 - i] for i in range(board.rows)])
 
 if bingo_indices:
     unique_indices = []
@@ -158,21 +145,9 @@ if bingo_indices:
 with st.container(border=True):
     c1, c2 = st.columns(2)
     with c1:
-        current_state = {
-            "rows": st.session_state.csb_rows,
-            "cols": st.session_state.csb_cols,
-            "cells": {
-                f"{r}_{c}": {
-                    "label": st.session_state.get(f"csb_label_{r}_{c}"),
-                    "count": st.session_state.get(f"csb_count_{r}_{c}"),
-                }
-                for r in range(st.session_state.csb_rows)
-                for c in range(st.session_state.csb_cols)
-            },
-        }
         st.download_button(
             label="📥 保存",
-            data=json.dumps(current_state, indent=2, ensure_ascii=False),
+            data=board.model_dump_json(indent=2),
             file_name=f"bingo_{get_jst_now().strftime('%Y%m%d')}.json",
             mime="application/json",
             use_container_width=True,
@@ -182,12 +157,8 @@ with st.container(border=True):
         if uploaded_file and st.button("反映", use_container_width=True, type="primary"):
             try:
                 d = json.load(uploaded_file)
-                st.session_state.csb_rows, st.session_state.csb_cols = d["rows"], d["cols"]
-                for pos, cell in d["cells"].items():
-                    r, c = pos.split("_")
-                    st.session_state[f"csb_label_{r}_{c}"] = cell["label"]
-                    st.session_state[f"csb_count_{r}_{c}"] = cell["count"]
-                validate_and_save()
+                st.session_state.csb_board = BingoBoard(**d)
+                save_to_storage()
                 st.rerun()
             except Exception:
                 st.error("失敗")
@@ -195,30 +166,26 @@ with st.container(border=True):
 # --- サイドバー ---
 with st.sidebar:
     st.header("⚙️ 設定")
-    st.number_input("行数", 1, 15, key="csb_rows", on_change=on_change)
-    st.number_input("列数", 1, 15, key="csb_cols", on_change=on_change)
-    st.write("---")
+    new_rows = st.number_input("行数", 1, 15, value=board.rows)
+    new_cols = st.number_input("列数", 1, 15, value=board.cols)
+    if new_rows != board.rows or new_cols != board.cols:
+        board.rows = new_rows
+        board.cols = new_cols
+        save_to_storage()
+        st.rerun()
 
+    st.write("---")
     st.subheader("🚨 リセット")
 
-    # Session State を直接操作するスムーズなリセット
-    with st.popover("🔢 カウントのみリセット", use_container_width=True):
-        st.warning("全てのカウントを0に戻します。項目名は残ります。")
-        if st.button("実行する", key="confirm_count_reset", type="primary", use_container_width=True):
-            for r in range(st.session_state.csb_rows):
-                for c in range(st.session_state.csb_cols):
-                    st.session_state[f"csb_count_{r}_{c}"] = 0
-            validate_and_save()
-            st.rerun()
+    if st.button("🔢 カウントのみリセット", use_container_width=True):
+        for cell in board.cells.values():
+            cell.count = 0
+        save_to_storage()
+        st.rerun()
 
-    with st.popover("🚨 全てリセット", use_container_width=True):
-        st.error("項目名も含めて全てのデータを完全に消去します。")
-        if st.button("実行する", key="confirm_all_reset", type="primary", use_container_width=True):
-            storage.delete_item(DATA_KEY)
-            # csb_ で始まる全てのセッション状態を削除
-            for k in list(st.session_state.keys()):
-                if k.startswith("csb_"):
-                    del st.session_state[k]
-            st.rerun()
+    if st.button("🚨 全てリセット", use_container_width=True, type="primary"):
+        st.session_state.csb_board = BingoBoard()
+        save_to_storage()
+        st.rerun()
 
 render_donation_box("https://qr.paypay.ne.jp/p2p01_jsHjvMAenqfvI10s", is_sidebar=True)

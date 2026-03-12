@@ -1,7 +1,7 @@
 import streamlit as st
 from streamlit_local_storage import LocalStorage
 
-from src.utils.concentration import GameState, create_deck, handle_card_click
+from src.utils.concentration import ConcentrationGameState, create_deck, handle_card_click
 from src.utils.storage import SafeStorage
 from src.utils.styles import render_donation_box, render_page_header, render_result_box
 
@@ -86,11 +86,11 @@ st.markdown(
 
 # セッション状態の初期化 (リロード時は最初から)
 if "concentration_state" not in st.session_state or not hasattr(st.session_state.concentration_state, "mode"):
-    st.session_state.concentration_state = GameState(
+    st.session_state.concentration_state = ConcentrationGameState(
         cards=create_deck(13, use_all_suits=False), mode="battle", use_all_suits=False
     )
 
-state = st.session_state.concentration_state
+state: ConcentrationGameState = st.session_state.concentration_state
 
 st.title("🎴 トランプ神経衰弱")
 
@@ -139,7 +139,7 @@ with col_msg:
     st.markdown(f"<h3 style='text-align:center;'>{state.message}</h3>", unsafe_allow_html=True)
     if state.game_over:
         if st.button("🔄 もう一度遊ぶ", use_container_width=True, type="primary"):
-            st.session_state.concentration_state = GameState(
+            st.session_state.concentration_state = ConcentrationGameState(
                 cards=create_deck(13, use_all_suits=state.use_all_suits),
                 use_all_suits=state.use_all_suits,
                 mode=state.mode,
@@ -202,13 +202,13 @@ with st.sidebar:
     # 設定の反映
     if new_mode != state.mode or new_use_all != state.use_all_suits:
         if st.button("⚠️ 設定を反映してリセット"):
-            st.session_state.concentration_state = GameState(
+            st.session_state.concentration_state = ConcentrationGameState(
                 cards=create_deck(13, use_all_suits=new_use_all), use_all_suits=new_use_all, mode=new_mode
             )
             st.rerun()
 
     if st.button("🚨 ゲームをリセット", use_container_width=True):
-        st.session_state.concentration_state = GameState(
+        st.session_state.concentration_state = ConcentrationGameState(
             cards=create_deck(13, use_all_suits=state.use_all_suits), use_all_suits=state.use_all_suits, mode=state.mode
         )
         st.rerun()

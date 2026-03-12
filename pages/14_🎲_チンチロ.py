@@ -2,7 +2,7 @@ import pandas as pd
 import streamlit as st
 from streamlit_local_storage import LocalStorage
 
-from src.utils.dice import DICE_EMOJI, HAND_RANK, evaluate_hand, roll_dice
+from src.utils.dice import DICE_EMOJI, HAND_RANK, get_dice_result, roll_dice
 from src.utils.storage import SafeStorage
 from src.utils.styles import (
     display_dice_html,
@@ -66,15 +66,16 @@ with col_roll:
 
             final_dice = roll_dice(3)
             st.session_state.cc_dice = final_dice
-            hand_key = evaluate_hand(final_dice)
-            st.session_state.cc_hand = hand_key
+            result = get_dice_result(final_dice)
+            st.session_state.cc_hand = result.hand_key
 
             # 履歴に追加
-            hand_info = HAND_RANK[hand_key]
-            dice_str = " ".join([DICE_EMOJI[d] for d in final_dice])
-            new_record = {"time": get_jst_now().strftime("%H:%M:%S"), "dice": dice_str, "hand": hand_info["name"]}
-            st.session_state.cc_history.insert(0, new_record)
-            storage.set_item("cc_history", st.session_state.cc_history)
+            if result.hand:
+                hand_info = result.hand
+                dice_str = " ".join([DICE_EMOJI[d] for d in final_dice])
+                new_record = {"time": get_jst_now().strftime("%H:%M:%S"), "dice": dice_str, "hand": hand_info.name}
+                st.session_state.cc_history.insert(0, new_record)
+                storage.set_item("cc_history", st.session_state.cc_history)
             dice_place.empty()
 
         # 現在のサイコロ表示
@@ -91,16 +92,16 @@ with col_res:
             hand_info = HAND_RANK[st.session_state.cc_hand]
             st.markdown("<h3 style='text-align: center; margin:0;'>最新の結果</h3>", unsafe_allow_html=True)
             st.markdown(
-                f"<h2 style='text-align: center; color: #007bff; font-weight:900;'>役: {hand_info['name']}</h2>",
+                f"<h2 style='text-align: center; color: #007bff; font-weight:900;'>役: {hand_info.name}</h2>",
                 unsafe_allow_html=True,
             )
             st.markdown(
-                f"<p style='text-align: center; color: gray;'>{hand_info['description']}</p>", unsafe_allow_html=True
+                f"<p style='text-align: center; color: gray;'>{hand_info.description}</p>", unsafe_allow_html=True
             )
 
-            if hand_info["strength"] > 0:
+            if hand_info.strength > 0:
                 st.balloons()
-            elif hand_info["strength"] < 0:
+            elif hand_info.strength < 0:
                 st.error("最弱の役です...")
             else:
                 st.warning("役なしです。")
@@ -124,21 +125,21 @@ else:
 # 役の一覧
 with st.expander("📊 役の一覧表（強さ順）"):
     rank_data = []
-    for k, v in sorted(HAND_RANK.items(), key=lambda item: item[1]["strength"], reverse=True):
+    for k, v in sorted(HAND_RANK.items(), key=lambda item: item[1].strength, reverse=True):
         if "ARASHI" in k and k != "ARASHI_6":
             continue
         if "POINT" in k and k != "POINT_6":
             continue
-        name = v["name"]
+        name = v.name
         if k == "ARASHI_6":
             name = "アラシ (6-6-6 〜 2-2-2)"
         if k == "POINT_6":
             name = "通常の目 (6の目 〜 1の目)"
         rank_data.append(
             {
-                "強さ": "↑ 強い" if v["strength"] == 1000 else ("↓ 弱い" if v["strength"] == -100 else "-"),
+                "強さ": "↑ 強い" if v.strength == 1000 else ("↓ 弱い" if v.strength == -100 else "-"),
                 "役名": name,
-                "解説": v["description"],
+                "解説": v.description,
             }
         )
     st.table(rank_data)

@@ -1,24 +1,39 @@
 import random
-from typing import Any
+
+from pydantic import BaseModel
 
 DICE_EMOJI: dict[int, str] = {1: "⚀", 2: "⚁", 3: "⚂", 4: "⚃", 5: "⚄", 6: "⚅"}
 
-HAND_RANK: dict[str, dict[str, Any]] = {
-    "PINZORO": {"name": "ピンゾロ (1-1-1)", "strength": 1000, "description": "最強の役。"},
-    "ARASHI_6": {"name": "アラシ (6-6-6)", "strength": 606, "description": "ゾロ目。数字が大きいほど強い。"},
-    "ARASHI_5": {"name": "アラシ (5-5-5)", "strength": 605, "description": "ゾロ目。"},
-    "ARASHI_4": {"name": "アラシ (4-4-4)", "strength": 604, "description": "ゾロ目。"},
-    "ARASHI_3": {"name": "アラシ (3-3-3)", "strength": 603, "description": "ゾロ目。"},
-    "ARASHI_2": {"name": "アラシ (2-2-2)", "strength": 602, "description": "ゾロ目。"},
-    "SHIGORO": {"name": "シゴロ (4-5-6)", "strength": 500, "description": "4-5-6の連番。非常に強い。"},
-    "POINT_6": {"name": "6の目", "strength": 6, "description": "2つのサイコロが揃い、残りが6。"},
-    "POINT_5": {"name": "5の目", "strength": 5, "description": "2つのサイコロが揃い、残りが5。"},
-    "POINT_4": {"name": "4の目", "strength": 4, "description": "2つのサイコロが揃い、残りが4。"},
-    "POINT_3": {"name": "3の目", "strength": 3, "description": "2つのサイコロが揃い、残りが3。"},
-    "POINT_2": {"name": "2の目", "strength": 2, "description": "2つのサイコロが揃い、残りが2。"},
-    "POINT_1": {"name": "1の目", "strength": 1, "description": "2つのサイコロが揃い、残りが1。"},
-    "BUTA": {"name": "ブタ (役なし)", "strength": 0, "description": "役が成立していない状態。"},
-    "HIFUMI": {"name": "ヒフミ (1-2-3)", "strength": -100, "description": "最低の役。即負け。"},
+
+class ChinchiroHand(BaseModel):
+    """チンチロの役情報を定義するモデル"""
+
+    key: str
+    name: str
+    strength: int
+    description: str
+
+
+HAND_RANK: dict[str, ChinchiroHand] = {
+    "PINZORO": ChinchiroHand(key="PINZORO", name="ピンゾロ (1-1-1)", strength=1000, description="最強の役。"),
+    "ARASHI_6": ChinchiroHand(
+        key="ARASHI_6", name="アラシ (6-6-6)", strength=606, description="ゾロ目。数字が大きいほど強い。"
+    ),
+    "ARASHI_5": ChinchiroHand(key="ARASHI_5", name="アラシ (5-5-5)", strength=605, description="ゾロ目。"),
+    "ARASHI_4": ChinchiroHand(key="ARASHI_4", name="アラシ (4-4-4)", strength=604, description="ゾロ目。"),
+    "ARASHI_3": ChinchiroHand(key="ARASHI_3", name="アラシ (3-3-3)", strength=603, description="ゾロ目。"),
+    "ARASHI_2": ChinchiroHand(key="ARASHI_2", name="アラシ (2-2-2)", strength=602, description="ゾロ目。"),
+    "SHIGORO": ChinchiroHand(
+        key="SHIGORO", name="シゴロ (4-5-6)", strength=500, description="4-5-6の連番。非常に強い。"
+    ),
+    "POINT_6": ChinchiroHand(key="POINT_6", name="6の目", strength=6, description="2つのサイコロが揃い、残りが6。"),
+    "POINT_5": ChinchiroHand(key="POINT_5", name="5の目", strength=5, description="2つのサイコロが揃い、残りが5。"),
+    "POINT_4": ChinchiroHand(key="POINT_4", name="4の目", strength=4, description="2つのサイコロが揃い、残りが4。"),
+    "POINT_3": ChinchiroHand(key="POINT_3", name="3の目", strength=3, description="2つのサイコロが揃い、残りが3。"),
+    "POINT_2": ChinchiroHand(key="POINT_2", name="2の目", strength=2, description="2つのサイコロが揃い、残りが2。"),
+    "POINT_1": ChinchiroHand(key="POINT_1", name="1の目", strength=1, description="2つのサイコロが揃い、残りが1。"),
+    "BUTA": ChinchiroHand(key="BUTA", name="ブタ (役なし)", strength=0, description="役が成立していない状態。"),
+    "HIFUMI": ChinchiroHand(key="HIFUMI", name="ヒフミ (1-2-3)", strength=-100, description="最低の役。即負け。"),
 }
 
 
@@ -62,3 +77,21 @@ def evaluate_hand(dice: list[int]) -> str:
         return f"POINT_{d1}"
 
     return "BUTA"
+
+
+class DiceRollResult(BaseModel):
+    """サイコロの結果を管理するモデル"""
+
+    dice: list[int]
+    hand_key: str | None = None
+    hand: ChinchiroHand | None = None
+
+
+def get_dice_result(dice: list[int]) -> DiceRollResult:
+    """
+    サイコロの結果から役情報を付与したモデルを生成します。
+    """
+    if len(dice) == 3:
+        hand_key = evaluate_hand(dice)
+        return DiceRollResult(dice=dice, hand_key=hand_key, hand=HAND_RANK.get(hand_key))
+    return DiceRollResult(dice=dice)

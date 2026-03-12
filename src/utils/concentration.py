@@ -1,9 +1,11 @@
 import random
-from dataclasses import dataclass, field
+
+from pydantic import BaseModel, Field
 
 
-@dataclass
-class Card:
+class Card(BaseModel):
+    """トランプのカードを定義するモデル"""
+
     rank: str  # "A", "2", ..., "K"
     suit: str  # "♠", "♥", "♣", "♦"
     id: int = 0
@@ -19,13 +21,14 @@ class Card:
         return self.suit in ["♥", "♦"]
 
 
-@dataclass
-class GameState:
-    cards: list[Card] = field(default_factory=list)
+class ConcentrationGameState(BaseModel):
+    """神経衰弱のゲーム状態を管理するモデル"""
+
+    cards: list[Card] = Field(default_factory=list)
     mode: str = "battle"  # "single" or "battle"
     current_player: int = 0  # 0 or 1
-    scores: list[int] = field(default_factory=lambda: [0, 0])
-    selected_indices: list[int] = field(default_factory=list)
+    scores: list[int] = Field(default_factory=lambda: [0, 0])
+    selected_indices: list[int] = Field(default_factory=list)
     message: str = "プレイヤー1の番です"
     game_over: bool = False
     use_all_suits: bool = False
@@ -35,8 +38,6 @@ class GameState:
 def create_deck(num_pairs: int = 13, use_all_suits: bool = False) -> list[Card]:
     """
     指定された条件でデッキを作成します。
-    - use_all_suits=False: ♠と♥を使用 (26枚)
-    - use_all_suits=True: ♠, ♥, ♣, ♦を使用 (52枚)
     """
     ranks = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"]
     suits = ["♠", "♥", "♣", "♦"] if use_all_suits else ["♠", "♥"]
@@ -54,7 +55,7 @@ def create_deck(num_pairs: int = 13, use_all_suits: bool = False) -> list[Card]:
     return deck
 
 
-def handle_card_click(state: GameState, index: int) -> GameState:
+def handle_card_click(state: ConcentrationGameState, index: int) -> ConcentrationGameState:
     """
     カードがクリックされた時の状態遷移ロジック。
     """

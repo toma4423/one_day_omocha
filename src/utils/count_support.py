@@ -1,3 +1,20 @@
+from pydantic import BaseModel
+
+
+class CounterItem(BaseModel):
+    """個別のカウンターを定義するモデル"""
+
+    label: str
+    count: int = 0
+    weight: float = 1.0
+
+
+class CountSupportSession(BaseModel):
+    """カウントサポートのセッション全体を定義するモデル"""
+
+    items: list[CounterItem] = []
+
+
 def calculate_weighted_value(value: float, weight: float) -> float:
     """
     数値に重みを掛けた値を計算します。
