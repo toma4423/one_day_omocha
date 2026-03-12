@@ -10,20 +10,43 @@ from src.utils.storage import SafeStorage
 from src.utils.styles import render_donation_box
 
 # ページ設定
-st.set_page_config(page_title="画像エディタ | 今日のおもちゃ箱", page_icon="🖼️", layout="wide")
+st.set_page_config(page_title="画像リサイズ | 今日のおもちゃ箱", page_icon="🖼️", layout="wide")
 
 # ストレージ初期化
 storage = SafeStorage(LocalStorage())
 
 
 def main():
-    st.title("🖼️ 画像エディタ")
+    st.title("🖼️ 画像リサイズ")
     st.caption("画像の切り抜き、リサイズ、比率変更が簡単に行えます。")
 
-    # サイドバー設定
+    # サイドバー（募金箱のみ）
     with st.sidebar:
-        st.header("⚙️ 編集設定")
+        render_donation_box("https://qr.paypay.ne.jp/p2p01_jsHjvMAenqfvI10s", is_sidebar=True)
 
+    # 画像アップロード
+    uploaded_file = st.file_uploader("画像をアップロード (PNG, JPG, WebP)", type=["png", "jpg", "jpeg", "webp"])
+
+    # 永続化された画像の読み込み
+    stored_image_data = storage.get_item("image_editor_data", is_json=False)
+
+    if uploaded_file is not None:
+        image_bytes = uploaded_file.getvalue()
+        encoded = base64.b64encode(image_bytes).decode("utf-8")
+        storage.set_item("image_editor_data", encoded)
+    elif stored_image_data:
+        image_bytes = base64.b64decode(stored_image_data)
+    else:
+        st.info("画像をアップロードして開始してください。")
+        return
+
+    # 編集設定（メインエリア）
+    st.divider()
+    st.subheader("⚙️ 編集設定")
+
+    col_cfg1, col_cfg2 = st.columns(2)
+
+    with col_cfg1:
         # アスペクト比プリセット
         ratio_options = {
             "1:1 (正方形)": (1.0, 1.0),
@@ -37,45 +60,22 @@ def main():
         selected_ratio_name = st.selectbox("アスペクト比", list(ratio_options.keys()), index=0)
 
         if selected_ratio_name == "カスタム":
-            col1, col2 = st.columns(2)
-            aspect_x = col1.number_input("横比率", value=1.0, min_value=0.1, step=0.1)
-            aspect_y = col2.number_input("縦比率", value=1.0, min_value=0.1, step=0.1)
+            cc1, cc2 = st.columns(2)
+            aspect_x = cc1.number_input("横比率", value=1.0, min_value=0.1, step=0.1)
+            aspect_y = cc2.number_input("縦比率", value=1.0, min_value=0.1, step=0.1)
         else:
             aspect_x, aspect_y = ratio_options[selected_ratio_name]
 
-        st.divider()
+        target_width = st.number_input("出力横幅 (px)", value=1080, min_value=10, step=10)
+        output_format = st.radio("出力形式", ["PNG", "JPEG"], horizontal=True)
 
+    with col_cfg2:
         # ズームと位置調整
         scale = st.slider("ズーム (拡大率)", 0.5, 5.0, 1.0, 0.1)
         offset_x = st.slider("横位置調整", 0.0, 1.0, 0.5, 0.01)
         offset_y = st.slider("縦位置調整", 0.0, 1.0, 0.5, 0.01)
 
-        st.divider()
-
-        # 出力設定
-        target_width = st.number_input("出力横幅 (px)", value=1080, min_value=10, step=10)
-        output_format = st.radio("出力形式", ["PNG", "JPEG"], horizontal=True)
-
-        render_donation_box("https://qr.paypay.ne.jp/p2p01_jsHjvMAenqfvI10s", is_sidebar=True)
-
-    # メインエリア
-    uploaded_file = st.file_uploader("画像をアップロード (PNG, JPG, WebP)", type=["png", "jpg", "jpeg", "webp"])
-
-    # 永続化された画像の読み込み
-    stored_image_data = storage.get_item("image_editor_data", is_json=False)
-
-    if uploaded_file is not None:
-        # 新しいファイルがアップロードされた場合
-        image_bytes = uploaded_file.getvalue()
-        # Storageに保存 (base64)
-        encoded = base64.b64encode(image_bytes).decode("utf-8")
-        storage.set_item("image_editor_data", encoded)
-    elif stored_image_data:
-        # Storageから復元
-        image_bytes = base64.b64decode(stored_image_data)
-    else:
-        st.info("画像をアップロードして開始してください。")
-        return
+    st.divider()
 
     try:
         # 画像の読み込み (EXIF補正あり)
@@ -100,7 +100,6 @@ def main():
 
         with col_prev:
             st.subheader("👁️ プレビュー")
-            # プレビューを適切なサイズに制限
             st.image(processed_image_bytes, width=400)
 
         with col_info:
