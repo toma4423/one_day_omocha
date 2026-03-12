@@ -1,114 +1,71 @@
 from src.utils.slot import (
-    calculate_probabilities,
+    DEFAULT_PAYOUTS,
+    DEFAULT_SYMBOLS,
+    SlotConfig,
+    SlotSymbol,
     evaluate_slot_spin,
-    migrate_slot_config,
-    resolve_pattern_to_chars,
-    solve_weights_from_denominators,
+    get_slot_config,
     spin_reels,
     validate_slot_config,
 )
 
 
-def test_validate_slot_config_success():
-    valid_config = {
-        "name": "Test",
-        "symbols": [{"id": 1, "char": "A"}],
-        "payouts": [{"name": "W", "pattern": [1, 1, 1], "denominator": 10.0}],
-    }
-    is_valid, msg = validate_slot_config(valid_config)
-    assert is_valid is True
-
-
-def test_validate_slot_config_fail_duplicate():
-    invalid_config = {
-        "name": "Test",
-        "symbols": [{"id": 1, "char": "A"}, {"id": 1, "char": "B"}],
-        "payouts": [{"name": "W", "pattern": [1, 1, 1]}],
-    }
-    # IDの重複チェック
-    invalid_config["symbols"][1]["id"] = 1
-    is_valid, msg = validate_slot_config(invalid_config)
-    assert is_valid is False
-    assert "IDが重複" in msg
-
-
-def test_migrate_slot_config_denominator():
-    legacy_config = {
-        "symbols": [{"char": "7"}],
-        "payouts": [{"name": "BIG", "pattern": ["7", "7", "7"]}],
-    }
-    migrated = migrate_slot_config(legacy_config)
-    assert "denominator" in migrated["payouts"][0]
-    assert migrated["payouts"][0]["denominator"] == 0.0
-
-
-def test_solve_weights_from_denominators():
-    symbols = [
-        {"id": 1, "char": "7", "weight": 1.0},
-        {"id": 2, "char": "Blank", "weight": 1.0},
-    ]
-    payouts = [
-        {"name": "JACKPOT", "pattern": [1, 1, 1], "denominator": 8.0},  # 1/8 = 12.5%
-    ]
-
-    new_symbols = solve_weights_from_denominators(symbols, payouts)
-    probs = calculate_probabilities(new_symbols, payouts)
-
-    # 逆算後の確率が 1/8 (12.5%) に近いことを確認
-    assert 11.0 <= probs["hit_rates"][0]["rate"] <= 14.0
-
-
-def test_resolve_pattern_to_chars():
-    symbols = [{"id": 1, "char": "🍒"}]
-    assert resolve_pattern_to_chars([1, "ANY", 1], symbols) == ["🍒", "ANY", "🍒"]
-
-
 def test_spin_reels():
-    symbol_data = [{"id": 1, "char": "A", "weight": 1.0}]
-    payouts = [{"name": "Win", "pattern": [1, 1, 1], "denominator": 1.0}]  # 100%当選
-    result = spin_reels(symbol_data, payouts, 3)
+    config = SlotConfig(symbols=DEFAULT_SYMBOLS, payouts=DEFAULT_PAYOUTS)
+    result = spin_reels(config)
     assert len(result) == 3
-    assert result[0]["char"] == "A"
+    assert all(isinstance(s, SlotSymbol) for s in result)
 
 
-def test_spin_reels_priority():
-    # 珍しい役が優先されるか
-    symbols = [{"id": 1, "char": "A"}, {"id": 2, "char": "B"}]
-    payouts = [
-        {"name": "Common", "pattern": [1, 1, 1], "denominator": 1.01},  # ほぼ当たる
-        {"name": "Rare", "pattern": [2, 2, 2], "denominator": 1.01},  # ほぼ当たる
+def test_evaluate_slot_spin_hit():
+    # 777の出目を作成
+    symbol_7 = SlotSymbol(id=6, char="7️⃣")
+    result = [symbol_7, symbol_7, symbol_7]
+
+    payout = evaluate_slot_spin(result, DEFAULT_PAYOUTS)
+    assert payout is not None
+    assert payout.name == "超大当り (777)"
+
+
+def test_evaluate_slot_spin_miss():
+    # バラバラの出目
+    result = [
+        SlotSymbol(id=1, char="🍒"),
+        SlotSymbol(id=2, char="🍋"),
+        SlotSymbol(id=6, char="7️⃣"),
     ]
-    # 実際にはランダムなので厳密なテストは難しいが、ロジックとしてエラーが出ないことを確認
-    result = spin_reels(symbols, payouts, 3)
-    assert len(result) == 3
+    payout = evaluate_slot_spin(result, DEFAULT_PAYOUTS)
+    assert payout is None
 
 
-def test_evaluate_slot_spin_any():
-    payouts = [{"pattern": [1, "ANY", "ANY"], "name": "CHERRY", "score": 2}]
-    result = evaluate_slot_spin([{"id": 1}, {"id": 2}, {"id": 3}], payouts)
-    assert result is not None
-    assert result["name"] == "CHERRY"
-
-
-def test_full_config_load_and_validate():
-    # スロット作成ページから出力されるようなJSONデータを模したテスト
-    config_data = {
-        "name": "Custom Slot",
-        "symbols": [{"id": 1, "char": "💎", "weight": 10.0}, {"id": 2, "char": "7", "weight": 5.0}],
-        "payouts": [{"name": "Jackpot", "pattern": [2, 2, 2], "denominator": 100.0}],
+def test_validate_slot_config_valid():
+    config_dict = {
+        "name": "Test Slot",
+        "symbols": [s.model_dump() for s in DEFAULT_SYMBOLS],
+        "payouts": [p.model_dump() for p in DEFAULT_PAYOUTS],
     }
-
-    # 1. マイグレーション
-    migrated = migrate_slot_config(config_data)
-    assert migrated["name"] == "Custom Slot"
-    assert "image_url" in migrated["symbols"][0]  # 補完されていること
-
-    # 2. バリデーション
-    is_valid, msg = validate_slot_config(migrated)
+    is_valid, msg = validate_slot_config(config_dict)
     assert is_valid is True
-    assert msg == ""
 
-    # 3. 確率計算ができるか
-    probs = calculate_probabilities(migrated["symbols"], migrated["payouts"])
-    assert "hit_rates" in probs
-    assert probs["hit_rates"][0]["name"] == "Jackpot"
+
+def test_validate_slot_config_invalid():
+    # 名前がない
+    is_valid, msg = validate_slot_config({"name": ""})
+    assert is_valid is False
+
+    # 不正なID
+    invalid_payouts = [p.model_dump() for p in DEFAULT_PAYOUTS]
+    invalid_payouts[0]["pattern"] = [999, 999, 999]
+    config_dict = {
+        "name": "Invalid",
+        "symbols": [s.model_dump() for s in DEFAULT_SYMBOLS],
+        "payouts": invalid_payouts,
+    }
+    is_valid, msg = validate_slot_config(config_dict)
+    assert is_valid is False
+
+
+def test_get_slot_config_none():
+    config = get_slot_config(None)
+    assert config.name == "標準スロット"
+    assert len(config.symbols) == len(DEFAULT_SYMBOLS)

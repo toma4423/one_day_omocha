@@ -3,6 +3,7 @@ import json
 from datetime import timedelta
 
 import streamlit as st
+import streamlit.components.v1 as components
 from streamlit_local_storage import LocalStorage
 
 from src.utils.image_maker import composite_images, create_palmu_calendar_grid_image
@@ -10,10 +11,10 @@ from src.utils.palmu import (
     calculate_monthly_display_days,
     calculate_skip_card_balance,
     evaluate_rank_status,
+    generate_visual_editor_html,
     get_day_period_assignments,
     group_points_by_active_week,
     points_needed_for_rank_up,
-    render_visual_editor,
 )
 from src.utils.storage import SafeStorage
 from src.utils.styles import render_donation_box, render_page_header
@@ -192,7 +193,10 @@ if active_weeks:
 
 @st.dialog("📏 配置を直感的に調整する", width="large")
 def show_palmu_editor(bg_bytes, fg_bytes, fg_w, fg_h, px, py, scale, anchor):
-    render_visual_editor(bg_bytes, fg_bytes, fg_w, fg_h, px, py, scale, anchor, mode="monthly")
+    st.markdown("#### 📱 ビジュアルエディタ")
+    st.caption("画像をドラッグして移動、角を引いてサイズ変更できます。")
+    html_content = generate_visual_editor_html(bg_bytes, fg_bytes, fg_w, fg_h, px, py, scale, anchor, mode="monthly")
+    components.html(html_content, height=550, scrolling=True)
 
 
 # --- 画像生成 ---

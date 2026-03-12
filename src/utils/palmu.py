@@ -181,7 +181,7 @@ def calculate_monthly_display_days(daily_values: list[int | str], max_total: int
     return days_for_4_periods
 
 
-def render_visual_editor(
+def generate_visual_editor_html(
     bg_bytes: bytes,
     fg_bytes: bytes,
     fg_w: int,
@@ -191,15 +191,12 @@ def render_visual_editor(
     scale: float,
     anchor: str,
     mode: str = "weekly",
-) -> None:
+) -> str:
     """
-    Fabric.jsを使用したビジュアルエディタをダイアログ内に表示します。
+    Fabric.jsを使用したビジュアルエディタのHTMLを生成します。
     """
     import base64
     from pathlib import Path
-
-    import streamlit as st
-    import streamlit.components.v1 as components
 
     # アセットの読み込み
     asset_dir = Path("src/assets/palmu")
@@ -224,8 +221,4 @@ def render_visual_editor(
     )
 
     # HTML全体の組み立て
-    html_final = html_tmpl.replace("__STYLE__", css_text).replace("__SCRIPT__", js_final)
-
-    st.markdown("#### 📱 ビジュアルエディタ")
-    st.caption("画像をドラッグして移動、角を引いてサイズ変更できます。")
-    components.html(html_final, height=550, scrolling=True)
+    return html_tmpl.replace("__STYLE__", css_text).replace("__SCRIPT__", js_final)

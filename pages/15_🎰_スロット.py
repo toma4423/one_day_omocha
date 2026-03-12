@@ -5,6 +5,7 @@ import streamlit as st
 from streamlit_local_storage import LocalStorage
 
 from src.utils.slot import (
+    SlotConfig,
     evaluate_slot_spin,
     get_slot_config,
     spin_reels,
@@ -49,7 +50,9 @@ if "slot_spin_trigger" not in st.session_state:
 if "slot_target_reels" not in st.session_state:
     st.session_state.slot_target_reels = st.session_state.slot_reels
 
-st.title(f"🎰 {st.session_state.slot_config.get('name', '標準スロット')}")
+# Pydanticモデルから値を取得
+config: SlotConfig = st.session_state.slot_config
+st.title(f"🎰 {config.name}")
 
 # 回転数の表示
 with st.container(border=True):
@@ -74,7 +77,10 @@ with col_main:
     # JSコンポーネントのレンダリング
     def render_slot_machine(initial, target, symbols, trigger, sound, result):
         is_win = result is not None
-        win_name = result["name"] if is_win else ""
+        win_name = result.name if is_win else ""
+
+        # モデルをシリアライズ可能な形式に変換
+        symbols_data = [s.model_dump() for s in symbols]
 
         html_template = f"""
         <style>{slot_css}</style>
@@ -84,7 +90,7 @@ with col_main:
             const config = {{
                 initialReels: {json.dumps(initial)},
                 targetReels: {json.dumps(target)},
-                symbols: {json.dumps(symbols)},
+                symbols: {json.dumps(symbols_data)},
                 spinTrigger: {trigger},
                 soundEnabled: {json.dumps(sound)},
                 isWin: {json.dumps(is_win)},
@@ -98,7 +104,7 @@ with col_main:
     render_slot_machine(
         st.session_state.slot_reels,
         st.session_state.slot_target_reels,
-        st.session_state.slot_config["symbols"],
+        config.symbols,
         st.session_state.slot_spin_trigger,
         st.session_state.slot_sound_enabled,
         st.session_state.slot_result,
@@ -106,23 +112,24 @@ with col_main:
 
     if st.button("🔥 レバーを叩く！", use_container_width=True, type="primary"):
         # Python側で先に抽選
-        final_reels = spin_reels(st.session_state.slot_config["symbols"], st.session_state.slot_config["payouts"])
-        result = evaluate_slot_spin(final_reels, st.session_state.slot_config["payouts"])
+        final_reels = spin_reels(config)
+        result = evaluate_slot_spin(final_reels, config.payouts)
 
-        # 状態更新
+        # 状態更新 (JSに渡すため dict に変換)
+        final_reels_data = [s.model_dump() for s in final_reels]
         st.session_state.slot_reels = st.session_state.slot_target_reels
-        st.session_state.slot_target_reels = final_reels
+        st.session_state.slot_target_reels = final_reels_data
         st.session_state.slot_result = result
         st.session_state.slot_spin_trigger += 1
         st.session_state.slot_spins += 1
         storage.set_item("slot_spins", st.session_state.slot_spins)
 
         # 統計と履歴の更新
-        res_name = result["name"] if result else "ハズレ"
+        res_name = result.name if result else "ハズレ"
         st.session_state.slot_counts[res_name] = st.session_state.slot_counts.get(res_name, 0) + 1
         storage.set_item("slot_counts", st.session_state.slot_counts)
 
-        reels_str = " ".join([s["char"] for s in final_reels])
+        reels_str = " ".join([s.char for s in final_reels])
         st.session_state.slot_history.insert(
             0,
             {
@@ -152,21 +159,16 @@ st.write("")
 # --- 統計と履歴 ---
 tab1, tab2 = st.tabs(["📊 成立統計", "📜 実戦履歴"])
 
-# 現在の設定を取得
-current_config = st.session_state.slot_config
-current_payouts = current_config["payouts"]
-
 with tab1:
     st.subheader("成立履歴の統計")
     total_spins = st.session_state.slot_spins
 
     stats_data = []
     # 役ごとの統計
-    for p in current_payouts:
-        name = p["name"]
+    for p in config.payouts:
+        name = p.name
         count = st.session_state.slot_counts.get(name, 0)
-        # 設定値を直接取得（1/N形式）
-        denom = p.get("denominator", "??")
+        denom = p.denominator if p.denominator > 0 else "??"
 
         stats_data.append({"役名": name, "回数": count, "確率 (1/N)": f"1/{denom}"})
 
@@ -175,7 +177,7 @@ with tab1:
     stats_data.append({"役名": "ハズレ", "回数": miss_count, "確率 (1/N)": "---"})
 
     st.table(stats_data)
-    st.caption(f"現在の設定「{current_config.get('name')}」に基づいた集計結果です。")
+    st.caption(f"現在の設定「{config.name}」に基づいた集計結果です。")
 
 with tab2:
     if st.session_state.slot_history:
@@ -203,17 +205,16 @@ with st.sidebar:
     uploaded_file = st.file_uploader("設定JSONを読み込む", type="json")
     if uploaded_file and st.button("設定を反映", use_container_width=True, type="primary"):
         try:
-            from src.utils.slot import migrate_slot_config, validate_slot_config
+            from src.utils.slot import validate_slot_config
 
             data = json.load(uploaded_file)
-            migrated = migrate_slot_config(data)
-            valid, msg = validate_slot_config(migrated)
+            valid, msg = validate_slot_config(data)
             if valid:
-                st.session_state.slot_config = migrated
-                storage.set_item("slot_config", migrated)
-                st.success(f"✅ 設定「{migrated['name']}」を反映しました！")
+                new_config = SlotConfig(**data)
+                st.session_state.slot_config = new_config
+                storage.set_item("slot_config", new_config.model_dump())
+                st.success(f"✅ 設定「{new_config.name}」を反映しました！")
                 st.balloons()
-                # 統計もリセットするか選べるが、ここでは反映を優先
                 st.rerun()
             else:
                 st.error(msg)
