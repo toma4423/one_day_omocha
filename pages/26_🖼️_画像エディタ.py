@@ -56,7 +56,7 @@ def main():
         target_width = st.number_input("出力横幅 (px)", value=1080, min_value=10, step=10)
         output_format = st.radio("出力形式", ["PNG", "JPEG"], horizontal=True)
 
-        render_donation_box(is_sidebar=True)
+        render_donation_box("https://qr.paypay.ne.jp/p2p01_jsHjvMAenqfvI10s", is_sidebar=True)
 
     # メインエリア
     uploaded_file = st.file_uploader("画像をアップロード (PNG, JPG, WebP)", type=["png", "jpg", "jpeg", "webp"])
