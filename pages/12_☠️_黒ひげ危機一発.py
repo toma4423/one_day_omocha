@@ -3,7 +3,13 @@ from streamlit_local_storage import LocalStorage
 
 from src.utils.kurohige import KurohigeState, init_kurohige_state
 from src.utils.storage import SafeStorage
-from src.utils.styles import render_donation_box, render_grid_board, render_page_header
+from src.utils.styles import (
+    render_donation_box,
+    render_grid_board,
+    render_page_header,
+    render_storage_controls,
+    wait_for_storage_load,
+)
 
 st.set_page_config(page_title="黒ひげ危機一発", page_icon="☠️", layout="centered")
 
@@ -14,12 +20,13 @@ render_page_header()
 storage = SafeStorage(LocalStorage())
 
 # セッション状態の初期化
-if "kh_state" not in st.session_state:
-    saved_state = storage.get_item("kurohige_state_v2", is_json=True)
+if "_kh_initialized" not in st.session_state:
+    saved_state = wait_for_storage_load(storage, "kurohige_state_v3", "_kh_initialized")
     if saved_state:
         st.session_state.kh_state = KurohigeState(**saved_state)
     else:
         st.session_state.kh_state = init_kurohige_state()
+    st.rerun()
 
 state: KurohigeState = st.session_state.kh_state
 
@@ -31,7 +38,6 @@ with st.sidebar:
     num_slots = st.slider("穴の数", 4, 24, state.num_slots)
     if st.button("ゲームをリセット", use_container_width=True, type="primary"):
         state.reset(num_slots)
-        storage.set_item("kurohige_state_v2", state.model_dump())
         st.rerun()
 
 # --- メインエリア ---
@@ -81,12 +87,26 @@ def render_slot(idx):
 
     if st.button(label, key=f"k_{idx}", disabled=disabled, use_container_width=True, type=btn_type):
         state.click_slot(idx)
-        storage.set_item("kurohige_state_v2", state.model_dump())
         if state.status == "boom":
             st.snow()
         st.rerun()
 
 
 render_grid_board(state.num_slots, cols_per_row, render_slot)
+
+
+# データの管理
+def on_load(data):
+    st.session_state.kh_state = KurohigeState(**data)
+
+
+render_storage_controls(
+    storage=storage,
+    storage_key="kurohige_state_v3",
+    current_data=state,
+    on_load_callback=on_load,
+    file_prefix="kurohige",
+    is_pydantic=True,
+)
 
 render_donation_box("https://qr.paypay.ne.jp/p2p01_jsHjvMAenqfvI10s", is_sidebar=True)

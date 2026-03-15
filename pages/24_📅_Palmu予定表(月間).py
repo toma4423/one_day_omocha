@@ -1,5 +1,4 @@
 import base64
-import json
 from datetime import timedelta
 
 import streamlit as st
@@ -17,7 +16,12 @@ from src.utils.palmu import (
     points_needed_for_rank_up,
 )
 from src.utils.storage import SafeStorage
-from src.utils.styles import render_donation_box, render_page_header
+from src.utils.styles import (
+    render_donation_box,
+    render_page_header,
+    render_storage_controls,
+    wait_for_storage_load,
+)
 from src.utils.time import get_jst_now
 
 st.set_page_config(page_title="Palmu月間予定表", page_icon="📅", layout="wide")
@@ -31,52 +35,31 @@ PALMU_MONTH_STORAGE_KEY = "palmu_month_data"
 BG_CACHE_KEY_MONTHLY = "palmu_bg_cache_monthly"
 MAX_TOTAL_MONTH_DAYS = 60
 
-# セッション状態の初期化
-if "palmu_month_reset_counter" not in st.session_state:
-    st.session_state.palmu_month_reset_counter = 0
-if "palmu_month_skip_cards" not in st.session_state:
+# --- 初期化とロード (堅牢な方式) ---
+if "_palmu_month_initialized" not in st.session_state:
+    # 1. メインデータのロード待ち
+    saved_data = wait_for_storage_load(storage, PALMU_MONTH_STORAGE_KEY, "_palmu_month_initialized")
+
+    # 2. データの反映
+    # デフォルト値の設定
+    for i in range(1, MAX_TOTAL_MONTH_DAYS + 1):
+        st.session_state[f"pm_day_{i}"] = 1
     st.session_state.palmu_month_skip_cards = 0
 
-
-def save_to_storage():
-    data = {f"day_{i}": st.session_state.get(f"pm_day_{i}", 1) for i in range(1, MAX_TOTAL_MONTH_DAYS + 1)}
-    data["skip_cards"] = st.session_state.get("palmu_month_skip_cards", 0)
-    storage.set_item(PALMU_MONTH_STORAGE_KEY, data)
-
-
-def load_from_storage():
-    data = storage.get_item(PALMU_MONTH_STORAGE_KEY, is_json=True)
-    if data:
+    if saved_data:
         for i in range(1, MAX_TOTAL_MONTH_DAYS + 1):
-            val = data.get(f"day_{i}", 1)
+            val = saved_data.get(f"day_{i}", 1)
+            # 負の互換性対応
             st.session_state[f"pm_day_{i}"] = "SKIP" if val == "スキップ" else val
-        st.session_state.palmu_month_skip_cards = data.get("skip_cards", 0)
-        return True
-    return False
+        st.session_state.palmu_month_skip_cards = saved_data.get("skip_cards", 0)
 
+    # 3. その他非永続状態の初期化
+    st.session_state.palmu_month_reset_counter = 0
+    st.session_state.p_x_slider = 0
+    st.session_state.p_y_slider = 0
+    st.session_state.pm_scale_slider = 1.0
 
-def init_palmu_month_state():
-    # キーが欠落している場合に備えて全件チェック・補完
-    for i in range(1, MAX_TOTAL_MONTH_DAYS + 1):
-        key = f"pm_day_{i}"
-        if key not in st.session_state:
-            st.session_state[key] = 1
-
-    # 初回起動時のみストレージから読み込み
-    if "palmu_month_initialized" not in st.session_state:
-        load_from_storage()
-        st.session_state.palmu_month_initialized = True
-
-    # スライダーの初期化
-    if "p_x_slider" not in st.session_state:
-        st.session_state.p_x_slider = 0
-    if "p_y_slider" not in st.session_state:
-        st.session_state.p_y_slider = 0
-    if "pm_scale_slider" not in st.session_state:
-        st.session_state.pm_scale_slider = 1.0
-
-
-init_palmu_month_state()
+    st.rerun()
 
 # --- ストレージによる同期 (座標とスケール) ---
 sync_data = storage.get_item("palmu_sync_data", is_json=True)
@@ -134,7 +117,6 @@ reset_id = st.session_state.palmu_month_reset_counter
 def on_pm_point_change(idx):
     key = f"pm_p_widget_{idx}_{reset_id}"
     st.session_state[f"pm_day_{idx}"] = st.session_state[key]
-    save_to_storage()
 
 
 cols_h = st.columns(7)
@@ -311,35 +293,25 @@ with st.container(border=True):
     except Exception as e:
         st.error(f"プレビュー生成エラー: {e}")
 
+
 # --- データの保存と読み込み ---
-st.write("---")
-with st.container(border=True):
-    st.subheader("📁 データの保存と読み込み")
-    c1, c2 = st.columns(2)
-    with c1:
-        current_data = {f"day_{i}": st.session_state.get(f"pm_day_{i}", 1) for i in range(1, MAX_TOTAL_MONTH_DAYS + 1)}
-        current_data["skip_cards"] = st.session_state.palmu_month_skip_cards
-        json_str = json.dumps(current_data, indent=2, ensure_ascii=False)
-        st.download_button(
-            "📥 JSONを保存",
-            json_str,
-            f"palmu_month_{get_jst_now().strftime('%Y%m%d')}.json",
-            "application/json",
-            use_container_width=True,
-        )
-    with c2:
-        uploaded_file = st.file_uploader("📤 JSONを読み込む", type="json", label_visibility="collapsed")
-        if uploaded_file and st.button("反映実行", use_container_width=True):
-            try:
-                d = json.load(uploaded_file)
-                for i in range(1, MAX_TOTAL_MONTH_DAYS + 1):
-                    v = d.get(f"day_{i}", 1)
-                    st.session_state[f"pm_day_{i}"] = "SKIP" if v == "スキップ" else v
-                st.session_state.palmu_month_skip_cards = d.get("skip_cards", 0)
-                save_to_storage()
-                st.rerun()
-            except Exception:
-                st.error("読込失敗")
+def on_load_pm(data: dict):
+    for i in range(1, MAX_TOTAL_MONTH_DAYS + 1):
+        v = data.get(f"day_{i}", 1)
+        st.session_state[f"pm_day_{i}"] = "SKIP" if v == "スキップ" else v
+    st.session_state.palmu_month_skip_cards = data.get("skip_cards", 0)
+
+
+current_pm_data = {f"day_{i}": st.session_state.get(f"pm_day_{i}", 1) for i in range(1, MAX_TOTAL_MONTH_DAYS + 1)}
+current_pm_data["skip_cards"] = st.session_state.palmu_month_skip_cards
+
+render_storage_controls(
+    storage=storage,
+    storage_key=PALMU_MONTH_STORAGE_KEY,
+    current_data=current_pm_data,
+    on_load_callback=on_load_pm,
+    file_prefix="palmu_month",
+)
 
 # --- サイドバー ---
 with st.sidebar:

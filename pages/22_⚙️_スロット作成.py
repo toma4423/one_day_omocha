@@ -1,4 +1,4 @@
-import json
+from typing import Any
 
 import pandas as pd
 import streamlit as st
@@ -15,8 +15,12 @@ from src.utils.slot import (
     validate_slot_config,
 )
 from src.utils.storage import SafeStorage
-from src.utils.styles import render_donation_box, render_page_header
-from src.utils.time import get_jst_now
+from src.utils.styles import (
+    render_donation_box,
+    render_page_header,
+    render_storage_controls,
+    wait_for_storage_load,
+)
 
 st.set_page_config(page_title="スロット作成 [β]", page_icon="⚙️", layout="wide")
 
@@ -26,10 +30,12 @@ render_page_header()
 # SafeStorage の初期化
 storage = SafeStorage(LocalStorage())
 
-# 設定のロード
-if "slot_config_edit" not in st.session_state:
-    saved_config = storage.get_item("slot_config", is_json=True)
+# 設定のロード (堅牢な初期化)
+if "_slot_creation_initialized" not in st.session_state:
+    saved_config = wait_for_storage_load(storage, "slot_config", "_slot_creation_initialized")
+    # ここに来るということは、データが取得されたか「スキップ」が押されたということ
     st.session_state.slot_config_edit = get_slot_config(saved_config)
+    st.rerun()
 
 config: SlotConfig = st.session_state.slot_config_edit
 
@@ -248,59 +254,46 @@ with st.container(border=True):
         df_probs.columns = ["役名", "設定確率 (分母)", "出現確率 (%)"]
         st.table(df_probs)
 
+
 # --- データの保存と読み込み ---
-st.write("---")
-with st.container(border=True):
-    st.subheader("📁 データの保存と読み込み")
-    c1, c2 = st.columns(2)
-    with c1:
-        json_str = json.dumps(config.model_dump(), indent=2, ensure_ascii=False)
-        st.download_button(
-            "📥 設定をJSONで保存",
-            json_str,
-            f"slot_{get_jst_now().strftime('%Y%m%d')}.json",
-            "application/json",
-            use_container_width=True,
-        )
-    with c2:
-        uploaded_file = st.file_uploader("📤 設定JSONを読み込む", type="json", label_visibility="collapsed")
-        if uploaded_file and st.button("反映実行", use_container_width=True):
-            try:
-                data = json.load(uploaded_file)
-                valid, msg = validate_slot_config(data)
-                if valid:
-                    new_config = SlotConfig(**data)
-                    st.session_state.slot_config_edit = new_config
-                    storage.set_item("slot_config", new_config.model_dump())
-                    st.success("反映しました！")
-                    st.rerun()
-                else:
-                    st.error(msg)
-            except Exception as e:
-                st.error(f"失敗: {e}")
+def on_load(data: Any) -> None:
+    valid, msg = validate_slot_config(data)
+    if valid:
+        new_config = SlotConfig(**data)
+        st.session_state.slot_config_edit = new_config
+        # 読み込み時は即座に反映
+        st.session_state.slot_config = new_config
+    else:
+        st.error(msg)
+
+
+def on_save() -> None:
+    if not slot_name:
+        st.error("名前を入力してください")
+    else:
+        st.session_state.slot_config = config
+        st.balloons()
+
+
+render_storage_controls(
+    storage=storage,
+    storage_key="slot_config",
+    current_data=config,
+    on_load_callback=on_load,
+    on_save_callback=on_save,
+    file_prefix="slot_config",
+    is_pydantic=True,
+)
 
 st.write("---")
-col_save, col_reset = st.columns(2)
-with col_save:
-    if st.button("💾 現在の設定をスロット本体に反映", use_container_width=True, type="primary"):
-        if not slot_name:
-            st.error("名前を入力してください")
-        else:
-            storage.set_item("slot_config", config.model_dump())
-            st.session_state.slot_config = config
-            st.success("反映しました！")
-            st.balloons()
-
-with col_reset:
-    if st.button("🚨 デフォルトに戻す", use_container_width=True):
-        default_config = SlotConfig(symbols=DEFAULT_SYMBOLS, payouts=DEFAULT_PAYOUTS)
-        st.session_state.slot_config_edit = default_config
-        storage.set_item("slot_config", default_config.model_dump())
-        st.rerun()
+if st.button("🚨 デフォルトに戻す", use_container_width=True):
+    default_config = SlotConfig(symbols=DEFAULT_SYMBOLS, payouts=DEFAULT_PAYOUTS)
+    st.session_state.slot_config_edit = default_config
+    st.rerun()
 
 # サイドバー
 with st.sidebar:
     st.header("⚙️ 管理")
-    st.info("設定はメインエリアの『保存と読み込み』から行えます。")
+    st.info("設定はメインエリアの『データの管理』パネルから行えます。")
 
 render_donation_box("https://qr.paypay.ne.jp/p2p01_jsHjvMAenqfvI10s", is_sidebar=True)

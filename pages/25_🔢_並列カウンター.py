@@ -1,5 +1,3 @@
-import json
-
 import streamlit as st
 from streamlit_local_storage import LocalStorage
 
@@ -12,8 +10,12 @@ from src.utils.parallel_counter import (
     update_counter_value,
 )
 from src.utils.storage import SafeStorage
-from src.utils.styles import render_donation_box, render_page_header
-from src.utils.time import get_jst_now
+from src.utils.styles import (
+    render_donation_box,
+    render_page_header,
+    render_storage_controls,
+    wait_for_storage_load,
+)
 
 st.set_page_config(page_title="並列カウンター", page_icon="🔢", layout="wide")
 
@@ -24,9 +26,10 @@ render_page_header()
 storage = SafeStorage(LocalStorage())
 
 # セッション状態の初期化
-if "parallel_counters" not in st.session_state:
-    saved_data = storage.get_item("parallel_counters", is_json=True)
+if "_pc_initialized" not in st.session_state:
+    saved_data = wait_for_storage_load(storage, "parallel_counters_v2", "_pc_initialized")
     st.session_state.parallel_counters = migrate_parallel_counter_data(saved_data)
+    st.rerun()
 
 if "last_updated_id" not in st.session_state:
     st.session_state.last_updated_id = None
@@ -56,9 +59,8 @@ st.markdown(
 # ツールバー
 col_actions, col_empty = st.columns([1, 4])
 with col_actions:
-    if st.button("➕ カウンターを追加", use_container_width=True, type="primary"):
+    if st.button("➕ カウントを追加", use_container_width=True, type="primary"):
         st.session_state.parallel_counters = add_counter(st.session_state.parallel_counters)
-        storage.set_item("parallel_counters", [c.model_dump() for c in st.session_state.parallel_counters])
         st.rerun()
 
 st.write("")
@@ -79,7 +81,6 @@ else:
                     st.session_state.parallel_counters = update_counter_name(
                         st.session_state.parallel_counters, counter.id, new_name
                     )
-                    storage.set_item("parallel_counters", [c.model_dump() for c in st.session_state.parallel_counters])
 
                 pulse_class = "pulse-effect" if st.session_state.last_updated_id == counter.id else ""
                 st.markdown(f"<div class='large-value {pulse_class}'>{counter.value}</div>", unsafe_allow_html=True)
@@ -92,9 +93,6 @@ else:
                             st.session_state.parallel_counters, counter.id, -1
                         )
                         st.session_state.last_updated_id = counter.id
-                        storage.set_item(
-                            "parallel_counters", [c.model_dump() for c in st.session_state.parallel_counters]
-                        )
                         st.rerun()
                     st.markdown("</div>", unsafe_allow_html=True)
                 with b2:
@@ -104,9 +102,6 @@ else:
                             st.session_state.parallel_counters, counter.id, 1
                         )
                         st.session_state.last_updated_id = counter.id
-                        storage.set_item(
-                            "parallel_counters", [c.model_dump() for c in st.session_state.parallel_counters]
-                        )
                         st.rerun()
                     st.markdown("</div>", unsafe_allow_html=True)
 
@@ -117,46 +112,29 @@ else:
                             if item.id == counter.id:
                                 item.value = 0
                                 break
-                        storage.set_item(
-                            "parallel_counters", [c.model_dump() for c in st.session_state.parallel_counters]
-                        )
                         st.rerun()
                 with r2:
                     if st.button("🗑️", key=f"del_{counter.id}", use_container_width=True, help="削除"):
                         st.session_state.parallel_counters = remove_counter(
                             st.session_state.parallel_counters, counter.id
                         )
-                        storage.set_item(
-                            "parallel_counters", [c.model_dump() for c in st.session_state.parallel_counters]
-                        )
                         st.rerun()
 
-# --- データの保存と読み込み ---
-st.write("---")
-with st.container(border=True):
-    st.subheader("📁 データの保存と読み込み")
-    c1, c2 = st.columns(2)
-    with c1:
-        json_data = [c.model_dump() for c in st.session_state.parallel_counters]
-        json_str = json.dumps(json_data, indent=2, ensure_ascii=False)
-        st.download_button(
-            "📥 JSONを保存",
-            json_str,
-            f"counter_{get_jst_now().strftime('%Y%m%d')}.json",
-            "application/json",
-            use_container_width=True,
-        )
-    with c2:
-        uploaded_file = st.file_uploader("📤 JSONを読み込む", type="json", label_visibility="collapsed")
-        if uploaded_file and st.button("反映実行", use_container_width=True):
-            try:
-                data = migrate_parallel_counter_data(json.load(uploaded_file))
-                st.session_state.parallel_counters = data
-                storage.set_item("parallel_counters", [c.model_dump() for c in data])
-                st.success("反映しました！")
-                st.rerun()
-            except Exception as e:
-                st.error(f"読込失敗: {e}")
+
+# データの管理
+def on_load(data):
+    st.session_state.parallel_counters = migrate_parallel_counter_data(data)
+
+
+current_data = [c.model_dump() for c in st.session_state.parallel_counters]
+
+render_storage_controls(
+    storage=storage,
+    storage_key="parallel_counters_v2",
+    current_data=current_data,
+    on_load_callback=on_load,
+    file_prefix="parallel_counters",
+)
 
 # --- サイドバー ---
 with st.sidebar:
@@ -164,12 +142,10 @@ with st.sidebar:
     if st.button("🔄 すべてリセット", use_container_width=True):
         for item in st.session_state.parallel_counters:
             item.value = 0
-        storage.set_item("parallel_counters", [c.model_dump() for c in st.session_state.parallel_counters])
         st.rerun()
     if st.button("🗑️ すべて削除", use_container_width=True):
         if st.checkbox("削除を確定"):
             st.session_state.parallel_counters = []
-            storage.set_item("parallel_counters", [])
             st.rerun()
 
 render_donation_box("https://qr.paypay.ne.jp/p2p01_jsHjvMAenqfvI10s", is_sidebar=True)

@@ -1,5 +1,4 @@
 import base64
-import json
 from datetime import timedelta
 
 import streamlit as st
@@ -22,6 +21,8 @@ from src.utils.styles import (
     render_donation_box,
     render_page_header,
     render_result_box,
+    render_storage_controls,
+    wait_for_storage_load,
 )
 from src.utils.time import get_jst_now
 
@@ -32,54 +33,34 @@ render_page_header()
 
 # ストレージ設定
 storage = SafeStorage(LocalStorage())
-PALMU_STORAGE_KEY = "palmu_data"
+PALMU_STORAGE_KEY = "palmu_weekly_v2"
 BG_CACHE_KEY = "palmu_bg_cache_weekly"
 MAX_TOTAL_DAYS = 21
 
 # セッション状態の初期化
-if "palmu_reset_counter" not in st.session_state:
-    st.session_state.palmu_reset_counter = 0
-if "palmu_skip_cards" not in st.session_state:
-    st.session_state.palmu_skip_cards = 0
-
-
-def save_to_storage():
-    data = {f"day_{i}": st.session_state.get(f"palmu_day_{i}", 1) for i in range(1, MAX_TOTAL_DAYS + 1)}
-    for i in range(1, MAX_TOTAL_DAYS + 1):
-        data[f"plan_{i}"] = st.session_state.get(f"palmu_plan_{i}", "")
-    data["skip_cards"] = st.session_state.get("palmu_skip_cards", 0)
-    storage.set_item(PALMU_STORAGE_KEY, data)
-
-
-def load_from_storage():
-    data = storage.get_item(PALMU_STORAGE_KEY, is_json=True)
-    if data:
+if "_palmu_weekly_initialized" not in st.session_state:
+    saved_data = wait_for_storage_load(storage, PALMU_STORAGE_KEY, "_palmu_weekly_initialized")
+    if saved_data:
         for i in range(1, MAX_TOTAL_DAYS + 1):
-            val = data.get(f"day_{i}", 1)
+            val = saved_data.get(f"day_{i}", 1)
             st.session_state[f"palmu_day_{i}"] = "SKIP" if val == "スキップ" else val
-            st.session_state[f"palmu_plan_{i}"] = data.get(f"plan_{i}", "")
-        st.session_state.palmu_skip_cards = data.get("skip_cards", 0)
-        return True
-    return False
+            st.session_state[f"palmu_plan_{i}"] = saved_data.get(f"plan_{i}", "")
+        st.session_state.palmu_skip_cards = saved_data.get("skip_cards", 0)
+    else:
+        for i in range(1, MAX_TOTAL_DAYS + 1):
+            st.session_state[f"palmu_day_{i}"] = 1
+            st.session_state[f"palmu_plan_{i}"] = ""
+        st.session_state.palmu_skip_cards = 0
 
-
-def init_palmu_state():
-    if "palmu_day_1" not in st.session_state:
-        if not load_from_storage():
-            for i in range(1, MAX_TOTAL_DAYS + 1):
-                st.session_state[f"palmu_day_{i}"] = 1
-                st.session_state[f"palmu_plan_{i}"] = ""
-            st.session_state.palmu_skip_cards = 0
-    # スライダーの初期化
+    if "palmu_reset_counter" not in st.session_state:
+        st.session_state.palmu_reset_counter = 0
     if "w_x_slider" not in st.session_state:
         st.session_state.w_x_slider = 0
     if "w_y_slider" not in st.session_state:
         st.session_state.w_y_slider = 0
     if "w_scale_slider" not in st.session_state:
         st.session_state.w_scale_slider = 1.0
-
-
-init_palmu_state()
+    st.rerun()
 
 # --- ストレージによる同期 (座標とスケール) ---
 sync_data = storage.get_item("palmu_sync_data", is_json=True)
@@ -90,7 +71,7 @@ if sync_data and sync_data.get("mode") == "weekly":
     storage.delete_item("palmu_sync_data")
     st.rerun()
 
-# --- 画像データの復元 ---
+# --- 画像データの復元 (これは自動保存/読み込みを維持) ---
 if "weekly_bg_cache" not in st.session_state:
     cached_bg_b64 = storage.get_item(BG_CACHE_KEY)
     if cached_bg_b64:
@@ -114,7 +95,7 @@ with st.container(border=True):
         target_val = 18 if "アップ" in target_goal else 12
     with col_skip:
         st.session_state.palmu_skip_cards = st.number_input(
-            "現在のスキップカード所持数", 0, 10, value=st.session_state.palmu_skip_cards, on_change=save_to_storage
+            "現在のスキップカード所持数", 0, 10, value=st.session_state.palmu_skip_cards
         )
 
 # --- おすすめプリセット ---
@@ -134,7 +115,6 @@ with st.expander("💡 おすすめのポイント取得パターンを見る"):
                         st.session_state[f"palmu_day_{i}"] = 1
                     for i, val in enumerate(p, 1):
                         st.session_state[f"palmu_day_{i}"] = val
-                    save_to_storage()
                     st.rerun()
 
 # --- 入力エリアの動的制御 ---
@@ -148,11 +128,6 @@ col_input, col_result = st.columns([1.5, 1])
 with col_input:
     st.subheader(f"📝 ポイント・予定入力 ({display_days}日間)")
     reset_id = st.session_state.palmu_reset_counter
-
-    def on_point_change(idx):
-        key = f"p_day_widget_{idx}_{reset_id}"
-        st.session_state[f"palmu_day_{idx}"] = st.session_state[key]
-        save_to_storage()
 
     for i in range(1, display_days + 1):
         curr_d = start_date + timedelta(days=i - 1)
@@ -169,21 +144,22 @@ with col_input:
                 )
                 st.caption(f"🎫 {skip_balances[i - 1]}枚")
             with c_sel:
-                st.selectbox(
+                new_val = st.selectbox(
                     f"{curr_d.strftime('%m/%d')} ({['月', '火', '水', '木', '金', '土', '日'][curr_d.weekday()]})",
                     options=point_options,
                     index=point_options.index(val) if val in point_options else 1,
                     key=f"p_day_widget_{i}_{reset_id}",
-                    on_change=on_point_change,
-                    args=(i,),
                     format_func=lambda x: f"+{x} pt" if isinstance(x, int) else str(x),
                 )
+                if new_val != val:
+                    st.session_state[f"palmu_day_{i}"] = new_val
+                    st.rerun()
+
             with c_plan:
                 st.session_state[f"palmu_plan_{i}"] = st.text_input(
                     "予定テキスト",
                     value=st.session_state.get(f"palmu_plan_{i}", ""),
                     key=f"p_plan_{i}_{reset_id}",
-                    on_change=save_to_storage,
                     placeholder="配信内容など",
                 )
 
@@ -338,38 +314,29 @@ with st.container(border=True):
     except Exception as e:
         st.error(f"プレビュー生成中にエラーが発生しました: {e}")
 
-# --- データの保存と読み込み ---
-st.write("---")
-with st.container(border=True):
-    st.subheader("📁 データの保存と読み込み")
-    c1, c2 = st.columns(2)
-    with c1:
-        current_data = {f"day_{i}": st.session_state[f"palmu_day_{i}"] for i in range(1, MAX_TOTAL_DAYS + 1)}
-        for i in range(1, MAX_TOTAL_DAYS + 1):
-            current_data[f"plan_{i}"] = st.session_state[f"palmu_plan_{i}"]
-        current_data["skip_cards"] = st.session_state.palmu_skip_cards
-        json_str = json.dumps(current_data, indent=2, ensure_ascii=False)
-        st.download_button(
-            "📥 JSONを保存",
-            json_str,
-            f"palmu_week_{get_jst_now().strftime('%Y%m%d')}.json",
-            "application/json",
-            use_container_width=True,
-        )
-    with c2:
-        uploaded_file = st.file_uploader("📤 JSONを読み込む", type="json", label_visibility="collapsed")
-        if uploaded_file and st.button("反映実行", use_container_width=True):
-            try:
-                d = json.load(uploaded_file)
-                for i in range(1, MAX_TOTAL_DAYS + 1):
-                    v = d.get(f"day_{i}", 1)
-                    st.session_state[f"palmu_day_{i}"] = "SKIP" if v == "スキップ" else v
-                    st.session_state[f"palmu_plan_{i}"] = d.get(f"plan_{i}", "")
-                st.session_state.palmu_skip_cards = d.get("skip_cards", 0)
-                save_to_storage()
-                st.rerun()
-            except Exception:
-                st.error("読込失敗")
+
+# データの管理
+def on_load(data):
+    for i in range(1, MAX_TOTAL_DAYS + 1):
+        v = data.get(f"day_{i}", 1)
+        st.session_state[f"palmu_day_{i}"] = "SKIP" if v == "スキップ" else v
+        st.session_state[f"palmu_plan_{i}"] = data.get(f"plan_{i}", "")
+    st.session_state.palmu_skip_cards = data.get("skip_cards", 0)
+    st.session_state.palmu_reset_counter += 1
+
+
+current_data = {f"day_{i}": st.session_state[f"palmu_day_{i}"] for i in range(1, MAX_TOTAL_DAYS + 1)}
+for i in range(1, MAX_TOTAL_DAYS + 1):
+    current_data[f"plan_{i}"] = st.session_state[f"palmu_plan_{i}"]
+current_data["skip_cards"] = st.session_state.palmu_skip_cards
+
+render_storage_controls(
+    storage=storage,
+    storage_key=PALMU_STORAGE_KEY,
+    current_data=current_data,
+    on_load_callback=on_load,
+    file_prefix="palmu_week",
+)
 
 # --- サイドバー ---
 with st.sidebar:
@@ -383,8 +350,6 @@ with st.sidebar:
         st.session_state.w_x_slider = 0
         st.session_state.w_y_slider = 0
         st.session_state.w_scale_slider = 1.0
-        storage.delete_item(PALMU_STORAGE_KEY)
-        storage.delete_item(BG_CACHE_KEY)
         st.rerun()
 
 render_donation_box("https://qr.paypay.ne.jp/p2p01_jsHjvMAenqfvI10s", is_sidebar=True)

@@ -1,12 +1,14 @@
-import json
-
 import streamlit as st
 from streamlit_local_storage import LocalStorage
 
 from src.utils.count_support import BingoBoard
 from src.utils.storage import SafeStorage
-from src.utils.styles import render_donation_box, render_page_header
-from src.utils.time import get_jst_now
+from src.utils.styles import (
+    render_donation_box,
+    render_page_header,
+    render_storage_controls,
+    wait_for_storage_load,
+)
 
 # ページの設定
 st.set_page_config(page_title="カウントサポートビンゴ", page_icon="🔢", layout="wide")
@@ -61,25 +63,22 @@ st.markdown(
 st.markdown("<h1 style='text-align: center;'>🔢 カウントサポートビンゴ</h1>", unsafe_allow_html=True)
 
 storage = SafeStorage(LocalStorage())
-DATA_KEY = "csb_data_v4"  # バージョンを上げて整合性を確保
+DATA_KEY = "csb_data_v5"
 
 # --- 初期化とデータ復元 ---
-if "csb_board" not in st.session_state:
-    saved = storage.get_item(DATA_KEY, is_json=True)
+if "_csb_initialized" not in st.session_state:
+    saved = wait_for_storage_load(storage, DATA_KEY, "_csb_initialized")
     if saved:
         st.session_state.csb_board = BingoBoard(**saved)
     else:
         st.session_state.csb_board = BingoBoard()
 
-if "csb_reset_id" not in st.session_state:
-    st.session_state.csb_reset_id = 0
+    if "csb_reset_id" not in st.session_state:
+        st.session_state.csb_reset_id = 0
+    st.rerun()
 
 board: BingoBoard = st.session_state.csb_board
 reset_id = st.session_state.csb_reset_id
-
-
-def save_to_storage():
-    storage.set_item(DATA_KEY, board.model_dump())
 
 
 # --- メイングリッド描画 ---
@@ -108,7 +107,6 @@ for r in range(board.rows):
                 )
                 if new_label != cell.label:
                     cell.label = new_label
-                    save_to_storage()
 
                 new_count = st.number_input(
                     f"N{r}{c}",
@@ -119,7 +117,6 @@ for r in range(board.rows):
                 )
                 if new_count != cell.count:
                     cell.count = new_count
-                    save_to_storage()
                     st.rerun()
 
                 st.markdown("</div>", unsafe_allow_html=True)
@@ -152,28 +149,21 @@ if bingo_indices:
     )
     st.components.v1.html(f"<script>{js_highlight}</script>", height=0)
 
-# --- データの保存と読み込み ---
-with st.container(border=True):
-    c1, c2 = st.columns(2)
-    with c1:
-        st.download_button(
-            label="📥 保存",
-            data=board.model_dump_json(indent=2),
-            file_name=f"bingo_{get_jst_now().strftime('%Y%m%d')}.json",
-            mime="application/json",
-            use_container_width=True,
-        )
-    with c2:
-        uploaded_file = st.file_uploader("📤 復元", type="json", label_visibility="collapsed")
-        if uploaded_file and st.button("反映", use_container_width=True, type="primary"):
-            try:
-                d = json.load(uploaded_file)
-                st.session_state.csb_board = BingoBoard(**d)
-                st.session_state.csb_reset_id += 1
-                save_to_storage()
-                st.rerun()
-            except Exception:
-                st.error("失敗")
+
+# データの管理
+def on_load(data):
+    st.session_state.csb_board = BingoBoard(**data)
+    st.session_state.csb_reset_id += 1
+
+
+render_storage_controls(
+    storage=storage,
+    storage_key=DATA_KEY,
+    current_data=board,
+    on_load_callback=on_load,
+    file_prefix="bingo",
+    is_pydantic=True,
+)
 
 # --- サイドバー ---
 with st.sidebar:
@@ -185,7 +175,6 @@ with st.sidebar:
         board.rows = new_rows
         board.cols = new_cols
         st.session_state.csb_reset_id += 1
-        save_to_storage()
         st.rerun()
 
     st.write("---")
@@ -194,13 +183,11 @@ with st.sidebar:
     if st.button("🔢 カウントのみリセット", use_container_width=True):
         board.reset_counts_only()
         st.session_state.csb_reset_id += 1
-        save_to_storage()
         st.rerun()
 
     if st.button("🚨 全てリセット", use_container_width=True, type="primary"):
         st.session_state.csb_board = BingoBoard()
         st.session_state.csb_reset_id += 1
-        save_to_storage()
         st.rerun()
 
 render_donation_box("https://qr.paypay.ne.jp/p2p01_jsHjvMAenqfvI10s", is_sidebar=True)

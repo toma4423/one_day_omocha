@@ -1,5 +1,3 @@
-import json
-
 import streamlit as st
 from streamlit_local_storage import LocalStorage
 
@@ -11,8 +9,13 @@ from src.utils.count_support import (
     calculate_weighted_value,
 )
 from src.utils.storage import SafeStorage
-from src.utils.styles import render_donation_box, render_page_header, render_result_box
-from src.utils.time import get_jst_now
+from src.utils.styles import (
+    render_donation_box,
+    render_page_header,
+    render_result_box,
+    render_storage_controls,
+    wait_for_storage_load,
+)
 
 st.set_page_config(page_title="カウントサポート", page_icon="🔢", layout="wide")
 
@@ -28,23 +31,20 @@ except Exception:
 
 # SafeStorage の初期化
 storage = SafeStorage(LocalStorage())
-CS_STORAGE_KEY = "cs_data_v3"
+CS_STORAGE_KEY = "cs_data_v4"
 
 # セッション状態の初期化
-if "cs_session" not in st.session_state:
-    saved = storage.get_item(CS_STORAGE_KEY, is_json=True)
+if "_cs_initialized" not in st.session_state:
+    saved = wait_for_storage_load(storage, CS_STORAGE_KEY, "_cs_initialized")
     if saved:
         st.session_state.cs_session = CountSupportSession(**saved)
     else:
         st.session_state.cs_session = CountSupportSession(
             items=[CounterItem(label="X"), CounterItem(label="Y"), CounterItem(label="Z")]
         )
+    st.rerun()
 
 session: CountSupportSession = st.session_state.cs_session
-
-
-def save_to_storage():
-    storage.set_item(CS_STORAGE_KEY, session.model_dump())
 
 
 def weighted_counter_ui(idx: int):
@@ -63,7 +63,6 @@ def weighted_counter_ui(idx: int):
             )
             if new_count != item.count:
                 item.count = new_count
-                save_to_storage()
         with col_w:
             new_weight = st.number_input(
                 f"{item.label}の倍率",
@@ -73,7 +72,6 @@ def weighted_counter_ui(idx: int):
             )
             if new_weight != item.weight:
                 item.weight = new_weight
-                save_to_storage()
 
         current_weighted = calculate_weighted_value(item.count, item.weight)
         st.markdown(
@@ -84,7 +82,7 @@ def weighted_counter_ui(idx: int):
 
 
 st.title("🔢 カウントサポート")
-st.markdown("数値や倍率を変更すると、自動的に計算と保存が行われます。")
+st.markdown("数値や倍率を変更したら、ページ下部で保存してください。")
 
 # モバイルでは縦に並べる
 col_main1, col_main2 = st.columns([1, 1])
@@ -108,29 +106,20 @@ with col_main2:
         font_size=64,
     )
 
-st.write("---")
-with st.container(border=True):
-    st.subheader("📁 データの保存と読み込み")
-    c1, c2 = st.columns(2)
-    with c1:
-        st.download_button(
-            "📥 保存",
-            session.model_dump_json(indent=2),
-            f"cs_{get_jst_now().strftime('%Y%m%d')}.json",
-            "application/json",
-            use_container_width=True,
-        )
-    with c2:
-        uploaded_file = st.file_uploader("📤 復元", type="json", label_visibility="collapsed")
-        if uploaded_file and st.button("反映", use_container_width=True, type="primary"):
-            try:
-                data_load = json.load(uploaded_file)
-                st.session_state.cs_session = CountSupportSession(**data_load)
-                save_to_storage()
-                st.success("反映しました！")
-                st.rerun()
-            except Exception:
-                st.error("読込失敗")
+
+# データの管理
+def on_load(data):
+    st.session_state.cs_session = CountSupportSession(**data)
+
+
+render_storage_controls(
+    storage=storage,
+    storage_key=CS_STORAGE_KEY,
+    current_data=session,
+    on_load_callback=on_load,
+    file_prefix="count_support",
+    is_pydantic=True,
+)
 
 with st.sidebar:
     st.header("⚙️ 設定")
@@ -140,7 +129,6 @@ with st.sidebar:
         st.session_state.cs_session = CountSupportSession(
             items=[CounterItem(label="X"), CounterItem(label="Y"), CounterItem(label="Z")]
         )
-        save_to_storage()
         st.rerun()
 
 render_donation_box("https://qr.paypay.ne.jp/p2p01_jsHjvMAenqfvI10s", is_sidebar=True)

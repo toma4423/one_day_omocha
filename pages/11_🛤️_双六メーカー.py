@@ -7,7 +7,9 @@ from src.utils.styles import (
     render_donation_box,
     render_grid_board,
     render_page_header,
+    render_storage_controls,
     render_styled_number,
+    wait_for_storage_load,
 )
 from src.utils.sugoroku import SugorokuBoard, calculate_new_position, create_board
 
@@ -22,16 +24,18 @@ st.title("🛤️ 双六メーカー")
 storage = SafeStorage(LocalStorage())
 
 # セッション状態の初期化
-if "sugoroku_board" not in st.session_state:
-    saved_board = storage.get_item("sugoroku_board", is_json=True)
-    if saved_board:
-        st.session_state.sugoroku_board = SugorokuBoard(**saved_board)
+if "_sugoroku_initialized" not in st.session_state:
+    saved_data = wait_for_storage_load(storage, "sugoroku_data_v2", "_sugoroku_initialized")
+    if saved_data:
+        if "board" in saved_data:
+            st.session_state.sugoroku_board = SugorokuBoard(**saved_data["board"])
+        else:
+            st.session_state.sugoroku_board = create_board(10, False)
+        st.session_state.current_pos = saved_data.get("current_pos", 0)
     else:
         st.session_state.sugoroku_board = create_board(10, False)
-
-if "current_pos" not in st.session_state:
-    saved_pos = storage.get_item("current_pos", is_json=False)
-    st.session_state.current_pos = int(saved_pos) if saved_pos is not None else 0
+        st.session_state.current_pos = 0
+    st.rerun()
 
 board: SugorokuBoard = st.session_state.sugoroku_board
 
@@ -50,15 +54,11 @@ with st.sidebar:
         if st.button("⚠️ 設定を反映してリセット"):
             st.session_state.sugoroku_board = create_board(new_num, new_is_loop)
             st.session_state.current_pos = 0
-            storage.set_item("sugoroku_board", st.session_state.sugoroku_board.model_dump())
-            storage.set_item("current_pos", 0)
             st.rerun()
 
     if st.button("🚨 盤面を完全に初期化", use_container_width=True):
         st.session_state.sugoroku_board = create_board(board.total_tiles, board.is_loop)
         st.session_state.current_pos = 0
-        storage.set_item("sugoroku_board", st.session_state.sugoroku_board.model_dump())
-        storage.set_item("current_pos", 0)
         st.rerun()
 
 # --- メインエリア：サイコロ操作 ---
@@ -88,7 +88,6 @@ with st.container(border=True):
                 st.balloons()
 
             st.session_state.current_pos = new_pos
-            storage.set_item("current_pos", new_pos)
 
     if "dice_last_result" in st.session_state:
         render_styled_number("🎲 出目", st.session_state.dice_last_result)
@@ -120,12 +119,10 @@ def render_tile(idx):
         new_val = st.text_input(f"t_{idx}", tile.text, key=f"in_{idx}", label_visibility="collapsed")
         if new_val != tile.text:
             tile.text = new_val
-            storage.set_item("sugoroku_board", board.model_dump())
 
         # 手動移動ボタン
         if st.button("移動", key=f"b_{idx}", use_container_width=True):
             st.session_state.current_pos = idx
-            storage.set_item("current_pos", idx)
             st.rerun()
 
     # 矢印
@@ -139,4 +136,24 @@ def render_tile(idx):
 
 
 render_grid_board(board.total_tiles, cols_per_row, render_tile)
+
+
+# データの管理
+def on_load(data):
+    if "board" in data:
+        st.session_state.sugoroku_board = SugorokuBoard(**data["board"])
+    if "current_pos" in data:
+        st.session_state.current_pos = data["current_pos"]
+
+
+current_data = {"board": st.session_state.sugoroku_board.model_dump(), "current_pos": st.session_state.current_pos}
+
+render_storage_controls(
+    storage=storage,
+    storage_key="sugoroku_data_v2",
+    current_data=current_data,
+    on_load_callback=on_load,
+    file_prefix="sugoroku",
+)
+
 render_donation_box("https://qr.paypay.ne.jp/p2p01_jsHjvMAenqfvI10s", is_sidebar=True)

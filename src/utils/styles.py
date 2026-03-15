@@ -1,4 +1,6 @@
+import json
 import time
+from collections.abc import Callable
 from typing import Any
 
 import streamlit as st
@@ -125,3 +127,79 @@ def render_donation_box(paypay_url: str, is_sidebar: bool = False) -> None:
         target.write("---")
 
     target.markdown(html, unsafe_allow_html=True)
+
+
+def render_storage_controls(
+    storage: Any,
+    storage_key: str,
+    current_data: Any,
+    on_load_callback: Callable[[Any], None],
+    on_save_callback: Callable[[], None] | None = None,
+    file_prefix: str = "config",
+    is_pydantic: bool = False,
+) -> None:
+    """
+    LocalStorage への保存、JSON出力、JSON読み込みを行う共通UIをレンダリングします。
+    """
+    st.write("---")
+    with st.container(border=True):
+        st.subheader("📁 データの管理")
+        col_save, col_export, col_import = st.columns([1.5, 1, 1])
+
+        with col_save:
+            if st.button("💾 ブラウザに保存", use_container_width=True, type="primary"):
+                try:
+                    data_to_save = current_data.model_dump() if is_pydantic else current_data
+                    storage.set_item(storage_key, data_to_save)
+                    if on_save_callback:
+                        on_save_callback()
+                    st.success("ブラウザに保存しました！")
+                    st.toast("設定を保存しました 💾")
+                except Exception as e:
+                    st.error(f"保存失敗: {e}")
+
+        with col_export:
+            try:
+                data_to_export = current_data.model_dump() if is_pydantic else current_data
+                json_str = json.dumps(data_to_export, indent=2, ensure_ascii=False)
+                # ファイル名は現在時刻を付与
+                from datetime import datetime
+
+                filename = f"{file_prefix}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+                st.download_button("📥 JSON保存", json_str, filename, "application/json", use_container_width=True)
+            except Exception as e:
+                st.error(f"エクスポート失敗: {e}")
+
+        with col_import:
+            uploaded_file = st.file_uploader("📤 JSON読込", type="json", label_visibility="collapsed")
+            if uploaded_file:
+                if st.button("反映実行", use_container_width=True, key=f"import_btn_{storage_key}"):
+                    try:
+                        data = json.load(uploaded_file)
+                        on_load_callback(data)
+                        st.success("読み込みました！")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"読込失敗: {e}")
+
+
+def wait_for_storage_load(storage: Any, storage_key: str, initialized_key: str) -> Any:
+    """
+    LocalStorage からのデータ読み込みを待ちます。
+    読み込みが完了していない場合は st.stop() で処理を中断します。
+    """
+    if initialized_key not in st.session_state:
+        saved_data = storage.get_item(storage_key, is_json=True)
+        if saved_data is not None:
+            # 取得できた（nullでなければOK。空リストなどはデータありとみなす）
+            st.session_state[initialized_key] = True
+            return saved_data
+        else:
+            # まだロード中（コンポーネントが準備できていない）
+            st.info("データを読み込み中...")
+            # 読み込みに失敗し続ける場合の回避策として、強制的にデフォルトで開始するボタンを出す
+            if st.button("読み込みをスキップして新規作成"):
+                st.session_state[initialized_key] = True
+                st.rerun()
+            st.stop()
+    return None

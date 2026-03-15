@@ -3,7 +3,13 @@ from streamlit_local_storage import LocalStorage
 
 from src.utils.minesweeper import MinesweeperState, init_minesweeper_state
 from src.utils.storage import SafeStorage
-from src.utils.styles import render_donation_box, render_grid_board, render_page_header
+from src.utils.styles import (
+    render_donation_box,
+    render_grid_board,
+    render_page_header,
+    render_storage_controls,
+    wait_for_storage_load,
+)
 
 st.set_page_config(page_title="マインスイーパー", page_icon="💣", layout="centered")
 
@@ -14,12 +20,13 @@ render_page_header()
 storage = SafeStorage(LocalStorage())
 
 # セッション状態の初期化
-if "ms_state" not in st.session_state:
-    saved_state = storage.get_item("ms_state_v2", is_json=True)
+if "_ms_initialized" not in st.session_state:
+    saved_state = wait_for_storage_load(storage, "ms_state_v3", "_ms_initialized")
     if saved_state:
         st.session_state.ms_state = MinesweeperState(**saved_state)
     else:
         st.session_state.ms_state = init_minesweeper_state()
+    st.rerun()
 
 state: MinesweeperState = st.session_state.ms_state
 
@@ -34,7 +41,6 @@ with st.sidebar:
 
     if st.button("ゲームをリセット", use_container_width=True, type="primary"):
         state.reset(ms_w, ms_h, ms_mines)
-        storage.set_item("ms_state_v2", state.model_dump())
         st.rerun()
 
     st.write("---")
@@ -90,7 +96,6 @@ def render_cell(idx):
         else:
             state.toggle_flag(r, c)
 
-        storage.set_item("ms_state_v2", state.model_dump())
         if state.status == "won":
             st.balloons()
         st.rerun()
@@ -107,5 +112,20 @@ elif state.status == "lost":
     st.error("💣 ドカン！ゲームオーバーです。")
 else:
     st.info(f"🚩 残りの爆弾 (目安): {state.num_mines - sum(row.count(True) for row in state.flags)}")
+
+
+# データの管理
+def on_load(data):
+    st.session_state.ms_state = MinesweeperState(**data)
+
+
+render_storage_controls(
+    storage=storage,
+    storage_key="ms_state_v3",
+    current_data=state,
+    on_load_callback=on_load,
+    file_prefix="minesweeper",
+    is_pydantic=True,
+)
 
 render_donation_box("https://qr.paypay.ne.jp/p2p01_jsHjvMAenqfvI10s", is_sidebar=True)

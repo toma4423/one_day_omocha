@@ -3,7 +3,13 @@ from streamlit_local_storage import LocalStorage
 
 from src.utils.concentration import ConcentrationGameState, create_deck, handle_card_click
 from src.utils.storage import SafeStorage
-from src.utils.styles import render_donation_box, render_page_header, render_result_box
+from src.utils.styles import (
+    render_donation_box,
+    render_page_header,
+    render_result_box,
+    render_storage_controls,
+    wait_for_storage_load,
+)
 
 st.set_page_config(page_title="神経衰弱", page_icon="🎴", layout="wide")
 
@@ -12,6 +18,19 @@ render_page_header()
 
 # SafeStorage の初期化
 storage = SafeStorage(LocalStorage())
+
+# セッション状態の初期化
+if "_concentration_initialized" not in st.session_state:
+    saved_state = wait_for_storage_load(storage, "concentration_state_v2", "_concentration_initialized")
+    if saved_state:
+        st.session_state.concentration_state = ConcentrationGameState(**saved_state)
+    else:
+        st.session_state.concentration_state = ConcentrationGameState(
+            cards=create_deck(13, use_all_suits=False), mode="battle", use_all_suits=False
+        )
+    st.rerun()
+
+state: ConcentrationGameState = st.session_state.concentration_state
 
 # 基本的なカードスタイル定義
 st.markdown(
@@ -83,14 +102,6 @@ st.markdown(
 """,
     unsafe_allow_html=True,
 )
-
-# セッション状態の初期化 (リロード時は最初から)
-if "concentration_state" not in st.session_state or not hasattr(st.session_state.concentration_state, "mode"):
-    st.session_state.concentration_state = ConcentrationGameState(
-        cards=create_deck(13, use_all_suits=False), mode="battle", use_all_suits=False
-    )
-
-state: ConcentrationGameState = st.session_state.concentration_state
 
 st.title("🎴 トランプ神経衰弱")
 
@@ -219,5 +230,20 @@ with st.sidebar:
     - **対戦モード**: マッチするともう一度引けます。
     - **1人モード**: すべてめくるまでの手数を競います。
     """)
+
+
+# データの管理
+def on_load(data):
+    st.session_state.concentration_state = ConcentrationGameState(**data)
+
+
+render_storage_controls(
+    storage=storage,
+    storage_key="concentration_state_v2",
+    current_data=state,
+    on_load_callback=on_load,
+    file_prefix="concentration",
+    is_pydantic=True,
+)
 
 render_donation_box("https://qr.paypay.ne.jp/p2p01_jsHjvMAenqfvI10s", is_sidebar=True)
