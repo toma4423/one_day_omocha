@@ -5,7 +5,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 from streamlit_local_storage import LocalStorage
 
-from src.utils.image_maker import AVAILABLE_FONTS, composite_images, create_palmu_schedule_image
+from src.utils.image_maker import composite_images, create_palmu_schedule_image, get_available_fonts
 from src.utils.palmu import (
     calculate_skip_card_balance,
     calculate_total_points,
@@ -249,7 +249,8 @@ with st.container(border=True):
                 with c2:
                     img_frame_color = st.color_picker("枠色", "#FF5722")
 
-                img_font_name = st.selectbox("フォント選択", list(AVAILABLE_FONTS.keys()), index=0)
+                available_fonts = get_available_fonts()
+                img_font_name = st.selectbox("フォント選択", list(available_fonts.keys()), index=0)
 
                 img_width = st.number_input("幅", 300, 1000, 600, 10)
 

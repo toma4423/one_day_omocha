@@ -4,23 +4,58 @@ from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
 
 FONT_DIR = Path("src/assets")
-AVAILABLE_FONTS = {
-    "ゴシック": "NotoSansJP-Bold.otf",
-    "明朝": "NotoSerifJP-Bold.otf",
-}
 
 
-def get_font(font_name: str, size: int) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
-    """指定されたフォント名とサイズでImageFontを返します。"""
-    font_file = AVAILABLE_FONTS.get(font_name, "NotoSansJP-Bold.otf")
+def get_available_fonts() -> dict[str, str]:
+    """
+    src/assets ディレクトリ内をスキャンし、利用可能なフォントの表示名とファイル名の辞書を返します。
+    """
+    # プリセット定義（ファイルが存在する場合に優先的に表示する名前）
+    presets = {
+        "NotoSansJP-Bold.otf": "ゴシック (標準)",
+        "NotoSerifJP-Bold.otf": "明朝 (標準)",
+        "Mplus1-Bold.ttf": "モダンゴシック",
+        "MplusRounded1c-Bold.ttf": "丸ゴシック",
+        "HachiMaruPop-Regular.ttf": "ポップ (手書き風)",
+        "YuseiMagic-Regular.ttf": "手書き (マジック風)",
+        "DotGothic16-Regular.ttf": "レトロ (ドット風)",
+        "DelaGothicOne-Regular.ttf": "力強い (インパクト)",
+        "KaiseiTokumin-Bold.ttf": "和風 (懐風明朝)",
+        "Stick-Regular.ttf": "デザイン (スティック)",
+    }
+
+    fonts = {}
+    # 1. 実際に存在するプリセットフォントを追加
+    for filename, display_name in presets.items():
+        if (FONT_DIR / filename).exists():
+            fonts[display_name] = filename
+
+    # 2. プリセットにないフォントファイルを自動検知して追加
+    for ext in [".otf", ".ttf", ".ttc"]:
+        for f in FONT_DIR.glob(f"*{ext}"):
+            if f.name not in presets:
+                # ファイル名をそのまま表示名にする
+                fonts[f.stem] = f.name
+
+    # 3. 何も検知できなかった場合の最低限の保証
+    if not fonts:
+        fonts["標準フォント"] = "NotoSansJP-Bold.otf"
+
+    return fonts
+
+
+def get_font(font_name: str, size: int) -> Any:
+    """指定されたフォント名とサイズで ImageFont を返します。"""
+    available_fonts = get_available_fonts()
+    font_file = available_fonts.get(font_name, "NotoSansJP-Bold.otf")
     font_path = FONT_DIR / font_file
 
     try:
         return ImageFont.truetype(str(font_path), size)
     except OSError:
-        fallback_path = FONT_DIR / "NotoSansJP-Bold.otf"
+        # 代替として標準フォントを試す
         try:
-            return ImageFont.truetype(str(fallback_path), size)
+            return ImageFont.truetype(str(FONT_DIR / "NotoSansJP-Bold.otf"), size)
         except OSError:
             return ImageFont.load_default()
 
