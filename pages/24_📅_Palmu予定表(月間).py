@@ -242,15 +242,16 @@ with st.container(border=True):
                 else:
                     img_bg_rgba = "#00000000"
 
-            fg_bytes = create_palmu_calendar_grid_image(
-                title_text,
-                cal_data,
-                img_text_color,
-                img_frame_color,
-                img_bg_rgba,
-                img_width,
-                font_name=img_font_name,
-            )
+            with st.spinner("🎨 画像を生成中..."):
+                fg_bytes = create_palmu_calendar_grid_image(
+                    title_text,
+                    cal_data,
+                    img_text_color,
+                    img_frame_color,
+                    img_bg_rgba,
+                    img_width,
+                    font_name=img_font_name,
+                )
             from io import BytesIO
 
             from PIL import Image

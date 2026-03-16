@@ -1,3 +1,4 @@
+import urllib.request
 from io import BytesIO
 from pathlib import Path
 from typing import Any
@@ -6,17 +7,44 @@ from PIL import Image, ImageDraw, ImageFont
 
 FONT_DIR = Path("src/assets")
 
+# フォントの配布元URL定義
+FONT_URLS = {
+    "NotoSansJP-Bold.otf": "https://github.com/googlefonts/noto-cjk/raw/main/Sans/OTF/Japanese/NotoSansJP-Bold.otf",
+    "NotoSerifJP-Bold.otf": "https://github.com/googlefonts/noto-cjk/raw/main/Serif/OTF/Japanese/NotoSerifJP-Bold.otf",
+    "Mplus1-Bold.ttf": "https://github.com/googlefonts/mplus-fonts/raw/main/fonts/ttf/Mplus1-Bold.ttf",
+    "HachiMaruPop-Regular.ttf": "https://github.com/googlefonts/hachimarupop/raw/main/fonts/ttf/HachiMaruPop-Regular.ttf",
+    "YuseiMagic-Regular.ttf": "https://github.com/googlefonts/yuseimagic/raw/main/fonts/ttf/YuseiMagic-Regular.ttf",
+    "DotGothic16-Regular.ttf": "https://github.com/googlefonts/dotgothic16/raw/main/fonts/ttf/DotGothic16-Regular.ttf",
+    "DelaGothicOne-Regular.ttf": "https://github.com/googlefonts/delagothicone/raw/main/fonts/ttf/DelaGothicOne-Regular.ttf",
+    "KaiseiTokumin-Bold.ttf": "https://github.com/googlefonts/kaiseitokumin/raw/main/fonts/ttf/KaiseiTokumin-Bold.ttf",
+    "Stick-Regular.ttf": "https://github.com/googlefonts/stick/raw/main/fonts/ttf/Stick-Regular.ttf",
+}
+
+
+def download_font(filename: str) -> bool:
+    """指定されたフォントファイルをダウンロードします。"""
+    url = FONT_URLS.get(filename)
+    if not url:
+        return False
+    try:
+        FONT_DIR.mkdir(parents=True, exist_ok=True)
+        target_path = FONT_DIR / filename
+        # 簡易的なダウンロード
+        with urllib.request.urlopen(url) as response, open(target_path, "wb") as out_file:
+            out_file.write(response.read())
+        return True
+    except Exception:
+        return False
+
 
 def get_available_fonts() -> dict[str, str]:
     """
-    src/assets ディレクトリ内をスキャンし、利用可能なフォントの表示名とファイル名の辞書を返します。
+    利用可能なフォントの表示名とファイル名の辞書を返します。
     """
-    # プリセット定義（ファイルが存在する場合に優先的に表示する名前）
     presets = {
         "NotoSansJP-Bold.otf": "ゴシック (標準)",
         "NotoSerifJP-Bold.otf": "明朝 (標準)",
         "Mplus1-Bold.ttf": "モダンゴシック",
-        "MplusRounded1c-Bold.ttf": "丸ゴシック",
         "HachiMaruPop-Regular.ttf": "ポップ (手書き風)",
         "YuseiMagic-Regular.ttf": "手書き (マジック風)",
         "DotGothic16-Regular.ttf": "レトロ (ドット風)",
@@ -26,21 +54,15 @@ def get_available_fonts() -> dict[str, str]:
     }
 
     fonts = {}
-    # 1. 実際に存在するプリセットフォントを追加
+    # プリセットは存在に関わらずすべて選択肢に出す
     for filename, display_name in presets.items():
-        if (FONT_DIR / filename).exists():
-            fonts[display_name] = filename
+        fonts[display_name] = filename
 
-    # 2. プリセットにないフォントファイルを自動検知して追加
+    # プリセットにない既存ファイルも追加
     for ext in [".otf", ".ttf", ".ttc"]:
         for f in FONT_DIR.glob(f"*{ext}"):
             if f.name not in presets:
-                # ファイル名をそのまま表示名にする
                 fonts[f.stem] = f.name
-
-    # 3. 何も検知できなかった場合の最低限の保証
-    if not fonts:
-        fonts["標準フォント"] = "NotoSansJP-Bold.otf"
 
     return fonts
 
@@ -51,12 +73,19 @@ def get_font(font_name: str, size: int) -> Any:
     font_file = available_fonts.get(font_name, "NotoSansJP-Bold.otf")
     font_path = FONT_DIR / font_file
 
+    # ファイルがない場合はダウンロードを試みる
+    if not font_path.exists():
+        download_font(font_file)
+
     try:
         return ImageFont.truetype(str(font_path), size)
     except OSError:
         # 代替として標準フォントを試す
         try:
-            return ImageFont.truetype(str(FONT_DIR / "NotoSansJP-Bold.otf"), size)
+            fallback_path = FONT_DIR / "NotoSansJP-Bold.otf"
+            if not fallback_path.exists():
+                download_font("NotoSansJP-Bold.otf")
+            return ImageFont.truetype(str(fallback_path), size)
         except OSError:
             return ImageFont.load_default()
 

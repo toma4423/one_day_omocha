@@ -71,20 +71,21 @@ def test_composite_images_anchors():
 def test_get_available_fonts():
     fonts = get_available_fonts()
     assert isinstance(fonts, dict)
-    assert len(fonts) > 0
-    # 標準フォントが辞書に含まれているか（表示名は環境によるため、値が文字列であることを確認）
-    assert all(isinstance(v, str) for v in fonts.values())
+    assert len(fonts) >= 9  # プリセットが9個あるはず
+    assert "ゴシック (標準)" in fonts
+    assert "明朝 (標準)" in fonts
 
 
 def test_get_font_and_fallback():
     # 正常系: デフォルト
     fonts = get_available_fonts()
-    font_name = list(fonts.keys())[0]
+    font_name = "ゴシック (標準)"
     font = get_font(font_name, 20)
     assert font is not None
 
-    # 異常系: 存在しない
-    font_fallback = get_font("NON_EXISTENT_FONT_NAME", 20)
+    # 異常系: 存在しないフォント名（ダウンロード不可な名前）
+    # FONT_URLSにない名前はフォールバックされる
+    font_fallback = get_font("完全なデタラメフォント", 20)
     assert font_fallback is not None
 
 

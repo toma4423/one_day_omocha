@@ -268,17 +268,18 @@ with st.container(border=True):
                 img_f_width = st.slider("枠の太さ", 0, 30, 8)
                 img_radius = st.slider("角丸", 0, 200, 30)
 
-            fg_bytes = create_palmu_schedule_image(
-                title_text,
-                sched_data,
-                img_text_color,
-                img_frame_color,
-                img_bg_rgba,
-                img_f_width,
-                img_radius,
-                img_width,
-                font_name=img_font_name,
-            )
+            with st.spinner("🎨 画像を生成中..."):
+                fg_bytes = create_palmu_schedule_image(
+                    title_text,
+                    sched_data,
+                    img_text_color,
+                    img_frame_color,
+                    img_bg_rgba,
+                    img_f_width,
+                    img_radius,
+                    img_width,
+                    font_name=img_font_name,
+                )
             from io import BytesIO
 
             from PIL import Image
