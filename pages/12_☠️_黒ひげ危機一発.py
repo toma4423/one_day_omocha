@@ -30,6 +30,11 @@ if "kh_state" not in st.session_state:
     else:
         st.session_state.kh_state = init_kurohige_state()
     st.rerun()
+    st.stop()
+
+# 二重の安全策: 初期化が完了していない場合はここで停止
+if "kh_state" not in st.session_state:
+    st.stop()
 
 state: KurohigeState = st.session_state.kh_state
 

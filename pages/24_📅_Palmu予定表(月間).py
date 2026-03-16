@@ -63,6 +63,11 @@ if "pm_day_1" not in st.session_state:
     st.session_state.pm_scale_slider = 1.0
 
     st.rerun()
+    st.stop()
+
+# 二重の安全策: 初期化が完了していない場合はここで停止
+if "pm_day_1" not in st.session_state:
+    st.stop()
 
 # --- ストレージによる同期 (座標とスケール) ---
 sync_data = storage.get_item("palmu_sync_data", is_json=True)

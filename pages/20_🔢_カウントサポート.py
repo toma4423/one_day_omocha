@@ -48,6 +48,11 @@ if "cs_session" not in st.session_state:
             items=[CounterItem(label="X"), CounterItem(label="Y"), CounterItem(label="Z")]
         )
     st.rerun()
+    st.stop()
+
+# 二重の安全策: 初期化が完了していない場合はここで停止
+if "cs_session" not in st.session_state:
+    st.stop()
 
 session: CountSupportSession = st.session_state.cs_session
 

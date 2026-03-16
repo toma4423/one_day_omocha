@@ -30,6 +30,11 @@ if "ms_state" not in st.session_state:
     else:
         st.session_state.ms_state = init_minesweeper_state()
     st.rerun()
+    st.stop()
+
+# 二重の安全策: 初期化が完了していない場合はここで停止
+if "ms_state" not in st.session_state:
+    st.stop()
 
 state: MinesweeperState = st.session_state.ms_state
 

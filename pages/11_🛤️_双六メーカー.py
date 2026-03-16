@@ -40,6 +40,11 @@ if "sugoroku_board" not in st.session_state:
         st.session_state.sugoroku_board = create_board(10, False)
         st.session_state.current_pos = 0
     st.rerun()
+    st.stop()
+
+# 二重の安全策: 初期化が完了していない場合はここで停止
+if "sugoroku_board" not in st.session_state:
+    st.stop()
 
 board: SugorokuBoard = st.session_state.sugoroku_board
 

@@ -81,6 +81,11 @@ if "csb_board" not in st.session_state:
     if "csb_reset_id" not in st.session_state:
         st.session_state.csb_reset_id = 0
     st.rerun()
+    st.stop()  # 万が一 rerun が実行を中断しなかった場合のためのガード
+
+# 二重の安全策: 初期化が完了していない場合はここで停止
+if "csb_board" not in st.session_state:
+    st.stop()
 
 board: BingoBoard = st.session_state.csb_board
 reset_id = st.session_state.csb_reset_id

@@ -33,6 +33,11 @@ if "parallel_counters" not in st.session_state:
     except Exception:
         st.session_state.parallel_counters = []
     st.rerun()
+    st.stop()
+
+# 二重の安全策: 初期化が完了していない場合はここで停止
+if "parallel_counters" not in st.session_state:
+    st.stop()
 
 if "last_updated_id" not in st.session_state:
     st.session_state.last_updated_id = None

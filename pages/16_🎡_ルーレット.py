@@ -65,6 +65,11 @@ if "roulette_config" not in st.session_state:
     st.session_state.roulette_spin_trigger = 0
     st.session_state.roulette_winner_index = None
     st.rerun()
+    st.stop()
+
+# 二重の安全策: 初期化が完了していない場合はここで停止
+if "roulette_config" not in st.session_state:
+    st.stop()
 
 st.title("🎡 カスタムルーレット")
 

@@ -38,6 +38,11 @@ if "slot_config_edit" not in st.session_state:
     except Exception:
         st.session_state.slot_config_edit = get_slot_config(None)
     st.rerun()
+    st.stop()
+
+# 二重の安全策: 初期化が完了していない場合はここで停止
+if "slot_config_edit" not in st.session_state:
+    st.stop()
 
 config: SlotConfig = st.session_state.slot_config_edit
 

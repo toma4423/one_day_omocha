@@ -34,6 +34,11 @@ if "concentration_state" not in st.session_state:
             cards=create_deck(13, use_all_suits=False), mode="battle", use_all_suits=False
         )
     st.rerun()
+    st.stop()
+
+# 二重の安全策: 初期化が完了していない場合はここで停止
+if "concentration_state" not in st.session_state:
+    st.stop()
 
 state: ConcentrationGameState = st.session_state.concentration_state
 
