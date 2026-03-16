@@ -7,6 +7,8 @@ from src.utils.image_maker import (
     create_badge_image,
     create_palmu_calendar_grid_image,
     create_palmu_schedule_image,
+    get_available_fonts,
+    get_font,
     hex_to_rgba,
 )
 
@@ -64,3 +66,38 @@ def test_composite_images_anchors():
     result_scaled = composite_images(bg_bytes, fg_bytes, 0, 0, scale=2.0)
     img_scaled = Image.open(BytesIO(result_scaled))
     assert img_scaled.size == (100, 100)  # 背景サイズは維持されること
+
+
+def test_get_available_fonts():
+    fonts = get_available_fonts()
+    assert isinstance(fonts, dict)
+    assert len(fonts) > 0
+    # 標準フォントが辞書に含まれているか（表示名は環境によるため、値が文字列であることを確認）
+    assert all(isinstance(v, str) for v in fonts.values())
+
+
+def test_get_font_and_fallback():
+    # 正常系: デフォルト
+    fonts = get_available_fonts()
+    font_name = list(fonts.keys())[0]
+    font = get_font(font_name, 20)
+    assert font is not None
+
+    # 異常系: 存在しない
+    font_fallback = get_font("NON_EXISTENT_FONT_NAME", 20)
+    assert font_fallback is not None
+
+
+def test_image_generation_with_custom_font():
+    # 各画像生成関数にフォント名を渡してもエラーにならないか
+    fonts = get_available_fonts()
+    font_name = list(fonts.keys())[0]
+
+    # バッジ
+    assert create_badge_image("TEST", font_name=font_name).startswith(b"\x89PNG")
+    # 週間
+    sched_data = [("2/27", "Study", "+6pt")]
+    assert create_palmu_schedule_image("Week", sched_data, font_name=font_name).startswith(b"\x89PNG")
+    # 月間
+    cal_data = [{"date": "1", "day": "月", "point": "+1pt"}]
+    assert create_palmu_calendar_grid_image("Month", cal_data, font_name=font_name).startswith(b"\x89PNG")
