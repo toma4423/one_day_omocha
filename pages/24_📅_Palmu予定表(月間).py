@@ -5,7 +5,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 from streamlit_local_storage import LocalStorage
 
-from src.utils.image_maker import composite_images, create_palmu_calendar_grid_image
+from src.utils.image_maker import AVAILABLE_FONTS, composite_images, create_palmu_calendar_grid_image
 from src.utils.palmu import (
     calculate_monthly_display_days,
     calculate_skip_card_balance,
@@ -226,6 +226,8 @@ with st.container(border=True):
                 with c2:
                     img_frame_color = st.color_picker("枠色", "#FF5722", key="pm_frm_c")
 
+                img_font_name = st.selectbox("フォント選択", list(AVAILABLE_FONTS.keys()), index=0, key="pm_font")
+
                 img_width = st.number_input("幅", 400, 1200, 800, 10, key="pm_width")
 
                 is_trans = st.checkbox("枠内を完全に透過する", False, key="pm_trans")
@@ -240,7 +242,13 @@ with st.container(border=True):
                     img_bg_rgba = "#00000000"
 
             fg_bytes = create_palmu_calendar_grid_image(
-                title_text, cal_data, img_text_color, img_frame_color, img_bg_rgba, img_width
+                title_text,
+                cal_data,
+                img_text_color,
+                img_frame_color,
+                img_bg_rgba,
+                img_width,
+                font_name=img_font_name,
             )
             from io import BytesIO
 

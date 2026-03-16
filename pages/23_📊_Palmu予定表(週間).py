@@ -5,7 +5,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 from streamlit_local_storage import LocalStorage
 
-from src.utils.image_maker import composite_images, create_palmu_schedule_image
+from src.utils.image_maker import AVAILABLE_FONTS, composite_images, create_palmu_schedule_image
 from src.utils.palmu import (
     calculate_skip_card_balance,
     calculate_total_points,
@@ -249,6 +249,8 @@ with st.container(border=True):
                 with c2:
                     img_frame_color = st.color_picker("枠色", "#FF5722")
 
+                img_font_name = st.selectbox("フォント選択", list(AVAILABLE_FONTS.keys()), index=0)
+
                 img_width = st.number_input("幅", 300, 1000, 600, 10)
 
                 is_trans = st.checkbox("枠内を完全に透過する", False)
@@ -266,7 +268,15 @@ with st.container(border=True):
                 img_radius = st.slider("角丸", 0, 200, 30)
 
             fg_bytes = create_palmu_schedule_image(
-                title_text, sched_data, img_text_color, img_frame_color, img_bg_rgba, img_f_width, img_radius, img_width
+                title_text,
+                sched_data,
+                img_text_color,
+                img_frame_color,
+                img_bg_rgba,
+                img_f_width,
+                img_radius,
+                img_width,
+                font_name=img_font_name,
             )
             from io import BytesIO
 

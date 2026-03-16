@@ -3,7 +3,26 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
 
-FONT_PATH = Path("src/assets/NotoSansJP-Bold.otf")
+FONT_DIR = Path("src/assets")
+AVAILABLE_FONTS = {
+    "ゴシック": "NotoSansJP-Bold.otf",
+    "明朝": "NotoSerifJP-Bold.otf",
+}
+
+
+def get_font(font_name: str, size: int) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
+    """指定されたフォント名とサイズでImageFontを返します。"""
+    font_file = AVAILABLE_FONTS.get(font_name, "NotoSansJP-Bold.otf")
+    font_path = FONT_DIR / font_file
+
+    try:
+        return ImageFont.truetype(str(font_path), size)
+    except OSError:
+        fallback_path = FONT_DIR / "NotoSansJP-Bold.otf"
+        try:
+            return ImageFont.truetype(str(fallback_path), size)
+        except OSError:
+            return ImageFont.load_default()
 
 
 def hex_to_rgba(hex_str: str) -> tuple[int, int, int, int]:
@@ -28,6 +47,7 @@ def create_badge_image(
     width: int = 400,
     height: int = 150,
     font_size: int = 60,
+    font_name: str = "ゴシック",
 ) -> bytes:
     """
     指定されたパラメータで透過背景のバッジ画像を生成します。
@@ -47,10 +67,7 @@ def create_badge_image(
         fill=fill,
     )
 
-    try:
-        font = ImageFont.truetype(str(FONT_PATH), font_size)
-    except OSError:
-        font = ImageFont.load_default()  # type: ignore
+    font = get_font(font_name, font_size)
 
     bbox = draw.textbbox((0, 0), text, font=font)
     text_w = bbox[2] - bbox[0]
@@ -75,6 +92,7 @@ def create_palmu_schedule_image(
     frame_width: int = 8,
     corner_radius: int = 30,
     width: int = 600,
+    font_name: str = "ゴシック",
 ) -> bytes:
     """
     Palmuのスケジュールを描画したリスト形式の画像を生成します。
@@ -102,14 +120,9 @@ def create_palmu_schedule_image(
         fill=fill,
     )
 
-    try:
-        title_font = ImageFont.truetype(str(FONT_PATH), 40)
-        row_font = ImageFont.truetype(str(FONT_PATH), 30)
-        plan_font = ImageFont.truetype(str(FONT_PATH), 24)
-    except OSError:
-        title_font = ImageFont.load_default()  # type: ignore
-        row_font = ImageFont.load_default()  # type: ignore
-        plan_font = ImageFont.load_default()  # type: ignore
+    title_font = get_font(font_name, 40)
+    row_font = get_font(font_name, 30)
+    plan_font = get_font(font_name, 24)
 
     text_rgba = hex_to_rgba(text_color)
 
@@ -166,9 +179,10 @@ def create_palmu_calendar_grid_image(
     bg_color: str = "#000000CC",
     width: int = 1000,
     cell_bg_colors: list[str] | None = None,
+    font_name: str = "ゴシック",
 ) -> bytes:
     """
-    Palmuの月間スケジュールを7列のグリッド形式（カレンダー風）で描画した画像を生成します。
+    Palmuの月間スケジュールを7列のグリッド形式（カレンダー風）で描画し た画像を生成します。
     """
     cols = 7
     rows = (len(calendar_data) + cols - 1) // cols
@@ -196,14 +210,9 @@ def create_palmu_calendar_grid_image(
         fill=default_fill,
     )
 
-    try:
-        title_font = ImageFont.truetype(str(FONT_PATH), 50)
-        date_font = ImageFont.truetype(str(FONT_PATH), 24)
-        point_font = ImageFont.truetype(str(FONT_PATH), 28)
-    except OSError:
-        title_font = ImageFont.load_default()  # type: ignore
-        date_font = ImageFont.load_default()  # type: ignore
-        point_font = ImageFont.load_default()  # type: ignore
+    title_font = get_font(font_name, 50)
+    date_font = get_font(font_name, 24)
+    point_font = get_font(font_name, 28)
 
     # タイトル
     bbox = draw.textbbox((0, 0), title, font=title_font)
@@ -244,7 +253,7 @@ def create_palmu_calendar_grid_image(
                 (x + 40, y + 10),
                 f"({day_text})",
                 fill=text_rgba,
-                font=ImageFont.truetype(str(FONT_PATH), 18)
+                font=get_font(font_name, 18)
                 if isinstance(date_font, ImageFont.FreeTypeFont)
                 else date_font,
             )
