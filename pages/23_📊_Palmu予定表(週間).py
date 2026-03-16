@@ -250,7 +250,7 @@ with st.container(border=True):
                     img_frame_color = st.color_picker("枠色", "#FF5722")
 
                 available_fonts = get_available_fonts()
-                img_font_name = st.selectbox("フォント選択", list(available_fonts.keys()), index=0)
+                img_font_name = st.selectbox("フォント選択", list(available_fonts.keys()), index=0, key="w_font_choice")
 
                 img_width = st.number_input("幅", 300, 1000, 600, 10)
 

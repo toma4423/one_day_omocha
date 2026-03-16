@@ -1,6 +1,4 @@
 import os
-import urllib.request
-import ssl
 from io import BytesIO
 from pathlib import Path
 from typing import Any, Dict
@@ -10,80 +8,38 @@ from PIL import Image, ImageDraw, ImageFont
 # 実行環境に合わせてベースディレクトリを特定
 BASE_DIR = Path(__file__).parent.parent.parent
 FONT_DIR = BASE_DIR / "src" / "assets"
-CACHE_DIR = Path("/tmp/one_day_omocha_fonts") if not FONT_DIR.exists() or not os.access(FONT_DIR, os.W_OK) else FONT_DIR
 
-# メモリ上のキャッシュ
+# メモリ上のキャッシュ (同じフォント・サイズの再生成を高速化)
 _font_cache: Dict[str, Any] = {}
-
-# フォントの配布元URL定義 (GitHub Raw または Google Fonts 直接)
-FONT_URLS = {
-    "NotoSansJP-Bold.otf": "https://github.com/googlefonts/noto-cjk/raw/main/Sans/OTF/Japanese/NotoSansJP-Bold.otf",
-    "NotoSerifJP-Bold.otf": "https://github.com/googlefonts/noto-cjk/raw/main/Serif/OTF/Japanese/NotoSerifJP-Bold.otf",
-    "Mplus1-Bold.ttf": "https://github.com/googlefonts/mplus-fonts/raw/main/fonts/ttf/Mplus1-Bold.ttf",
-    "HachiMaruPop-Regular.ttf": "https://github.com/googlefonts/hachimarupop/raw/main/fonts/ttf/HachiMaruPop-Regular.ttf",
-    "YuseiMagic-Regular.ttf": "https://github.com/googlefonts/yuseimagic/raw/main/fonts/ttf/YuseiMagic-Regular.ttf",
-    "DotGothic16-Regular.ttf": "https://github.com/googlefonts/dotgothic16/raw/main/fonts/ttf/DotGothic16-Regular.ttf",
-    "DelaGothicOne-Regular.ttf": "https://github.com/googlefonts/delagothicone/raw/main/fonts/ttf/DelaGothicOne-Regular.ttf",
-    "KaiseiTokumin-Bold.ttf": "https://github.com/googlefonts/kaiseitokumin/raw/main/fonts/ttf/KaiseiTokumin-Bold.ttf",
-    "Stick-Regular.ttf": "https://github.com/googlefonts/stick/raw/main/fonts/ttf/Stick-Regular.ttf",
-}
-
-
-def download_font(filename: str) -> bool:
-    """指定されたフォントファイルをダウンロードします。"""
-    url = FONT_URLS.get(filename)
-    if not url:
-        return False
-    try:
-        CACHE_DIR.mkdir(parents=True, exist_ok=True)
-        target_path = CACHE_DIR / filename
-        
-        # User-Agent を設定してブロックを回避
-        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"}
-        req = urllib.request.Request(url, headers=headers)
-        
-        # SSL証明書のエラーを無視する設定（環境によって必要）
-        context = ssl._create_unverified_context()
-        
-        with urllib.request.urlopen(req, context=context) as response:
-            data = response.read()
-            if len(data) < 1000:  # ファイルが小さすぎる場合は失敗とみなす
-                return False
-            with open(target_path, "wb") as out_file:
-                out_file.write(data)
-        return True
-    except Exception:
-        return False
-
 
 def get_available_fonts() -> dict[str, str]:
     """
-    利用可能なフォントの表示名とファイル名の辞書を返します。
+    src/assets ディレクトリ内をスキャンし、利用可能なフォントの表示名とファイル名の辞書を返します。
     """
+    # プリセット定義（ファイル名と日本語表示名のマッピング）
     presets = {
         "NotoSansJP-Bold.otf": "ゴシック (標準)",
         "NotoSerifJP-Bold.otf": "明朝 (標準)",
         "Mplus1-Bold.ttf": "モダンゴシック",
         "HachiMaruPop-Regular.ttf": "ポップ (手書き風)",
         "YuseiMagic-Regular.ttf": "手書き (マジック風)",
-        "DotGothic16-Regular.ttf": "レトロ (ドット風)",
-        "DelaGothicOne-Regular.ttf": "力強い (インパクト)",
-        "KaiseiTokumin-Bold.ttf": "和風 (懐風明朝)",
-        "Stick-Regular.ttf": "デザイン (スティック)",
     }
 
     fonts = {}
-    # プリセットは存在に関わらずすべて選択肢に出す
+    # 実際に存在するファイルのみをリストアップ
     for filename, display_name in presets.items():
-        fonts[display_name] = filename
+        if (FONT_DIR / filename).exists():
+            fonts[display_name] = filename
 
-    # プリセットにない既存ファイルも追加 (FONT_DIR と CACHE_DIR の両方をスキャン)
-    for d in [FONT_DIR, CACHE_DIR]:
-        if d.exists():
-            for ext in [".otf", ".ttf", ".ttc"]:
-                for f in d.glob(f"*{ext}"):
-                    if f.name not in presets:
-                        fonts[f.stem] = f.name
+    # プリセットにないフォントファイルも自動検知
+    for ext in [".otf", ".ttf", ".ttc"]:
+        for f in FONT_DIR.glob(f"*{ext}"):
+            if f.name not in presets:
+                fonts[f.stem] = f.name
+
+    # 必須フォントが万が一ない場合の保証
+    if not fonts:
+        fonts["標準ゴシック"] = "NotoSansJP-Bold.otf"
 
     return fonts
 
@@ -95,47 +51,26 @@ def get_font(font_name: str, size: int) -> Any:
         return _font_cache[cache_key]
 
     available_fonts = get_available_fonts()
+    # 選択されたフォント名からファイル名を特定、なければ標準を使用
     font_file = available_fonts.get(font_name, "NotoSansJP-Bold.otf")
-    
-    # 複数のパス候補を試す
-    paths = [FONT_DIR / font_file, CACHE_DIR / font_file]
-    font_path = None
-    for p in paths:
-        if p.exists():
-            font_path = p
-            break
-            
-    # ファイルがない場合はダウンロードを試みる
-    if font_path is None:
-        if download_font(font_file):
-            font_path = CACHE_DIR / font_file
+    font_path = FONT_DIR / font_file
 
     try:
-        if font_path and font_path.exists():
+        # 確実にファイルが存在するかチェック
+        if font_path.exists():
             f = ImageFont.truetype(str(font_path), size)
             _font_cache[cache_key] = f
             return f
-    except OSError:
+        else:
+            # 標準フォントへのフォールバック
+            fallback_path = FONT_DIR / "NotoSansJP-Bold.otf"
+            if fallback_path.exists():
+                return ImageFont.truetype(str(fallback_path), size)
+    except Exception:
         pass
 
-    # フォールバック: 標準フォント
-    fallback_key = f"NotoSansJP-Bold.otf_{size}"
-    if fallback_key in _font_cache:
-        return _font_cache[fallback_key]
-        
-    fallback_paths = [FONT_DIR / "NotoSansJP-Bold.otf", CACHE_DIR / "NotoSansJP-Bold.otf"]
-    for p in fallback_paths:
-        if p.exists():
-            try:
-                f = ImageFont.truetype(str(p), size)
-                _font_cache[fallback_key] = f
-                return f
-            except OSError:
-                continue
-
-    # 最終手段
-    f = ImageFont.load_default()
-    return f
+    # 最終手段（システム標準）
+    return ImageFont.load_default()
 
 
 def hex_to_rgba(hex_str: str) -> tuple[int, int, int, int]:
