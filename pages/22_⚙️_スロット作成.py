@@ -31,10 +31,12 @@ render_page_header()
 storage = SafeStorage(LocalStorage())
 
 # 設定のロード (堅牢な初期化)
-if "_slot_creation_initialized" not in st.session_state:
+if "slot_config_edit" not in st.session_state:
     saved_config = wait_for_storage_load(storage, "slot_config", "_slot_creation_initialized")
-    # ここに来るということは、データが取得されたか「スキップ」が押されたということ
-    st.session_state.slot_config_edit = get_slot_config(saved_config)
+    try:
+        st.session_state.slot_config_edit = get_slot_config(saved_config)
+    except Exception:
+        st.session_state.slot_config_edit = get_slot_config(None)
     st.rerun()
 
 config: SlotConfig = st.session_state.slot_config_edit

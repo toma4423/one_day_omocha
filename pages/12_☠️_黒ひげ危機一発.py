@@ -20,10 +20,13 @@ render_page_header()
 storage = SafeStorage(LocalStorage())
 
 # セッション状態の初期化
-if "_kh_initialized" not in st.session_state:
+if "kh_state" not in st.session_state:
     saved_state = wait_for_storage_load(storage, "kurohige_state_v3", "_kh_initialized")
     if saved_state:
-        st.session_state.kh_state = KurohigeState(**saved_state)
+        try:
+            st.session_state.kh_state = KurohigeState(**saved_state)
+        except Exception:
+            st.session_state.kh_state = init_kurohige_state()
     else:
         st.session_state.kh_state = init_kurohige_state()
     st.rerun()

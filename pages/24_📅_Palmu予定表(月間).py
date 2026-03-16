@@ -36,22 +36,25 @@ BG_CACHE_KEY_MONTHLY = "palmu_bg_cache_monthly"
 MAX_TOTAL_MONTH_DAYS = 60
 
 # --- 初期化とロード (堅牢な方式) ---
-if "_palmu_month_initialized" not in st.session_state:
+if "pm_day_1" not in st.session_state:
     # 1. メインデータのロード待ち
     saved_data = wait_for_storage_load(storage, PALMU_MONTH_STORAGE_KEY, "_palmu_month_initialized")
 
     # 2. データの反映
-    # デフォルト値の設定
-    for i in range(1, MAX_TOTAL_MONTH_DAYS + 1):
-        st.session_state[f"pm_day_{i}"] = 1
-    st.session_state.palmu_month_skip_cards = 0
-
-    if saved_data:
+    try:
+        if saved_data:
+            for i in range(1, MAX_TOTAL_MONTH_DAYS + 1):
+                val = saved_data.get(f"day_{i}", 1)
+                st.session_state[f"pm_day_{i}"] = "SKIP" if val == "スキップ" else val
+            st.session_state.palmu_month_skip_cards = saved_data.get("skip_cards", 0)
+        else:
+            for i in range(1, MAX_TOTAL_MONTH_DAYS + 1):
+                st.session_state[f"pm_day_{i}"] = 1
+            st.session_state.palmu_month_skip_cards = 0
+    except Exception:
         for i in range(1, MAX_TOTAL_MONTH_DAYS + 1):
-            val = saved_data.get(f"day_{i}", 1)
-            # 負の互換性対応
-            st.session_state[f"pm_day_{i}"] = "SKIP" if val == "スキップ" else val
-        st.session_state.palmu_month_skip_cards = saved_data.get("skip_cards", 0)
+            st.session_state[f"pm_day_{i}"] = 1
+        st.session_state.palmu_month_skip_cards = 0
 
     # 3. その他非永続状態の初期化
     st.session_state.palmu_month_reset_counter = 0

@@ -66,11 +66,16 @@ storage = SafeStorage(LocalStorage())
 DATA_KEY = "csb_data_v5"
 
 # --- 初期化とデータ復元 ---
-if "_csb_initialized" not in st.session_state:
+if "csb_board" not in st.session_state:
     saved = wait_for_storage_load(storage, DATA_KEY, "_csb_initialized")
+    # wait_for_storage_load が st.stop() しなかった場合 (データが見つかったか、スキップされた場合)
     if saved:
-        st.session_state.csb_board = BingoBoard(**saved)
+        try:
+            st.session_state.csb_board = BingoBoard(**saved)
+        except Exception:
+            st.session_state.csb_board = BingoBoard()
     else:
+        # ロードスキップ等の場合
         st.session_state.csb_board = BingoBoard()
 
     if "csb_reset_id" not in st.session_state:

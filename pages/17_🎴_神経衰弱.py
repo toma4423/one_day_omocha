@@ -20,10 +20,15 @@ render_page_header()
 storage = SafeStorage(LocalStorage())
 
 # セッション状態の初期化
-if "_concentration_initialized" not in st.session_state:
+if "concentration_state" not in st.session_state:
     saved_state = wait_for_storage_load(storage, "concentration_state_v2", "_concentration_initialized")
     if saved_state:
-        st.session_state.concentration_state = ConcentrationGameState(**saved_state)
+        try:
+            st.session_state.concentration_state = ConcentrationGameState(**saved_state)
+        except Exception:
+            st.session_state.concentration_state = ConcentrationGameState(
+                cards=create_deck(13, use_all_suits=False), mode="battle", use_all_suits=False
+            )
     else:
         st.session_state.concentration_state = ConcentrationGameState(
             cards=create_deck(13, use_all_suits=False), mode="battle", use_all_suits=False

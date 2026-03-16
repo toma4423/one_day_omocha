@@ -26,9 +26,12 @@ render_page_header()
 storage = SafeStorage(LocalStorage())
 
 # セッション状態の初期化
-if "_pc_initialized" not in st.session_state:
+if "parallel_counters" not in st.session_state:
     saved_data = wait_for_storage_load(storage, "parallel_counters_v2", "_pc_initialized")
-    st.session_state.parallel_counters = migrate_parallel_counter_data(saved_data)
+    try:
+        st.session_state.parallel_counters = migrate_parallel_counter_data(saved_data)
+    except Exception:
+        st.session_state.parallel_counters = []
     st.rerun()
 
 if "last_updated_id" not in st.session_state:

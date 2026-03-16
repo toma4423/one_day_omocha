@@ -20,10 +20,13 @@ render_page_header()
 storage = SafeStorage(LocalStorage())
 
 # セッション状態の初期化
-if "_ms_initialized" not in st.session_state:
+if "ms_state" not in st.session_state:
     saved_state = wait_for_storage_load(storage, "ms_state_v3", "_ms_initialized")
     if saved_state:
-        st.session_state.ms_state = MinesweeperState(**saved_state)
+        try:
+            st.session_state.ms_state = MinesweeperState(**saved_state)
+        except Exception:
+            st.session_state.ms_state = init_minesweeper_state()
     else:
         st.session_state.ms_state = init_minesweeper_state()
     st.rerun()

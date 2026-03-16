@@ -48,11 +48,19 @@ hr { margin: 15px 0 !important; border: 0; border-top: 2px solid #f0f2f6; }
 storage = SafeStorage(LocalStorage())
 
 # 設定のロード (堅牢な初期化)
-if "_roulette_initialized" not in st.session_state:
+if "roulette_config" not in st.session_state:
     saved_config = wait_for_storage_load(storage, "roulette_config", "_roulette_initialized")
-    st.session_state.roulette_config = migrate_roulette_config(saved_config)
-    saved_history = storage.get_item("roulette_history", is_json=True)
-    st.session_state.roulette_history = saved_history if saved_history else []
+    try:
+        st.session_state.roulette_config = migrate_roulette_config(saved_config)
+    except Exception:
+        st.session_state.roulette_config = migrate_roulette_config(None)
+
+    try:
+        saved_history = storage.get_item("roulette_history", is_json=True)
+        st.session_state.roulette_history = saved_history if saved_history else []
+    except Exception:
+        st.session_state.roulette_history = []
+
     st.session_state.roulette_last_winner = None
     st.session_state.roulette_spin_trigger = 0
     st.session_state.roulette_winner_index = None
@@ -174,7 +182,15 @@ with col_sidebar:
         if st.button("➕ 項目を追加", use_container_width=True):
             new_id = f"item_{int(time.time() * 1000)}"
             rand_color = f"#{random.randint(0, 0xFFFFFF):06x}"
-            current_items.append({"id": new_id, "label": f"項目 {len(current_items) + 1}", "weight": 0, "color": rand_color, "enabled": True})
+            current_items.append(
+                {
+                    "id": new_id,
+                    "label": f"項目 {len(current_items) + 1}",
+                    "weight": 0,
+                    "color": rand_color,
+                    "enabled": True,
+                }
+            )
             st.session_state.roulette_config["items"] = current_items
             st.rerun()
 
@@ -217,11 +233,20 @@ with col_sidebar:
             with st.container():
                 c1, c2, c3 = st.columns([0.5, 3.5, 1.5])
                 with c1:
-                    new_enabled = st.checkbox("E", value=item.get("enabled", True), key=f"en_{iid}", label_visibility="collapsed")
+                    new_enabled = st.checkbox(
+                        "E", value=item.get("enabled", True), key=f"en_{iid}", label_visibility="collapsed"
+                    )
                 with c2:
                     new_label = st.text_input("L", value=item["label"], key=f"lb_{iid}", label_visibility="collapsed")
                 with c3:
-                    new_weight = st.number_input("W", value=int(item["weight"]), min_value=0, max_value=100, key=f"wt_{iid}", label_visibility="collapsed")
+                    new_weight = st.number_input(
+                        "W",
+                        value=int(item["weight"]),
+                        min_value=0,
+                        max_value=100,
+                        key=f"wt_{iid}",
+                        label_visibility="collapsed",
+                    )
 
                 c1, c2, c3, c4 = st.columns([1, 1, 1, 1])
                 with c1:
@@ -230,13 +255,21 @@ with col_sidebar:
                     if st.button("↑", key=f"up_{iid}", use_container_width=True, disabled=(idx == 0)):
                         move_up_idx = idx
                 with c3:
-                    if st.button("↓", key=f"dn_{iid}", use_container_width=True, disabled=(idx == len(current_items) - 1)):
+                    if st.button(
+                        "↓", key=f"dn_{iid}", use_container_width=True, disabled=(idx == len(current_items) - 1)
+                    ):
                         move_down_idx = idx
                 with c4:
                     if st.button("🗑️", key=f"dl_{iid}", use_container_width=True):
                         to_delete_id = iid
 
-                updated_item = {"id": iid, "label": new_label, "weight": new_weight, "color": new_color, "enabled": new_enabled}
+                updated_item = {
+                    "id": iid,
+                    "label": new_label,
+                    "weight": new_weight,
+                    "color": new_color,
+                    "enabled": new_enabled,
+                }
                 new_items_list.append(updated_item)
                 if updated_item != item:
                     any_change = True
@@ -246,18 +279,26 @@ with col_sidebar:
             st.session_state.roulette_config["items"] = [it for it in new_items_list if it["id"] != to_delete_id]
             st.rerun()
         elif move_up_idx > 0:
-            new_items_list[move_up_idx], new_items_list[move_up_idx - 1] = new_items_list[move_up_idx - 1], new_items_list[move_up_idx]
+            new_items_list[move_up_idx], new_items_list[move_up_idx - 1] = (
+                new_items_list[move_up_idx - 1],
+                new_items_list[move_up_idx],
+            )
             st.session_state.roulette_config["items"] = new_items_list
             st.rerun()
         elif move_down_idx >= 0 and move_down_idx < len(new_items_list) - 1:
-            new_items_list[move_down_idx], new_items_list[move_down_idx + 1] = new_items_list[move_down_idx + 1], new_items_list[move_down_idx]
+            new_items_list[move_down_idx], new_items_list[move_down_idx + 1] = (
+                new_items_list[move_down_idx + 1],
+                new_items_list[move_down_idx],
+            )
             st.session_state.roulette_config["items"] = new_items_list
             st.rerun()
         elif any_change:
             st.session_state.roulette_config["items"] = new_items_list
             st.rerun()
 
-    st.session_state.roulette_config["sound_enabled"] = st.toggle("🔊 効果音を有効にする", value=st.session_state.roulette_config.get("sound_enabled", True))
+    st.session_state.roulette_config["sound_enabled"] = st.toggle(
+        "🔊 効果音を有効にする", value=st.session_state.roulette_config.get("sound_enabled", True)
+    )
 
     def on_load_roulette(data: dict):
         st.session_state.roulette_config = migrate_roulette_config(data.get("config", data))

@@ -34,10 +34,15 @@ storage = SafeStorage(LocalStorage())
 CS_STORAGE_KEY = "cs_data_v4"
 
 # セッション状態の初期化
-if "_cs_initialized" not in st.session_state:
+if "cs_session" not in st.session_state:
     saved = wait_for_storage_load(storage, CS_STORAGE_KEY, "_cs_initialized")
     if saved:
-        st.session_state.cs_session = CountSupportSession(**saved)
+        try:
+            st.session_state.cs_session = CountSupportSession(**saved)
+        except Exception:
+            st.session_state.cs_session = CountSupportSession(
+                items=[CounterItem(label="X"), CounterItem(label="Y"), CounterItem(label="Z")]
+            )
     else:
         st.session_state.cs_session = CountSupportSession(
             items=[CounterItem(label="X"), CounterItem(label="Y"), CounterItem(label="Z")]

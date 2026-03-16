@@ -24,14 +24,18 @@ st.title("🛤️ 双六メーカー")
 storage = SafeStorage(LocalStorage())
 
 # セッション状態の初期化
-if "_sugoroku_initialized" not in st.session_state:
+if "sugoroku_board" not in st.session_state:
     saved_data = wait_for_storage_load(storage, "sugoroku_data_v2", "_sugoroku_initialized")
     if saved_data:
-        if "board" in saved_data:
-            st.session_state.sugoroku_board = SugorokuBoard(**saved_data["board"])
-        else:
+        try:
+            if "board" in saved_data:
+                st.session_state.sugoroku_board = SugorokuBoard(**saved_data["board"])
+            else:
+                st.session_state.sugoroku_board = create_board(10, False)
+            st.session_state.current_pos = saved_data.get("current_pos", 0)
+        except Exception:
             st.session_state.sugoroku_board = create_board(10, False)
-        st.session_state.current_pos = saved_data.get("current_pos", 0)
+            st.session_state.current_pos = 0
     else:
         st.session_state.sugoroku_board = create_board(10, False)
         st.session_state.current_pos = 0

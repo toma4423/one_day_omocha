@@ -38,15 +38,21 @@ BG_CACHE_KEY = "palmu_bg_cache_weekly"
 MAX_TOTAL_DAYS = 21
 
 # セッション状態の初期化
-if "_palmu_weekly_initialized" not in st.session_state:
+if "palmu_day_1" not in st.session_state:
     saved_data = wait_for_storage_load(storage, PALMU_STORAGE_KEY, "_palmu_weekly_initialized")
-    if saved_data:
-        for i in range(1, MAX_TOTAL_DAYS + 1):
-            val = saved_data.get(f"day_{i}", 1)
-            st.session_state[f"palmu_day_{i}"] = "SKIP" if val == "スキップ" else val
-            st.session_state[f"palmu_plan_{i}"] = saved_data.get(f"plan_{i}", "")
-        st.session_state.palmu_skip_cards = saved_data.get("skip_cards", 0)
-    else:
+    try:
+        if saved_data:
+            for i in range(1, MAX_TOTAL_DAYS + 1):
+                val = saved_data.get(f"day_{i}", 1)
+                st.session_state[f"palmu_day_{i}"] = "SKIP" if val == "スキップ" else val
+                st.session_state[f"palmu_plan_{i}"] = saved_data.get(f"plan_{i}", "")
+            st.session_state.palmu_skip_cards = saved_data.get("skip_cards", 0)
+        else:
+            for i in range(1, MAX_TOTAL_DAYS + 1):
+                st.session_state[f"palmu_day_{i}"] = 1
+                st.session_state[f"palmu_plan_{i}"] = ""
+            st.session_state.palmu_skip_cards = 0
+    except Exception:
         for i in range(1, MAX_TOTAL_DAYS + 1):
             st.session_state[f"palmu_day_{i}"] = 1
             st.session_state[f"palmu_plan_{i}"] = ""
