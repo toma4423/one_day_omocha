@@ -1,13 +1,21 @@
+import os
 import urllib.request
+import ssl
 from io import BytesIO
 from pathlib import Path
-from typing import Any
+from typing import Any, Dict
 
 from PIL import Image, ImageDraw, ImageFont
 
-FONT_DIR = Path("src/assets")
+# 実行環境に合わせてベースディレクトリを特定
+BASE_DIR = Path(__file__).parent.parent.parent
+FONT_DIR = BASE_DIR / "src" / "assets"
+CACHE_DIR = Path("/tmp/one_day_omocha_fonts") if not FONT_DIR.exists() or not os.access(FONT_DIR, os.W_OK) else FONT_DIR
 
-# フォントの配布元URL定義
+# メモリ上のキャッシュ
+_font_cache: Dict[str, Any] = {}
+
+# フォントの配布元URL定義 (GitHub Raw または Google Fonts 直接)
 FONT_URLS = {
     "NotoSansJP-Bold.otf": "https://github.com/googlefonts/noto-cjk/raw/main/Sans/OTF/Japanese/NotoSansJP-Bold.otf",
     "NotoSerifJP-Bold.otf": "https://github.com/googlefonts/noto-cjk/raw/main/Serif/OTF/Japanese/NotoSerifJP-Bold.otf",
@@ -27,11 +35,22 @@ def download_font(filename: str) -> bool:
     if not url:
         return False
     try:
-        FONT_DIR.mkdir(parents=True, exist_ok=True)
-        target_path = FONT_DIR / filename
-        # 簡易的なダウンロード
-        with urllib.request.urlopen(url) as response, open(target_path, "wb") as out_file:
-            out_file.write(response.read())
+        CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        target_path = CACHE_DIR / filename
+        
+        # User-Agent を設定してブロックを回避
+        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"}
+        req = urllib.request.Request(url, headers=headers)
+        
+        # SSL証明書のエラーを無視する設定（環境によって必要）
+        context = ssl._create_unverified_context()
+        
+        with urllib.request.urlopen(req, context=context) as response:
+            data = response.read()
+            if len(data) < 1000:  # ファイルが小さすぎる場合は失敗とみなす
+                return False
+            with open(target_path, "wb") as out_file:
+                out_file.write(data)
         return True
     except Exception:
         return False
@@ -58,36 +77,65 @@ def get_available_fonts() -> dict[str, str]:
     for filename, display_name in presets.items():
         fonts[display_name] = filename
 
-    # プリセットにない既存ファイルも追加
-    for ext in [".otf", ".ttf", ".ttc"]:
-        for f in FONT_DIR.glob(f"*{ext}"):
-            if f.name not in presets:
-                fonts[f.stem] = f.name
+    # プリセットにない既存ファイルも追加 (FONT_DIR と CACHE_DIR の両方をスキャン)
+    for d in [FONT_DIR, CACHE_DIR]:
+        if d.exists():
+            for ext in [".otf", ".ttf", ".ttc"]:
+                for f in d.glob(f"*{ext}"):
+                    if f.name not in presets:
+                        fonts[f.stem] = f.name
 
     return fonts
 
 
 def get_font(font_name: str, size: int) -> Any:
     """指定されたフォント名とサイズで ImageFont を返します。"""
+    cache_key = f"{font_name}_{size}"
+    if cache_key in _font_cache:
+        return _font_cache[cache_key]
+
     available_fonts = get_available_fonts()
     font_file = available_fonts.get(font_name, "NotoSansJP-Bold.otf")
-    font_path = FONT_DIR / font_file
-
+    
+    # 複数のパス候補を試す
+    paths = [FONT_DIR / font_file, CACHE_DIR / font_file]
+    font_path = None
+    for p in paths:
+        if p.exists():
+            font_path = p
+            break
+            
     # ファイルがない場合はダウンロードを試みる
-    if not font_path.exists():
-        download_font(font_file)
+    if font_path is None:
+        if download_font(font_file):
+            font_path = CACHE_DIR / font_file
 
     try:
-        return ImageFont.truetype(str(font_path), size)
+        if font_path and font_path.exists():
+            f = ImageFont.truetype(str(font_path), size)
+            _font_cache[cache_key] = f
+            return f
     except OSError:
-        # 代替として標準フォントを試す
-        try:
-            fallback_path = FONT_DIR / "NotoSansJP-Bold.otf"
-            if not fallback_path.exists():
-                download_font("NotoSansJP-Bold.otf")
-            return ImageFont.truetype(str(fallback_path), size)
-        except OSError:
-            return ImageFont.load_default()
+        pass
+
+    # フォールバック: 標準フォント
+    fallback_key = f"NotoSansJP-Bold.otf_{size}"
+    if fallback_key in _font_cache:
+        return _font_cache[fallback_key]
+        
+    fallback_paths = [FONT_DIR / "NotoSansJP-Bold.otf", CACHE_DIR / "NotoSansJP-Bold.otf"]
+    for p in fallback_paths:
+        if p.exists():
+            try:
+                f = ImageFont.truetype(str(p), size)
+                _font_cache[fallback_key] = f
+                return f
+            except OSError:
+                continue
+
+    # 最終手段
+    f = ImageFont.load_default()
+    return f
 
 
 def hex_to_rgba(hex_str: str) -> tuple[int, int, int, int]:
