@@ -189,17 +189,24 @@ def wait_for_storage_load(storage: Any, storage_key: str, initialized_key: str) 
     読み込みが完了していない場合は st.stop() で処理を中断します。
     """
     if initialized_key not in st.session_state:
-        saved_data = storage.get_item(storage_key, is_json=True)
-        if saved_data is not None:
-            # 取得できた（nullでなければOK。空リストなどはデータありとみなす）
-            st.session_state[initialized_key] = True
-            return saved_data
-        else:
-            # まだロード中（コンポーネントが準備できていない）
-            st.info("データを読み込み中...")
-            # 読み込みに失敗し続ける場合の回避策として、強制的にデフォルトで開始するボタンを出す
-            if st.button("読み込みをスキップして新規作成"):
+        # 視覚的なフィードバックを提供
+        with st.status("📥 前回のデータを復元中...", expanded=False) as status:
+            st.write("ブラウザの保存領域（LocalStorage）を確認しています...")
+            saved_data = storage.get_item(storage_key, is_json=True)
+
+            if saved_data is not None:
+                status.update(label="✅ データの復元に成功しました！", state="complete")
                 st.session_state[initialized_key] = True
-                st.rerun()
-            st.stop()
+                return saved_data
+            else:
+                # まだロード中（コンポーネントが準備できていない）
+                st.write("データの応答を待っています（通常1秒以内に完了します）...")
+
+                # タイムアウトや通信エラー時の回避策
+                st.warning("⚠️ データの読み込みに時間がかかっています。")
+                if st.button("🆕 読み込みをスキップして新規作成"):
+                    st.session_state[initialized_key] = True
+                    st.rerun()
+
+                st.stop()
     return None

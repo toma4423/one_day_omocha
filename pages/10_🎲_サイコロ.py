@@ -1,4 +1,4 @@
-import pandas as pd
+import polars as pl
 import streamlit as st
 from streamlit_local_storage import LocalStorage
 
@@ -55,7 +55,7 @@ with st.container(border=True):
 st.write("---")
 st.subheader("📜 サイコロの履歴")
 if st.session_state.dice_history:
-    history_df = pd.DataFrame(st.session_state.dice_history)
+    history_df = pl.DataFrame(st.session_state.dice_history)
     st.table(history_df)
 else:
     st.write("履歴はありません。")

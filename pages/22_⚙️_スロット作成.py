@@ -1,6 +1,6 @@
 from typing import Any
 
-import pandas as pd
+import polars as pl
 import streamlit as st
 from streamlit_local_storage import LocalStorage
 
@@ -254,11 +254,13 @@ with st.container(border=True):
     )
 
     st.write("📊 **現在の設定一覧**")
-    df_probs = pd.DataFrame(probs["hit_rates"])
-    if not df_probs.empty:
-        df_probs["1/N"] = df_probs["denominator"].apply(lambda x: f"1/{x}")
-        df_probs = df_probs[["name", "1/N", "rate"]]
-        df_probs.columns = ["役名", "設定確率 (分母)", "出現確率 (%)"]
+    df_probs = pl.DataFrame(probs["hit_rates"])
+    if not df_probs.is_empty():
+        df_probs = df_probs.with_columns(
+            pl.col("denominator").map_elements(lambda x: f"1/{x}", return_dtype=pl.String).alias("1/N")
+        ).select(
+            [pl.col("name").alias("役名"), pl.col("1/N").alias("設定確率 (分母)"), pl.col("rate").alias("出現確率 (%)")]
+        )
         st.table(df_probs)
 
 

@@ -1,6 +1,6 @@
 import json
 
-import pandas as pd
+import polars as pl
 import streamlit as st
 from streamlit_local_storage import LocalStorage
 
@@ -195,13 +195,14 @@ with tab1:
 
 with tab2:
     if st.session_state.slot_history:
-        df_hist = pd.DataFrame(st.session_state.slot_history)
-        df_hist.columns = ["回転数", "時刻", "成立役", "出目"]
+        df_hist = pl.DataFrame(st.session_state.slot_history).rename(
+            {"spin": "回転数", "time": "時刻", "result": "成立役", "reels": "出目"}
+        )
         c1, c2 = st.columns([3, 1])
         with c1:
             st.write(f"全 {len(df_hist)} 件の履歴")
         with c2:
-            csv = df_hist.to_csv(index=False).encode("utf-8-sig")
+            csv = df_hist.write_csv().encode("utf-8-sig")
             st.download_button("📥 CSVで出力", csv, f"slot_history_{get_jst_now().strftime('%Y%m%d')}.csv", "text/csv")
         st.table(df_hist.head(100))
     else:

@@ -1,4 +1,4 @@
-import pandas as pd
+import polars as pl
 import streamlit as st
 from streamlit_local_storage import LocalStorage
 
@@ -116,8 +116,7 @@ st.write("")
 # --- 履歴表示エリア ---
 st.subheader("📜 出目・役の履歴")
 if st.session_state.cc_history:
-    history_df = pd.DataFrame(st.session_state.cc_history)
-    history_df.columns = ["時刻", "サイコロ", "役名"]
+    history_df = pl.DataFrame(st.session_state.cc_history).rename({"time": "時刻", "dice": "サイコロ", "hand": "役名"})
     st.table(history_df)
 else:
     st.info("履歴はまだありません。")
