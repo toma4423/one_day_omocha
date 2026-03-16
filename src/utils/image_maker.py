@@ -54,22 +54,31 @@ def get_font(font_name: str, size: int) -> Any:
     # 選択されたフォント名からファイル名を特定、なければ標準を使用
     font_file = available_fonts.get(font_name, "NotoSansJP-Bold.otf")
     font_path = FONT_DIR / font_file
+    
+    # 標準フォント（確実に存在するはずのファイル）
+    default_font_path = FONT_DIR / "NotoSansJP-Bold.otf"
 
     try:
-        # 確実にファイルが存在するかチェック
-        if font_path.exists():
+        # 確実にファイルが存在し、かつサイズが適切（HTML等でない）かチェック
+        if font_path.exists() and font_path.stat().st_size > 100000: # 100KB以上を期待
             f = ImageFont.truetype(str(font_path), size)
             _font_cache[cache_key] = f
             return f
         else:
-            # 標準フォントへのフォールバック
-            fallback_path = FONT_DIR / "NotoSansJP-Bold.otf"
-            if fallback_path.exists():
-                return ImageFont.truetype(str(fallback_path), size)
+            # 指定フォントが不正な場合、標準フォントを同じサイズで読み込む
+            if default_font_path.exists():
+                f = ImageFont.truetype(str(default_font_path), size)
+                _font_cache[cache_key] = f
+                return f
     except Exception:
-        pass
+        # 読み込みエラー（ファイル破損等）時も標準フォントを試みる
+        try:
+            if default_font_path.exists():
+                return ImageFont.truetype(str(default_font_path), size)
+        except Exception:
+            pass
 
-    # 最終手段（システム標準）
+    # 最終手段（これを使うとサイズが小さくなるが、クラッシュは防ぐ）
     return ImageFont.load_default()
 
 

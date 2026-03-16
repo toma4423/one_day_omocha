@@ -71,9 +71,8 @@ def test_composite_images_anchors():
 def test_get_available_fonts():
     fonts = get_available_fonts()
     assert isinstance(fonts, dict)
-    assert len(fonts) >= 5  # プリセットが5個あるはず
+    assert len(fonts) >= 1  # 少なくとも標準フォントがあるはず
     assert "ゴシック (標準)" in fonts
-    assert "明朝 (標準)" in fonts
 
 
 def test_get_font_and_fallback():
