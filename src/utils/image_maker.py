@@ -1,16 +1,16 @@
-import os
 from io import BytesIO
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
 
 from PIL import Image, ImageDraw, ImageFont
 
 # 実行環境に合わせてベースディレクトリを特定
-BASE_DIR = Path(__file__).parent.parent.parent
+BASE_DIR = Path(__file__).parent.parent.parent.resolve()
 FONT_DIR = BASE_DIR / "src" / "assets"
 
 # メモリ上のキャッシュ (同じフォント・サイズの再生成を高速化)
-_font_cache: Dict[str, Any] = {}
+_font_cache: dict[str, Any] = {}
+
 
 def get_available_fonts() -> dict[str, str]:
     """
@@ -28,13 +28,14 @@ def get_available_fonts() -> dict[str, str]:
     fonts = {}
     # 実際に存在するファイルのみをリストアップ
     for filename, display_name in presets.items():
-        if (FONT_DIR / filename).exists():
+        p = FONT_DIR / filename
+        if p.exists() and p.stat().st_size > 100000:  # 100KB以上を本物とみなす
             fonts[display_name] = filename
 
     # プリセットにないフォントファイルも自動検知
     for ext in [".otf", ".ttf", ".ttc"]:
         for f in FONT_DIR.glob(f"*{ext}"):
-            if f.name not in presets:
+            if f.name not in presets and f.stat().st_size > 100000:
                 fonts[f.stem] = f.name
 
     # 必須フォントが万が一ない場合の保証
@@ -46,39 +47,40 @@ def get_available_fonts() -> dict[str, str]:
 
 def get_font(font_name: str, size: int) -> Any:
     """指定されたフォント名とサイズで ImageFont を返します。"""
+    # 標準日本語フォント（確実に存在するはずのファイル）
+    default_font_path = FONT_DIR / "NotoSansJP-Bold.otf"
+
     cache_key = f"{font_name}_{size}"
     if cache_key in _font_cache:
         return _font_cache[cache_key]
 
     available_fonts = get_available_fonts()
-    # 選択されたフォント名からファイル名を特定、なければ標準を使用
-    font_file = available_fonts.get(font_name, "NotoSansJP-Bold.otf")
-    font_path = FONT_DIR / font_file
-    
-    # 標準フォント（確実に存在するはずのファイル）
-    default_font_path = FONT_DIR / "NotoSansJP-Bold.otf"
+    # 選択されたフォント名からファイル名を特定
+    font_file = available_fonts.get(font_name)
+
+    font_path = None
+    if font_file:
+        font_path = FONT_DIR / font_file
 
     try:
         # 確実にファイルが存在し、かつサイズが適切（HTML等でない）かチェック
-        if font_path.exists() and font_path.stat().st_size > 100000: # 100KB以上を期待
+        if font_path and font_path.exists() and font_path.stat().st_size > 100000:
             f = ImageFont.truetype(str(font_path), size)
             _font_cache[cache_key] = f
             return f
-        else:
-            # 指定フォントが不正な場合、標準フォントを同じサイズで読み込む
-            if default_font_path.exists():
-                f = ImageFont.truetype(str(default_font_path), size)
-                _font_cache[cache_key] = f
-                return f
     except Exception:
-        # 読み込みエラー（ファイル破損等）時も標準フォントを試みる
-        try:
-            if default_font_path.exists():
-                return ImageFont.truetype(str(default_font_path), size)
-        except Exception:
-            pass
+        pass
 
-    # 最終手段（これを使うとサイズが小さくなるが、クラッシュは防ぐ）
+    # 指定フォントが読み込めない場合、標準日本語フォントを同じサイズで読み込む
+    try:
+        if default_font_path.exists():
+            f = ImageFont.truetype(str(default_font_path), size)
+            _font_cache[cache_key] = f  # キャッシュにも登録して次回の警告を減らす
+            return f
+    except Exception:
+        pass
+
+    # 最終手段（ここに来ると日本語は文字化けするがクラッシュは防ぐ）
     return ImageFont.load_default()
 
 
@@ -310,9 +312,7 @@ def create_palmu_calendar_grid_image(
                 (x + 40, y + 10),
                 f"({day_text})",
                 fill=text_rgba,
-                font=get_font(font_name, 18)
-                if isinstance(date_font, ImageFont.FreeTypeFont)
-                else date_font,
+                font=get_font(font_name, 18) if isinstance(date_font, ImageFont.FreeTypeFont) else date_font,
             )
 
             # ポイント (中央)

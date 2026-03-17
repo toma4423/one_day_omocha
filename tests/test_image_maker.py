@@ -77,7 +77,6 @@ def test_get_available_fonts():
 
 def test_get_font_and_fallback():
     # 正常系: デフォルト
-    fonts = get_available_fonts()
     font_name = "ゴシック (標準)"
     font = get_font(font_name, 20)
     assert font is not None
