@@ -1,4 +1,5 @@
 window.setupSentenceSlot = function(config) {
+    if (!config || !config.reels) return;
     const container = document.getElementById('sentence-slot-app');
     if (!container) return;
 
@@ -15,9 +16,12 @@ window.setupSentenceSlot = function(config) {
         const content = wrapper.querySelector('.reel-content');
         if (!content) return;
 
-        const itemHeight = 120;
+        const itemHeight = 120; // CSSの.reel-itemのheightと一致させる
         const totalItems = reel.items.length;
-        const targetIdx = reel.items.indexOf(reel.target);
+        if (totalItems === 0) return;
+
+        let targetIdx = reel.items.indexOf(reel.target);
+        if (targetIdx === -1) targetIdx = 0; // 見つからない場合は先頭
 
         // スピン演出
         if (reel.isSpinning) {
@@ -31,17 +35,20 @@ window.setupSentenceSlot = function(config) {
             content.style.transform = 'translateY(0)';
             
             const timer1 = setTimeout(() => {
+                // DOMが再描画された直後の可能性があるため、少し待ってから遷移を開始
                 content.style.transition = `transform ${2.0 + index * 0.5}s cubic-bezier(0.15, 0, 0.15, 1)`;
                 content.style.transform = `translateY(${finalY}px)`;
             }, 50);
             window._sentenceSlotTimers.push(timer1);
 
             const timer2 = setTimeout(() => {
-                wrapper.classList.remove('spinning');
+                if (wrapper) wrapper.classList.remove('spinning');
                 // ループ演出用に位置を補正（0〜totalItemsの範囲内に戻す）
                 const wrappedY = -(targetIdx * itemHeight);
-                content.style.transition = 'none';
-                content.style.transform = `translateY(${wrappedY}px)`;
+                if (content) {
+                    content.style.transition = 'none';
+                    content.style.transform = `translateY(${wrappedY}px)`;
+                }
             }, 3000 + index * 500);
             window._sentenceSlotTimers.push(timer2);
         } else {

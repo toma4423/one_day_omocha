@@ -1,3 +1,4 @@
+import html
 import json
 import time
 
@@ -71,53 +72,55 @@ except Exception as e:
 # --- スロット描画関数 ---
 def render_sentence_slot(config: SentenceSlotConfig, targets: list[str], spinning: list[bool], trigger: int):
     reels_data = []
-    for i, reel in enumerate(config.reels):
-        display_items = reel.items if reel.items else ["(空)"]
-        reels_data.append({"items": display_items, "target": str(targets[i]), "isSpinning": bool(spinning[i])})
-
-    # リール内のアイテムを文字列として結合
     reels_html = ""
     for i, reel in enumerate(config.reels):
-        items_html = "".join(
-            [f'<div class="reel-item">{item}</div>' for item in (reel.items if reel.items else ["(空)"]) * 10]
-        )
+        items = reel.items if reel.items else ["(空)"]
+        target = targets[i] if i < len(targets) else ""
+        is_spinning = spinning[i] if i < len(spinning) else False
+
+        reels_data.append({"items": items, "target": target, "isSpinning": is_spinning})
+
+        # リール内のアイテムをHTMLとして構築
+        # セキュリティと堅牢性のために html.escape() を使用
+        items_inner_html = "".join([f'<div class="reel-item">{html.escape(item)}</div>' for item in items * 10])
+
         reels_html += f"""
         <div class="reel-wrapper" id="reel-wrapper-{i}">
             <div class="reel-content">
-                {items_html}
+                {items_inner_html}
             </div>
         </div>
         """
 
-    # f-string を使用すると CSS/JS 内の { } が誤パースされるため、replace を使用する
+    # プレースホルダーを使用して安全に埋め込む
     html_template = """
-    <style> __CSS__ </style>
+    <style> __STYLE_CONTENT__ </style>
     <div id="sentence-slot-app">
         <div class="sentence-slot-container">
-            __REELS__
+            __REELS_HTML__
         </div>
     </div>
     <script>
-        __JS__
+        __JS_CONTENT__
         if (window.setupSentenceSlot) {
             window.setupSentenceSlot({
                 reels: __REELS_DATA__,
-                trigger: __TRIGGER__
+                trigger: __TRIGGER_VAL__
             });
         }
     </script>
     """
 
     full_html = (
-        html_template.replace("__CSS__", ss_css)
-        .replace("__REELS__", reels_html)
-        .replace("__JS__", ss_js)
+        html_template.replace("__STYLE_CONTENT__", ss_css)
+        .replace("__REELS_HTML__", reels_html)
+        .replace("__JS_CONTENT__", ss_js)
         .replace("__REELS_DATA__", json.dumps(reels_data, ensure_ascii=False))
-        .replace("__TRIGGER__", str(int(trigger)))
+        .replace("__TRIGGER_VAL__", json.dumps(trigger))
     )
 
-    # TypeError 回避のため、key を極めてシンプル（整数）にする
-    st.components.v1.html(full_html, height=200, key=f"ss_comp_{int(trigger)}")
+    # key は固定文字列を使用して再マウントを抑制し、JS側で演出を制御する
+    st.components.v1.html(full_html, height=200, key="ss_slot_component")
 
 
 # --- スロット操作 ---
