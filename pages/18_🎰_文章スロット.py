@@ -1,3 +1,4 @@
+import hashlib
 import json
 import time
 
@@ -71,8 +72,9 @@ except Exception as e:
 # --- スロット描画関数 ---
 def render_sentence_slot(config: SentenceSlotConfig, targets: list[str], spinning: list[bool], trigger: int):
     reels_data = []
-    # 状態の一貫性を保つため、現在の config の内容をシリアライズ
+    # 状態の一貫性を保つため、現在の config の内容をシリアライズしてハッシュ化
     config_json = config.model_dump_json()
+    config_hash = hashlib.md5(config_json.encode()).hexdigest()
 
     for i, reel in enumerate(config.reels):
         display_items = reel.items if reel.items else ["(空)"]
@@ -82,13 +84,20 @@ def render_sentence_slot(config: SentenceSlotConfig, targets: list[str], spinnin
     <style>{ss_css}</style>
     <div id="sentence-slot-app">
         <div class="sentence-slot-container">
-            {''.join([f'''
+            {
+        "".join(
+            [
+                f'''
             <div class="reel-wrapper" id="reel-wrapper-{i}">
                 <div class="reel-content">
-                    {''.join([f'<div class="reel-item">{item}</div>' for item in (reel.items if reel.items else ["(空)"]) * 10])}
+                    {"".join([f'<div class="reel-item">{item}</div>' for item in (reel.items if reel.items else ["(空)"]) * 10])}
                 </div>
             </div>
-            ''' for i, reel in enumerate(config.reels)])}
+            '''
+                for i, reel in enumerate(config.reels)
+            ]
+        )
+    }
         </div>
     </div>
     <script>
@@ -99,8 +108,8 @@ def render_sentence_slot(config: SentenceSlotConfig, targets: list[str], spinnin
         }});
     </script>
     """
-    # keyに config_json と trigger を含めることで、項目が編集された際や回転時に確実に再読み込みさせる
-    st.components.v1.html(html_template, height=200, key=f"ss_html_{hash(config_json)}_{trigger}")
+    # hashlib を使用した安定したキーを使用
+    st.components.v1.html(html_template, height=200, key=f"ss_html_{config_hash}_{trigger}")
 
 
 # --- スロット操作 ---

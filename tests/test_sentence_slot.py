@@ -1,3 +1,5 @@
+import hashlib
+
 from src.utils.sentence_slot import (
     SentenceSlotConfig,
     migrate_sentence_slot_data,
@@ -51,3 +53,13 @@ def test_sentence_slot_config_defaults():
     assert len(config.reels) == 3
     assert config.reels[0].name == "誰が"
     assert "猫が" in config.reels[0].items
+
+
+def test_config_hash_consistency():
+    """設定データのハッシュ値が一貫していることを検証します。"""
+    config = SentenceSlotConfig()
+    config_json = config.model_dump_json()
+    hash1 = hashlib.md5(config_json.encode()).hexdigest()
+    hash2 = hashlib.md5(config_json.encode()).hexdigest()
+    assert hash1 == hash2
+    assert len(hash1) == 32  # MD5 hash length
