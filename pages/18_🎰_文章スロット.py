@@ -1,4 +1,3 @@
-import hashlib
 import json
 import time
 
@@ -36,8 +35,8 @@ if "ss_config" not in st.session_state:
         st.session_state.ss_config = SentenceSlotConfig()
 
     # 演出用の状態
-    config = st.session_state.ss_config
-    st.session_state.ss_targets = [reel.items[0] if reel.items else "" for reel in config.reels]
+    config_init = st.session_state.ss_config
+    st.session_state.ss_targets = [reel.items[0] if reel.items else "" for reel in config_init.reels]
     st.session_state.ss_spinning = [False] * 3
     st.session_state.ss_trigger = 0
     st.session_state.last_saved_ss = st.session_state.ss_config.model_dump_json()
@@ -58,6 +57,8 @@ if is_dirty:
     st.warning("⚠️ 変更が保存されていません。下の「データの管理」から保存してください。")
 
 # --- アセットの読み込み ---
+ss_css = ""
+ss_js = ""
 try:
     with open("src/assets/sentence_slot/style.css", encoding="utf-8") as f:
         ss_css = f.read()
@@ -65,51 +66,50 @@ try:
         ss_js = f.read()
 except Exception as e:
     st.error(f"アセットの読み込みに失敗しました: {e}")
-    ss_css = ""
-    ss_js = ""
 
 
 # --- スロット描画関数 ---
 def render_sentence_slot(config: SentenceSlotConfig, targets: list[str], spinning: list[bool], trigger: int):
     reels_data = []
-    # 状態の一貫性を保つため、現在の config の内容をシリアライズしてハッシュ化
-    config_json = config.model_dump_json()
-    config_hash = hashlib.md5(config_json.encode()).hexdigest()
-
     for i, reel in enumerate(config.reels):
         display_items = reel.items if reel.items else ["(空)"]
-        reels_data.append({"items": display_items, "target": targets[i], "isSpinning": spinning[i]})
+        reels_data.append({"items": display_items, "target": str(targets[i]), "isSpinning": bool(spinning[i])})
+
+    # リール内のアイテムを文字列として結合
+    reels_html = ""
+    for i, reel in enumerate(config.reels):
+        items_html = "".join(
+            [f'<div class="reel-item">{item}</div>' for item in (reel.items if reel.items else ["(空)"]) * 10]
+        )
+        reels_html += f"""
+        <div class="reel-wrapper" id="reel-wrapper-{i}">
+            <div class="reel-content">
+                {items_html}
+            </div>
+        </div>
+        """
 
     html_template = f"""
     <style>{ss_css}</style>
     <div id="sentence-slot-app">
         <div class="sentence-slot-container">
-            {
-        "".join(
-            [
-                f'''
-            <div class="reel-wrapper" id="reel-wrapper-{i}">
-                <div class="reel-content">
-                    {"".join([f'<div class="reel-item">{item}</div>' for item in (reel.items if reel.items else ["(空)"]) * 10])}
-                </div>
-            </div>
-            '''
-                for i, reel in enumerate(config.reels)
-            ]
-        )
-    }
+            {reels_html}
         </div>
     </div>
     <script>
         {ss_js}
-        setupSentenceSlot({{
-            reels: {json.dumps(reels_data, ensure_ascii=False)},
-            trigger: {trigger}
-        }});
+        if (window.setupSentenceSlot) {{
+            window.setupSentenceSlot({{
+                reels: {json.dumps(reels_data, ensure_ascii=False)},
+                trigger: {int(trigger)}
+            }});
+        }}
     </script>
     """
-    # hashlib を使用した安定したキーを使用
-    st.components.v1.html(html_template, height=200, key=f"ss_html_{config_hash}_{trigger}")
+
+    # TypeError 回避のため、key を極めてシンプル（整数）にする
+    # コンテンツが変化すれば Streamlit は自動的に更新を検知する
+    st.components.v1.html(html_template, height=200, key=f"ss_comp_{int(trigger)}")
 
 
 # --- スロット操作 ---
@@ -123,6 +123,7 @@ with c_all:
         st.session_state.ss_trigger += 1
         st.rerun()
 
+# 描画実行
 render_sentence_slot(config, st.session_state.ss_targets, st.session_state.ss_spinning, st.session_state.ss_trigger)
 
 # 各リールの個別ボタン
@@ -132,14 +133,14 @@ for i, reel in enumerate(config.reels):
         if st.button(f"🔄 {reel.name}を回す", key=f"spin_{i}", use_container_width=True):
             if reel.items:
                 st.session_state.ss_targets[i] = pick_random_item(reel.items)
-                st.session_state.ss_spinning = [False] * 3  # 他を止める
+                st.session_state.ss_spinning = [False] * 3
                 st.session_state.ss_spinning[i] = True
                 st.session_state.ss_trigger += 1
                 st.rerun()
 
-# 演出終了フラグを落とす（リロード時）
+# 演出終了フラグを落とす（微小待機後にリセット）
 if any(st.session_state.ss_spinning):
-    time.sleep(0.1)  # 演出時間を考慮
+    time.sleep(0.05)
     st.session_state.ss_spinning = [False] * 3
 
 st.write("---")
@@ -152,7 +153,6 @@ for i, reel in enumerate(config.reels):
     with edit_cols[i]:
         st.markdown(f"### {reel.name}")
 
-        # 追加用
         new_item = st.text_input(
             f"新しい項目を追加 ({reel.name})",
             key=f"add_input_{i}",
@@ -164,7 +164,6 @@ for i, reel in enumerate(config.reels):
                 reel.items.append(new_item)
                 st.rerun()
 
-        # 既存項目リスト
         st.write("")
         for idx, item in enumerate(reel.items):
             ic1, ic2 = st.columns([4, 1])

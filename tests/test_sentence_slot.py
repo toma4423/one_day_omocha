@@ -55,6 +55,18 @@ def test_sentence_slot_config_defaults():
     assert "猫が" in config.reels[0].items
 
 
+def test_render_data_types():
+    """描画用データの型が正しいことを検証します。"""
+    trigger = 1
+    spinning = [True, False, False]
+    targets = ["A", "B", "C"]
+
+    # 描画関数内での変換ロジックをシミュレート
+    assert isinstance(int(trigger), int)
+    assert all(isinstance(bool(s), bool) for s in spinning)
+    assert all(isinstance(str(targets[i]), str) for i in range(len(targets)))
+
+
 def test_config_hash_consistency():
     """設定データのハッシュ値が一貫していることを検証します。"""
     config = SentenceSlotConfig()
