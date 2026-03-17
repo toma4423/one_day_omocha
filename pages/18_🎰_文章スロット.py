@@ -128,30 +128,29 @@ def spin_reel(reel_idx: int):
     update_display()
 
 
-c_all, _ = st.columns([1, 2])
-with c_all:
-    if st.button("🔥 全てまとめて回転！", use_container_width=True, type="primary"):
-        # 全て並列風に見せるために演出を工夫
-        for _s in range(10):
-            for i, reel in enumerate(config.reels):
-                if reel.items:
-                    temp = random.choice(reel.items)
-                    slot_boxes[i].markdown(
-                        f"<div class='slot-box' style='opacity: 0.5;'>{temp}</div>", unsafe_allow_html=True
-                    )
-            time.sleep(0.05)
-
-        for i, reel in enumerate(config.reels):
-            if reel.items:
-                st.session_state.ss_results[i] = pick_random_item(reel.items)
-        st.rerun()
-
 # 個別ボタン
 btn_cols = st.columns(3)
 for i, reel in enumerate(config.reels):
     if btn_cols[i].button(f"🔄 {reel.name}", key=f"spin_btn_{i}", use_container_width=True):
         spin_reel(i)
         st.rerun()
+
+# 全てまとめて回転ボタン（下部に全幅で配置）
+if st.button("🔥 全てまとめて回転！", use_container_width=True, type="primary"):
+    # 全て並列風に見せるために演出を工夫
+    for _s in range(10):
+        for i, reel in enumerate(config.reels):
+            if reel.items:
+                temp = random.choice(reel.items)
+                slot_boxes[i].markdown(
+                    f"<div class='slot-box' style='opacity: 0.5;'>{temp}</div>", unsafe_allow_html=True
+                )
+        time.sleep(0.05)
+
+    for i, reel in enumerate(config.reels):
+        if reel.items:
+            st.session_state.ss_results[i] = pick_random_item(reel.items)
+    st.rerun()
 
 st.write("---")
 
