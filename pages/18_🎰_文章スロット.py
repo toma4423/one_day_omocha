@@ -1,5 +1,4 @@
-import html
-import json
+import random
 import time
 
 import streamlit as st
@@ -25,7 +24,7 @@ st.set_page_config(page_title="文章スロット", page_icon="🎰", layout="wi
 render_page_header()
 
 storage = SafeStorage(LocalStorage())
-DATA_KEY = "sentence_slot_data_v1"
+DATA_KEY = "sentence_slot_data_v2"  # キーを更新してクリーンにする
 
 # --- 初期化とデータ復元 ---
 if "ss_config" not in st.session_state:
@@ -35,11 +34,8 @@ if "ss_config" not in st.session_state:
     else:
         st.session_state.ss_config = SentenceSlotConfig()
 
-    # 演出用の状態
     config_init = st.session_state.ss_config
-    st.session_state.ss_targets = [reel.items[0] if reel.items else "" for reel in config_init.reels]
-    st.session_state.ss_spinning = [False] * 3
-    st.session_state.ss_trigger = 0
+    st.session_state.ss_results = [reel.items[0] if reel.items else "---" for reel in config_init.reels]
     st.session_state.last_saved_ss = st.session_state.ss_config.model_dump_json()
     st.rerun()
     st.stop()
@@ -57,102 +53,105 @@ st.caption("「誰が」「何を」「どうした」を組み合わせて面�
 if is_dirty:
     st.warning("⚠️ 変更が保存されていません。下の「データの管理」から保存してください。")
 
-# --- アセットの読み込み ---
-ss_css = ""
-ss_js = ""
-try:
-    with open("src/assets/sentence_slot/style.css", encoding="utf-8") as f:
-        ss_css = f.read()
-    with open("src/assets/sentence_slot/reel.js", encoding="utf-8") as f:
-        ss_js = f.read()
-except Exception as e:
-    st.error(f"アセットの読み込みに失敗しました: {e}")
-
-
-# --- スロット描画関数 ---
-def render_sentence_slot(config: SentenceSlotConfig, targets: list[str], spinning: list[bool], trigger: int):
-    reels_data = []
-    reels_html = ""
-    for i, reel in enumerate(config.reels):
-        items = reel.items if reel.items else ["(空)"]
-        target = targets[i] if i < len(targets) else ""
-        is_spinning = spinning[i] if i < len(spinning) else False
-
-        reels_data.append({"items": items, "target": target, "isSpinning": is_spinning})
-
-        # リール内のアイテムをHTMLとして構築
-        # セキュリティと堅牢性のために html.escape() を使用
-        items_inner_html = "".join([f'<div class="reel-item">{html.escape(item)}</div>' for item in items * 10])
-
-        reels_html += f"""
-        <div class="reel-wrapper" id="reel-wrapper-{i}">
-            <div class="reel-content">
-                {items_inner_html}
-            </div>
-        </div>
-        """
-
-    # プレースホルダーを使用して安全に埋め込む
-    html_template = """
-    <style> __STYLE_CONTENT__ </style>
-    <div id="sentence-slot-app">
-        <div class="sentence-slot-container">
-            __REELS_HTML__
-        </div>
-    </div>
-    <script>
-        __JS_CONTENT__
-        if (window.setupSentenceSlot) {
-            window.setupSentenceSlot({
-                reels: __REELS_DATA__,
-                trigger: __TRIGGER_VAL__
-            });
-        }
-    </script>
+# --- スロット表示エリア ---
+# カスタムCSSで見た目を整える
+st.markdown(
     """
+<style>
+.slot-container {
+    display: flex;
+    justify-content: center;
+    gap: 15px;
+    padding: 25px;
+    background: #f8f9fa;
+    border-radius: 20px;
+    border: 2px solid #dee2e6;
+    margin-bottom: 20px;
+}
+.slot-box {
+    flex: 1;
+    background: white;
+    border: 3px solid #333;
+    border-radius: 12px;
+    height: 120px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    font-size: 1.5rem;
+    font-weight: 900;
+    color: #000;
+    padding: 10px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+}
+@media (max-width: 768px) {
+    .slot-container { flex-direction: column; }
+    .slot-box { height: 80px; font-size: 1.2rem; }
+}
+</style>
+""",
+    unsafe_allow_html=True,
+)
 
-    full_html = (
-        html_template.replace("__STYLE_CONTENT__", ss_css)
-        .replace("__REELS_HTML__", reels_html)
-        .replace("__JS_CONTENT__", ss_js)
-        .replace("__REELS_DATA__", json.dumps(reels_data, ensure_ascii=False))
-        .replace("__TRIGGER_VAL__", json.dumps(trigger))
-    )
+# プレースホルダー作成
+placeholders = st.columns(3)
+slot_boxes = [p.empty() for p in placeholders]
 
-    # key は固定文字列を使用して再マウントを抑制し、JS側で演出を制御する
-    st.components.v1.html(full_html, height=200, key="ss_slot_component")
+
+def update_display():
+    for i, box in enumerate(slot_boxes):
+        text = st.session_state.ss_results[i]
+        box.markdown(f"<div class='slot-box'>{text}</div>", unsafe_allow_html=True)
+
+
+update_display()
 
 
 # --- スロット操作 ---
+def spin_reel(reel_idx: int):
+    reel = config.reels[reel_idx]
+    if not reel.items:
+        return
+
+    # シャッフル演出（Python側で制御）
+    steps = 10
+    for _s in range(steps):
+        temp_text = random.choice(reel.items)
+        slot_boxes[reel_idx].markdown(
+            f"<div class='slot-box' style='opacity: 0.5;'>{temp_text}</div>", unsafe_allow_html=True
+        )
+        time.sleep(0.05)
+
+    # 最終結果
+    final_text = pick_random_item(reel.items)
+    st.session_state.ss_results[reel_idx] = final_text
+    update_display()
+
+
 c_all, _ = st.columns([1, 2])
 with c_all:
     if st.button("🔥 全てまとめて回転！", use_container_width=True, type="primary"):
-        for i in range(len(config.reels)):
-            if config.reels[i].items:
-                st.session_state.ss_targets[i] = pick_random_item(config.reels[i].items)
-                st.session_state.ss_spinning[i] = True
-        st.session_state.ss_trigger += 1
+        # 全て並列風に見せるために演出を工夫
+        for _s in range(10):
+            for i, reel in enumerate(config.reels):
+                if reel.items:
+                    temp = random.choice(reel.items)
+                    slot_boxes[i].markdown(
+                        f"<div class='slot-box' style='opacity: 0.5;'>{temp}</div>", unsafe_allow_html=True
+                    )
+            time.sleep(0.05)
+
+        for i, reel in enumerate(config.reels):
+            if reel.items:
+                st.session_state.ss_results[i] = pick_random_item(reel.items)
         st.rerun()
 
-# 描画実行
-render_sentence_slot(config, st.session_state.ss_targets, st.session_state.ss_spinning, st.session_state.ss_trigger)
-
-# 各リールの個別ボタン
-cols = st.columns(3)
+# 個別ボタン
+btn_cols = st.columns(3)
 for i, reel in enumerate(config.reels):
-    with cols[i]:
-        if st.button(f"🔄 {reel.name}を回す", key=f"spin_{i}", use_container_width=True):
-            if reel.items:
-                st.session_state.ss_targets[i] = pick_random_item(reel.items)
-                st.session_state.ss_spinning = [False] * 3
-                st.session_state.ss_spinning[i] = True
-                st.session_state.ss_trigger += 1
-                st.rerun()
-
-# 演出終了フラグを落とす
-if any(st.session_state.ss_spinning):
-    time.sleep(0.05)
-    st.session_state.ss_spinning = [False] * 3
+    if btn_cols[i].button(f"🔄 {reel.name}", key=f"spin_btn_{i}", use_container_width=True):
+        spin_reel(i)
+        st.rerun()
 
 st.write("---")
 
@@ -165,12 +164,9 @@ for i, reel in enumerate(config.reels):
         st.markdown(f"### {reel.name}")
 
         new_item = st.text_input(
-            f"新しい項目を追加 ({reel.name})",
-            key=f"add_input_{i}",
-            label_visibility="collapsed",
-            placeholder=f"{reel.name}...",
+            f"追加 ({reel.name})", key=f"add_in_{i}", label_visibility="collapsed", placeholder=f"{reel.name}を入力..."
         )
-        if st.button("➕ 追加", key=f"add_btn_{i}", use_container_width=True):
+        if st.button("➕ 追加", key=f"add_bt_{i}", use_container_width=True):
             if new_item and new_item not in reel.items:
                 reel.items.append(new_item)
                 st.rerun()
