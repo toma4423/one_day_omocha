@@ -2,7 +2,7 @@ window.setupSentenceSlot = function(config) {
     const container = document.getElementById('sentence-slot-app');
     if (!container) return;
 
-    // 前回のタイマーをクリア（メモリリーク防止）
+    // 前回のタイマーをクリア
     if (window._sentenceSlotTimers) {
         window._sentenceSlotTimers.forEach(clearTimeout);
     }
@@ -15,42 +15,41 @@ window.setupSentenceSlot = function(config) {
         const content = wrapper.querySelector('.reel-content');
         if (!content) return;
 
-        // アイテムの高さを取得 (CSSで120pxに固定)
         const itemHeight = 120;
+        const totalItems = reel.items.length;
+        const targetIdx = reel.items.indexOf(reel.target);
 
         // スピン演出
         if (reel.isSpinning) {
             wrapper.classList.add('spinning');
             
-            // 演出用にダミーアイテムをたくさん並べる（実際には移動距離を稼ぐだけ）
-            // 最終位置 = -(targetIndex * itemHeight)
-            // 10周分くらい回す演出
-            const totalItems = reel.items.length;
-            const targetIdx = reel.items.indexOf(reel.target);
-            const extraSpins = 3; // 何周させるか
+            // 3周以上回してからターゲットに止める
+            const extraSpins = 3;
             const finalY = -( (extraSpins * totalItems + targetIdx) * itemHeight );
 
             content.style.transition = 'none';
             content.style.transform = 'translateY(0)';
             
-            // 次のフレームでアニメーション開始
             const timer1 = setTimeout(() => {
-                content.style.transition = `transform ${1.5 + index * 0.3}s cubic-bezier(0.45, 0.05, 0.55, 0.95)`;
+                content.style.transition = `transform ${2.0 + index * 0.5}s cubic-bezier(0.15, 0, 0.15, 1)`;
                 content.style.transform = `translateY(${finalY}px)`;
             }, 50);
             window._sentenceSlotTimers.push(timer1);
 
-            // アニメーション終了後にブラーを除去
             const timer2 = setTimeout(() => {
                 wrapper.classList.remove('spinning');
-            }, 2000);
+                // ループ演出用に位置を補正（0〜totalItemsの範囲内に戻す）
+                const wrappedY = -(targetIdx * itemHeight);
+                content.style.transition = 'none';
+                content.style.transform = `translateY(${wrappedY}px)`;
+            }, 3000 + index * 500);
             window._sentenceSlotTimers.push(timer2);
         } else {
-            // 静止状態
-            const targetIdx = reel.items.indexOf(reel.target);
+            // 静止状態（即座にターゲット位置へ）
             const finalY = -(targetIdx * itemHeight);
-            content.style.transition = 'transform 0.5s ease-out';
+            content.style.transition = 'none';
             content.style.transform = `translateY(${finalY}px)`;
+            wrapper.classList.remove('spinning');
         }
     });
 };
