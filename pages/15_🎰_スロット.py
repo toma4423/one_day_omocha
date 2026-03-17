@@ -30,7 +30,7 @@ DATA_KEY = "slot_data_v5"
 # 初期化フラグ
 if "slot_config" not in st.session_state:
     saved_data = wait_for_storage_load(storage, DATA_KEY, "_slot_initialized")
-    
+
     if saved_data:
         try:
             st.session_state.slot_config = get_slot_config(saved_data.get("config"))
@@ -57,19 +57,25 @@ if "slot_config" not in st.session_state:
 
 # --- 保存状態のチェック ---
 if "last_saved_slot" not in st.session_state:
-    st.session_state.last_saved_slot = json.dumps({
+    st.session_state.last_saved_slot = json.dumps(
+        {
+            "spins": st.session_state.slot_spins,
+            "counts": st.session_state.slot_counts,
+            "history": st.session_state.slot_history,
+            "config": st.session_state.slot_config.model_dump(),
+        },
+        sort_keys=True,
+    )
+
+current_state_json = json.dumps(
+    {
         "spins": st.session_state.slot_spins,
         "counts": st.session_state.slot_counts,
         "history": st.session_state.slot_history,
-        "config": st.session_state.slot_config.model_dump()
-    }, sort_keys=True)
-
-current_state_json = json.dumps({
-    "spins": st.session_state.slot_spins,
-    "counts": st.session_state.slot_counts,
-    "history": st.session_state.slot_history,
-    "config": st.session_state.slot_config.model_dump()
-}, sort_keys=True)
+        "config": st.session_state.slot_config.model_dump(),
+    },
+    sort_keys=True,
+)
 is_dirty = st.session_state.last_saved_slot != current_state_json
 
 # セッション状態の初期化 (JS演出用など、永続化しないもの)
