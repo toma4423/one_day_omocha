@@ -7,6 +7,8 @@ from streamlit_local_storage import LocalStorage
 
 from src.utils.roulette import (
     COLOR_PRESETS,
+    RouletteConfig,
+    RouletteItem,
     apply_color_preset,
     migrate_roulette_config,
     pick_roulette_winner,
@@ -44,26 +46,32 @@ hr { margin: 15px 0 !important; border: 0; border-top: 2px solid #f0f2f6; }
     unsafe_allow_html=True,
 )
 
-# SafeStorage の初期化
 storage = SafeStorage(LocalStorage())
+DATA_KEY = "roulette_data_v5"
 
 # 設定のロード (堅牢な初期化)
 if "roulette_config" not in st.session_state:
-    saved_config = wait_for_storage_load(storage, "roulette_config", "_roulette_initialized")
-    try:
-        st.session_state.roulette_config = migrate_roulette_config(saved_config)
-    except Exception:
-        st.session_state.roulette_config = migrate_roulette_config(None)
+    saved_data = wait_for_storage_load(storage, DATA_KEY, "_roulette_initialized")
 
-    try:
-        saved_history = storage.get_item("roulette_history", is_json=True)
-        st.session_state.roulette_history = saved_history if saved_history else []
-    except Exception:
+    # データの復元
+    if saved_data:
+        try:
+            st.session_state.roulette_config = migrate_roulette_config(saved_data.get("config"))
+            st.session_state.roulette_history = saved_data.get("history", [])
+        except Exception:
+            st.session_state.roulette_config = migrate_roulette_config(None)
+            st.session_state.roulette_history = []
+    else:
+        st.session_state.roulette_config = migrate_roulette_config(None)
         st.session_state.roulette_history = []
 
     st.session_state.roulette_last_winner = None
     st.session_state.roulette_spin_trigger = 0
     st.session_state.roulette_winner_index = None
+
+    # 変更検知用のスナップショット
+    st.session_state.last_saved_config = st.session_state.roulette_config.model_dump_json()
+
     st.rerun()
     st.stop()
 
@@ -74,9 +82,8 @@ if "roulette_config" not in st.session_state:
 st.title("🎡 カスタムルーレット")
 
 # --- 保存状態のチェック ---
-if "last_saved_config" not in st.session_state:
-    st.session_state.last_saved_config = json.dumps(st.session_state.roulette_config, sort_keys=True)
-is_dirty = st.session_state.last_saved_config != json.dumps(st.session_state.roulette_config, sort_keys=True)
+config: RouletteConfig = st.session_state.roulette_config
+is_dirty = st.session_state.last_saved_config != config.model_dump_json()
 
 # --- メインエリア ---
 col_main, col_sidebar = st.columns([2, 1])
@@ -93,8 +100,8 @@ with col_main:
         wheel_css = ""
 
     # ルーレット描画用のコンポーネント
-    def render_roulette_canvas(items, sound_enabled, spin_trigger, winner_index):
-        active_items = [it for it in items if it.get("enabled", True)]
+    def render_roulette_canvas(items: list[RouletteItem], sound_enabled, spin_trigger, winner_index):
+        active_items = [it.model_dump() for it in items if it.enabled]
         items_json = json.dumps(active_items, ensure_ascii=True)
         html_template = """
         <style> __CSS__ </style>
@@ -126,22 +133,21 @@ with col_main:
         st.components.v1.html(str(full_html), height=650)
 
     render_roulette_canvas(
-        st.session_state.roulette_config["items"],
-        st.session_state.roulette_config["sound_enabled"],
+        config.items,
+        config.sound_enabled,
         st.session_state.roulette_spin_trigger,
         st.session_state.roulette_winner_index,
     )
 
     if st.button("🚀 ルーレットを回す！", use_container_width=True, type="primary"):
-        items = st.session_state.roulette_config["items"]
-        active_items = [it for it in items if it.get("enabled", True)]
+        active_items = [it for it in config.items if it.enabled]
         if not active_items:
             st.error("有効な項目がありません。")
         else:
-            winner = pick_roulette_winner(items)
+            winner = pick_roulette_winner(config.items)
             winner_idx = 0
             for i, item in enumerate(active_items):
-                if item["id"] == winner["id"]:
+                if item.id == winner.id:
                     winner_idx = i
                     break
             st.session_state.roulette_last_winner = winner
@@ -149,8 +155,8 @@ with col_main:
             st.session_state.roulette_spin_trigger += 1
             history_entry = {
                 "time": get_jst_now().strftime("%H:%M:%S"),
-                "label": str(winner["label"]),
-                "color": str(winner["color"]),
+                "label": str(winner.label),
+                "color": str(winner.color),
             }
             st.session_state.roulette_history.insert(0, history_entry)
             st.session_state.roulette_history = st.session_state.roulette_history[:50]
@@ -182,25 +188,22 @@ with col_sidebar:
         st.warning("⚠️ 設定に変更があります。「ブラウザに保存」ボタンを押してください。")
 
     with st.expander("📝 項目と重みの編集", expanded=True):
-        current_items = st.session_state.roulette_config["items"]
-
         if st.button("➕ 項目を追加", use_container_width=True):
             new_id = f"item_{int(time.time() * 1000)}"
             rand_color = f"#{random.randint(0, 0xFFFFFF):06x}"
-            current_items.append(
-                {
-                    "id": new_id,
-                    "label": f"項目 {len(current_items) + 1}",
-                    "weight": 0,
-                    "color": rand_color,
-                    "enabled": True,
-                }
+            config.items.append(
+                RouletteItem(
+                    id=new_id,
+                    label=f"項目 {len(config.items) + 1}",
+                    weight=0,
+                    color=rand_color,
+                    enabled=True,
+                )
             )
-            st.session_state.roulette_config["items"] = current_items
             st.rerun()
 
-        active_indices = [i for i, it in enumerate(current_items) if it.get("enabled", True)]
-        total_weight = sum(current_items[i]["weight"] for i in active_indices)
+        active_indices = [i for i, it in enumerate(config.items) if it.enabled]
+        total_weight = sum(config.items[i].weight for i in active_indices)
 
         if total_weight != 100:
             diff = 100 - total_weight
@@ -209,20 +212,18 @@ with col_sidebar:
                     n = len(active_indices)
                     base_change = diff // n
                     remainder = diff % n
-                    new_items = [it.copy() for it in current_items]
                     for count, idx in enumerate(active_indices):
                         adj = base_change + (1 if count < remainder else 0)
-                        new_items[idx]["weight"] = int(max(0, new_items[idx]["weight"] + adj))
-                    new_total = sum(new_items[i]["weight"] for i in active_indices)
+                        config.items[idx].weight = int(max(0, config.items[idx].weight + adj))
+                    new_total = sum(config.items[i].weight for i in active_indices)
                     if new_total != 100 and active_indices:
-                        new_items[active_indices[0]]["weight"] += 100 - new_total
-                    st.session_state.roulette_config["items"] = new_items
+                        config.items[active_indices[0].weight] += 100 - new_total
                     st.rerun()
 
         preset_options = ["(カラーテーマを選択)"] + list(COLOR_PRESETS.keys())
         selected_preset = st.selectbox("🎨 配色プリセット", preset_options)
         if selected_preset != "(カラーテーマを選択)":
-            st.session_state.roulette_config["items"] = apply_color_preset(current_items, selected_preset)
+            config.items = apply_color_preset(config.items, selected_preset)
             st.rerun()
 
         st.write("---")
@@ -233,20 +234,18 @@ with col_sidebar:
         move_down_idx = -1
         any_change = False
 
-        for idx, item in enumerate(current_items):
-            iid = item["id"]
+        for idx, item in enumerate(config.items):
+            iid = item.id
             with st.container():
                 c1, c2, c3 = st.columns([0.5, 3.5, 1.5])
                 with c1:
-                    new_enabled = st.checkbox(
-                        "E", value=item.get("enabled", True), key=f"en_{iid}", label_visibility="collapsed"
-                    )
+                    new_enabled = st.checkbox("E", value=item.enabled, key=f"en_{iid}", label_visibility="collapsed")
                 with c2:
-                    new_label = st.text_input("L", value=item["label"], key=f"lb_{iid}", label_visibility="collapsed")
+                    new_label = st.text_input("L", value=item.label, key=f"lb_{iid}", label_visibility="collapsed")
                 with c3:
                     new_weight = st.number_input(
                         "W",
-                        value=int(item["weight"]),
+                        value=int(item.weight),
                         min_value=0,
                         max_value=100,
                         key=f"wt_{iid}",
@@ -255,71 +254,67 @@ with col_sidebar:
 
                 c1, c2, c3, c4 = st.columns([1, 1, 1, 1])
                 with c1:
-                    new_color = st.color_picker("C", value=item["color"], key=f"cl_{iid}", label_visibility="collapsed")
+                    new_color = st.color_picker("C", value=item.color, key=f"cl_{iid}", label_visibility="collapsed")
                 with c2:
                     if st.button("↑", key=f"up_{iid}", use_container_width=True, disabled=(idx == 0)):
                         move_up_idx = idx
                 with c3:
                     if st.button(
-                        "↓", key=f"dn_{iid}", use_container_width=True, disabled=(idx == len(current_items) - 1)
+                        "↓", key=f"dn_{iid}", use_container_width=True, disabled=(idx == len(config.items) - 1)
                     ):
                         move_down_idx = idx
                 with c4:
                     if st.button("🗑️", key=f"dl_{iid}", use_container_width=True):
                         to_delete_id = iid
 
-                updated_item = {
-                    "id": iid,
-                    "label": new_label,
-                    "weight": new_weight,
-                    "color": new_color,
-                    "enabled": new_enabled,
-                }
+                updated_item = RouletteItem(
+                    id=iid,
+                    label=new_label,
+                    weight=new_weight,
+                    color=new_color,
+                    enabled=new_enabled,
+                )
                 new_items_list.append(updated_item)
                 if updated_item != item:
                     any_change = True
                 st.markdown("<hr style='margin: 5px 0 !important;'>", unsafe_allow_html=True)
 
         if to_delete_id:
-            st.session_state.roulette_config["items"] = [it for it in new_items_list if it["id"] != to_delete_id]
+            config.items = [it for it in new_items_list if it.id != to_delete_id]
             st.rerun()
         elif move_up_idx > 0:
             new_items_list[move_up_idx], new_items_list[move_up_idx - 1] = (
                 new_items_list[move_up_idx - 1],
                 new_items_list[move_up_idx],
             )
-            st.session_state.roulette_config["items"] = new_items_list
+            config.items = new_items_list
             st.rerun()
         elif move_down_idx >= 0 and move_down_idx < len(new_items_list) - 1:
             new_items_list[move_down_idx], new_items_list[move_down_idx + 1] = (
                 new_items_list[move_down_idx + 1],
                 new_items_list[move_down_idx],
             )
-            st.session_state.roulette_config["items"] = new_items_list
+            config.items = new_items_list
             st.rerun()
         elif any_change:
-            st.session_state.roulette_config["items"] = new_items_list
+            config.items = new_items_list
             st.rerun()
 
-    st.session_state.roulette_config["sound_enabled"] = st.toggle(
-        "🔊 効果音を有効にする", value=st.session_state.roulette_config.get("sound_enabled", True)
-    )
+    config.sound_enabled = st.toggle("🔊 効果音を有効にする", value=config.sound_enabled)
 
     def on_load_roulette(data: dict):
         st.session_state.roulette_config = migrate_roulette_config(data.get("config", data))
         if "history" in data:
             st.session_state.roulette_history = data["history"]
-        st.session_state.last_saved_config = json.dumps(st.session_state.roulette_config, sort_keys=True)
+        st.session_state.last_saved_config = st.session_state.roulette_config.model_dump_json()
 
     def on_save_roulette():
-        storage.set_item("roulette_config", st.session_state.roulette_config)
-        storage.set_item("roulette_history", st.session_state.roulette_history)
-        st.session_state.last_saved_config = json.dumps(st.session_state.roulette_config, sort_keys=True)
+        st.session_state.last_saved_config = st.session_state.roulette_config.model_dump_json()
 
     render_storage_controls(
         storage=storage,
-        storage_key="roulette_bundle",
-        current_data={"config": st.session_state.roulette_config, "history": st.session_state.roulette_history},
+        storage_key=DATA_KEY,
+        current_data={"config": config.model_dump(), "history": st.session_state.roulette_history},
         on_load_callback=on_load_roulette,
         on_save_callback=on_save_roulette,
         file_prefix="roulette_data",
