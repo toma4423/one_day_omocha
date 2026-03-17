@@ -89,27 +89,35 @@ def render_sentence_slot(config: SentenceSlotConfig, targets: list[str], spinnin
         </div>
         """
 
-    html_template = f"""
-    <style>{ss_css}</style>
+    # f-string を使用すると CSS/JS 内の { } が誤パースされるため、replace を使用する
+    html_template = """
+    <style> __CSS__ </style>
     <div id="sentence-slot-app">
         <div class="sentence-slot-container">
-            {reels_html}
+            __REELS__
         </div>
     </div>
     <script>
-        {ss_js}
-        if (window.setupSentenceSlot) {{
-            window.setupSentenceSlot({{
-                reels: {json.dumps(reels_data, ensure_ascii=False)},
-                trigger: {int(trigger)}
-            }});
-        }}
+        __JS__
+        if (window.setupSentenceSlot) {
+            window.setupSentenceSlot({
+                reels: __REELS_DATA__,
+                trigger: __TRIGGER__
+            });
+        }
     </script>
     """
 
+    full_html = (
+        html_template.replace("__CSS__", ss_css)
+        .replace("__REELS__", reels_html)
+        .replace("__JS__", ss_js)
+        .replace("__REELS_DATA__", json.dumps(reels_data, ensure_ascii=False))
+        .replace("__TRIGGER__", str(int(trigger)))
+    )
+
     # TypeError 回避のため、key を極めてシンプル（整数）にする
-    # コンテンツが変化すれば Streamlit は自動的に更新を検知する
-    st.components.v1.html(html_template, height=200, key=f"ss_comp_{int(trigger)}")
+    st.components.v1.html(full_html, height=200, key=f"ss_comp_{int(trigger)}")
 
 
 # --- スロット操作 ---
@@ -138,7 +146,7 @@ for i, reel in enumerate(config.reels):
                 st.session_state.ss_trigger += 1
                 st.rerun()
 
-# 演出終了フラグを落とす（微小待機後にリセット）
+# 演出終了フラグを落とす
 if any(st.session_state.ss_spinning):
     time.sleep(0.05)
     st.session_state.ss_spinning = [False] * 3
