@@ -29,14 +29,19 @@ render_page_header()
 
 # SafeStorage の初期化
 storage = SafeStorage(LocalStorage())
+DATA_KEY = "slot_config_v2"
 
 # 設定のロード (堅牢な初期化)
 if "slot_config_edit" not in st.session_state:
-    saved_config = wait_for_storage_load(storage, "slot_config", "_slot_creation_initialized")
+    saved_config = wait_for_storage_load(storage, DATA_KEY, "_slot_creation_initialized")
     try:
         st.session_state.slot_config_edit = get_slot_config(saved_config)
     except Exception:
         st.session_state.slot_config_edit = get_slot_config(None)
+
+    # 変更検知用のスナップショット
+    st.session_state.last_saved_slot_config = st.session_state.slot_config_edit.model_dump_json()
+
     st.rerun()
     st.stop()
 
@@ -45,6 +50,7 @@ if "slot_config_edit" not in st.session_state:
     st.stop()
 
 config: SlotConfig = st.session_state.slot_config_edit
+is_dirty = st.session_state.last_saved_slot_config != config.model_dump_json()
 
 st.title("⚙️ スロットカスタマイズ [β]")
 
@@ -272,6 +278,7 @@ def on_load(data: Any) -> None:
         st.session_state.slot_config_edit = new_config
         # 読み込み時は即座に反映
         st.session_state.slot_config = new_config
+        st.session_state.last_saved_slot_config = new_config.model_dump_json()
     else:
         st.error(msg)
 
@@ -281,12 +288,13 @@ def on_save() -> None:
         st.error("名前を入力してください")
     else:
         st.session_state.slot_config = config
+        st.session_state.last_saved_slot_config = config.model_dump_json()
         st.balloons()
 
 
 render_storage_controls(
     storage=storage,
-    storage_key="slot_config",
+    storage_key=DATA_KEY,
     current_data=config,
     on_load_callback=on_load,
     on_save_callback=on_save,
@@ -303,6 +311,10 @@ if st.button("🚨 デフォルトに戻す", use_container_width=True):
 # サイドバー
 with st.sidebar:
     st.header("⚙️ 管理")
+
+    if is_dirty:
+        st.warning("⚠️ 変更が保存されていません。パネルから保存してください。")
+
     st.info("設定はメインエリアの『データの管理』パネルから行えます。")
 
 render_donation_box("https://qr.paypay.ne.jp/p2p01_jsHjvMAenqfvI10s", is_sidebar=True)

@@ -1,3 +1,5 @@
+import json
+
 import streamlit as st
 from streamlit_local_storage import LocalStorage
 
@@ -24,20 +26,29 @@ render_page_header()
 
 # SafeStorage の初期化
 storage = SafeStorage(LocalStorage())
+DATA_KEY = "parallel_counters_v3"
 
 # セッション状態の初期化
 if "parallel_counters" not in st.session_state:
-    saved_data = wait_for_storage_load(storage, "parallel_counters_v2", "_pc_initialized")
+    saved_data = wait_for_storage_load(storage, DATA_KEY, "_pc_initialized")
     try:
         st.session_state.parallel_counters = migrate_parallel_counter_data(saved_data)
     except Exception:
         st.session_state.parallel_counters = []
+
+    # 変更検知用のスナップショット
+    snap_data = [c.model_dump() for c in st.session_state.parallel_counters]
+    st.session_state.last_saved_parallel_counters = json.dumps(snap_data, ensure_ascii=False)
+
     st.rerun()
     st.stop()
 
 # 二重の安全策: 初期化が完了していない場合はここで停止
 if "parallel_counters" not in st.session_state:
     st.stop()
+
+current_state = [c.model_dump() for c in st.session_state.parallel_counters]
+is_dirty = st.session_state.last_saved_parallel_counters != json.dumps(current_state, ensure_ascii=False)
 
 if "last_updated_id" not in st.session_state:
     st.session_state.last_updated_id = None
@@ -132,21 +143,29 @@ else:
 # データの管理
 def on_load(data):
     st.session_state.parallel_counters = migrate_parallel_counter_data(data)
+    st.session_state.last_saved_parallel_counters = json.dumps(data, ensure_ascii=False)
 
 
-current_data = [c.model_dump() for c in st.session_state.parallel_counters]
+def on_save():
+    st.session_state.last_saved_parallel_counters = json.dumps(current_state, ensure_ascii=False)
+
 
 render_storage_controls(
     storage=storage,
-    storage_key="parallel_counters_v2",
-    current_data=current_data,
+    storage_key=DATA_KEY,
+    current_data=current_state,
     on_load_callback=on_load,
+    on_save_callback=on_save,
     file_prefix="parallel_counters",
 )
 
 # --- サイドバー ---
 with st.sidebar:
     st.header("⚙️ 一括操作")
+
+    if is_dirty:
+        st.warning("⚠️ 変更が保存されていません。")
+
     if st.button("🔄 すべてリセット", use_container_width=True):
         for item in st.session_state.parallel_counters:
             item.value = 0

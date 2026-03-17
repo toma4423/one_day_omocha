@@ -15,6 +15,7 @@ from src.utils.styles import (
     render_donation_box,
     render_page_header,
     render_storage_controls,
+    wait_for_storage_load,
 )
 from src.utils.time import get_jst_now
 
@@ -23,37 +24,53 @@ st.set_page_config(page_title="スロット", page_icon="🎰", layout="wide")
 # グローバルスタイルの適用
 render_page_header()
 
-# SafeStorage の初期化
 storage = SafeStorage(LocalStorage())
+DATA_KEY = "slot_data_v5"
 
 # 初期化フラグ
-if "_slot_initialized" not in st.session_state:
-    # 複数のデータを一度にロードするため、個別に wait_for_storage_load を呼ぶのではなく、
-    # 準備ができるまで一括して待つ
-    config_raw = storage.get_item("slot_config", is_json=True)
-    history_raw = storage.get_item("slot_history", is_json=True)
-    spins_raw = storage.get_item("slot_spins", is_json=False)
-    counts_raw = storage.get_item("slot_counts", is_json=True)
-
-    # 全てが None でないことを確認（LocalStorageコンポーネントの準備完了を待つ）
-    # ※ 履歴などが空リスト[]の場合は None ではないので OK
-    if config_raw is not None:
-        st.session_state.slot_config = get_slot_config(config_raw)
-        st.session_state.slot_history = history_raw if history_raw else []
-        st.session_state.slot_spins = int(spins_raw) if spins_raw is not None else 0
-        st.session_state.slot_counts = counts_raw if counts_raw else {}
-        st.session_state._slot_initialized = True
-        st.rerun()
-    else:
-        st.info("データを読み込み中...")
-        if st.button("読み込みをスキップして開始"):
+if "slot_config" not in st.session_state:
+    saved_data = wait_for_storage_load(storage, DATA_KEY, "_slot_initialized")
+    
+    if saved_data:
+        try:
+            st.session_state.slot_config = get_slot_config(saved_data.get("config"))
+            st.session_state.slot_history = saved_data.get("history", [])
+            st.session_state.slot_spins = int(saved_data.get("spins", 0))
+            st.session_state.slot_counts = saved_data.get("counts", {})
+        except Exception:
             st.session_state.slot_config = get_slot_config(None)
             st.session_state.slot_history = []
             st.session_state.slot_spins = 0
             st.session_state.slot_counts = {}
-            st.session_state._slot_initialized = True
-            st.rerun()
-        st.stop()
+    else:
+        st.session_state.slot_config = get_slot_config(None)
+        st.session_state.slot_history = []
+        st.session_state.slot_spins = 0
+        st.session_state.slot_counts = {}
+
+    st.rerun()
+    st.stop()
+
+# 二重の安全策: 初期化が完了していない場合はここで停止
+if "slot_config" not in st.session_state:
+    st.stop()
+
+# --- 保存状態のチェック ---
+if "last_saved_slot" not in st.session_state:
+    st.session_state.last_saved_slot = json.dumps({
+        "spins": st.session_state.slot_spins,
+        "counts": st.session_state.slot_counts,
+        "history": st.session_state.slot_history,
+        "config": st.session_state.slot_config.model_dump()
+    }, sort_keys=True)
+
+current_state_json = json.dumps({
+    "spins": st.session_state.slot_spins,
+    "counts": st.session_state.slot_counts,
+    "history": st.session_state.slot_history,
+    "config": st.session_state.slot_config.model_dump()
+}, sort_keys=True)
+is_dirty = st.session_state.last_saved_slot != current_state_json
 
 # セッション状態の初期化 (JS演出用など、永続化しないもの)
 if "slot_reels" not in st.session_state:
@@ -211,56 +228,47 @@ with tab2:
 # サイドバー
 with st.sidebar:
     st.header("⚙️ 管理")
+    if is_dirty:
+        st.warning("⚠️ 変更が保存されていません。")
+
     st.session_state.slot_sound_enabled = st.toggle(
         "🔊 サウンドを有効にする", value=st.session_state.slot_sound_enabled
     )
 
-    st.write("---")
-    st.subheader("💾 進行状況の保存")
-    if st.button("💾 ブラウザに現在の状態を保存", use_container_width=True, type="primary"):
-        storage.set_item("slot_spins", st.session_state.slot_spins)
-        storage.set_item("slot_counts", st.session_state.slot_counts)
-        storage.set_item("slot_history", st.session_state.slot_history)
-        storage.set_item("slot_config", config.model_dump())
-        st.success("ブラウザに保存しました！")
-        st.toast("進行状況を保存しました 💾")
+    def on_load_state(data: dict):
+        if "config" in data:
+            st.session_state.slot_config = get_slot_config(data["config"])
+        if "spins" in data:
+            st.session_state.slot_spins = data["spins"]
+        if "counts" in data:
+            st.session_state.slot_counts = data["counts"]
+        if "history" in data:
+            st.session_state.slot_history = data["history"]
+        # 保存スナップショットも更新
+        st.session_state.last_saved_slot = json.dumps(data, sort_keys=True)
 
-    with st.expander("📁 データの管理 (JSON)"):
-        # スロットページは複数のキーがあるため、辞書にまとめて扱う
-        current_state = {
-            "spins": st.session_state.slot_spins,
-            "counts": st.session_state.slot_counts,
-            "history": st.session_state.slot_history,
-            "config": config.model_dump(),
-        }
+    def on_save_state():
+        # 保存完了時にスナップショットを更新して警告を消す
+        st.session_state.last_saved_slot = current_state_json
 
-        def on_load_state(data: dict):
-            if "spins" in data:
-                st.session_state.slot_spins = data["spins"]
-            if "counts" in data:
-                st.session_state.slot_counts = data["counts"]
-            if "history" in data:
-                st.session_state.slot_history = data["history"]
-            if "config" in data:
-                st.session_state.slot_config = get_slot_config(data["config"])
+    current_state = {
+        "spins": st.session_state.slot_spins,
+        "counts": st.session_state.slot_counts,
+        "history": st.session_state.slot_history,
+        "config": config.model_dump(),
+    }
 
-        def on_save_state():
-            storage.set_item("slot_spins", st.session_state.slot_spins)
-            storage.set_item("slot_counts", st.session_state.slot_counts)
-            storage.set_item("slot_history", st.session_state.slot_history)
-            storage.set_item("slot_config", config.model_dump())
-
-        render_storage_controls(
-            storage=storage,
-            storage_key="slot_game_data_bundle",  # 実際には一括保存はしないが、キーが必要なので指定
-            current_data=current_state,
-            on_load_callback=on_load_state,
-            on_save_callback=on_save_state,
-            file_prefix="slot_game_data",
-        )
+    render_storage_controls(
+        storage=storage,
+        storage_key=DATA_KEY,
+        current_data=current_state,
+        on_load_callback=on_load_state,
+        on_save_callback=on_save_state,
+        file_prefix="slot_game_data",
+    )
 
     st.write("---")
-    if st.button("🚨 統計をリセット"):
+    if st.button("🚨 統計をリセット", use_container_width=True):
         st.session_state.slot_spins = 0
         st.session_state.slot_counts = {}
         st.session_state.slot_history = []

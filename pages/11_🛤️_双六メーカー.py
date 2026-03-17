@@ -1,3 +1,5 @@
+import json
+
 import streamlit as st
 from streamlit_local_storage import LocalStorage
 
@@ -22,10 +24,11 @@ st.title("🛤️ 双六メーカー")
 
 # SafeStorage の初期化
 storage = SafeStorage(LocalStorage())
+DATA_KEY = "sugoroku_data_v3"
 
 # セッション状態の初期化
 if "sugoroku_board" not in st.session_state:
-    saved_data = wait_for_storage_load(storage, "sugoroku_data_v2", "_sugoroku_initialized")
+    saved_data = wait_for_storage_load(storage, DATA_KEY, "_sugoroku_initialized")
     if saved_data:
         try:
             if "board" in saved_data:
@@ -39,6 +42,14 @@ if "sugoroku_board" not in st.session_state:
     else:
         st.session_state.sugoroku_board = create_board(10, False)
         st.session_state.current_pos = 0
+
+    # 変更検知用のスナップショット
+    snap_data = {
+        "board": st.session_state.sugoroku_board.model_dump(),
+        "current_pos": st.session_state.current_pos,
+    }
+    st.session_state.last_saved_sugoroku = json.dumps(snap_data, ensure_ascii=False)
+
     st.rerun()
     st.stop()
 
@@ -47,10 +58,15 @@ if "sugoroku_board" not in st.session_state:
     st.stop()
 
 board: SugorokuBoard = st.session_state.sugoroku_board
+current_state = {"board": board.model_dump(), "current_pos": st.session_state.current_pos}
+is_dirty = st.session_state.last_saved_sugoroku != json.dumps(current_state, ensure_ascii=False)
 
 # 盤面の設定（サイドバー）
 with st.sidebar:
     st.header("⚙️ 設定")
+
+    if is_dirty:
+        st.warning("⚠️ 変更が保存されていません。")
 
     board_type_labels = ["スタートからゴール", "循環型（ループ）"]
     current_type_idx = 1 if board.is_loop else 0
@@ -153,15 +169,19 @@ def on_load(data):
         st.session_state.sugoroku_board = SugorokuBoard(**data["board"])
     if "current_pos" in data:
         st.session_state.current_pos = data["current_pos"]
+    st.session_state.last_saved_sugoroku = json.dumps(data, ensure_ascii=False)
 
 
-current_data = {"board": st.session_state.sugoroku_board.model_dump(), "current_pos": st.session_state.current_pos}
+def on_save():
+    st.session_state.last_saved_sugoroku = json.dumps(current_state, ensure_ascii=False)
+
 
 render_storage_controls(
     storage=storage,
-    storage_key="sugoroku_data_v2",
-    current_data=current_data,
+    storage_key=DATA_KEY,
+    current_data=current_state,
     on_load_callback=on_load,
+    on_save_callback=on_save,
     file_prefix="sugoroku",
 )
 
