@@ -1,4 +1,4 @@
-import base64
+import json
 import random
 from typing import Any
 
@@ -32,48 +32,65 @@ class Minesweeper3DState(BaseModel):
     def total_cells(self) -> int:
         return self.width * self.height * self.depth
 
-    def _get_index(self, x: int, y: int, z: int) -> int:
-        if not (0 <= x < self.width and 0 <= y < self.height and 0 <= z < self.depth):
-            return -1
-        return x + (y * self.width) + (z * self.width * self.height)
-
     def get_cell(self, x: int, y: int, z: int) -> Minesweeper3DCell | None:
-        idx = self._get_index(x, y, z)
-        if idx == -1 or idx >= len(self.cell_list):
+        if not (0 <= x < self.width and 0 <= y < self.height and 0 <= z < self.depth):
             return None
-        return self.cell_list[idx]
+        idx = x + (y * self.width) + (z * self.width * self.height)
+        if 0 <= idx < len(self.cell_list):
+            return self.cell_list[idx]
+        return None
+
+    def to_compact_data(self) -> dict[str, Any]:
+        """
+        JS側に渡すデータを極限まで軽量化した辞書形式。
+        """
+        # セルデータを [状態, 周囲の地雷数] のペアのフラットリストに変換
+        # 状態: 0=未開封, 1=開封済, 2=フラグ, 3=地雷(開封)
+        flat_cells = []
+        for c in self.cell_list:
+            status = 0
+            if c.opened:
+                status = 3 if c.is_mine else 1
+            elif c.flagged:
+                status = 2
+            flat_cells.extend([status, c.neighbor_mines])
+
+        return {
+            "w": self.width,
+            "h": self.height,
+            "d": self.depth,
+            "m": self.total_mines,
+            "go": self.game_over,
+            "wn": self.won,
+            "c": flat_cells,
+        }
 
     def generate_safe_html(self, css: str, js: str) -> str:
         """
-        TypeError を物理的に回避するための Base64 方式 HTML 生成。
-        JSON データを Base64 化することで、Streamlit の通信レイヤーでの干渉を完全に防ぎます。
+        TypeError を完全に排除するための最終安定版 HTML 生成。
         """
-        # JSON化してから Base64 エンコード
-        state_json = self.model_dump_json()
-        b64_data = base64.b64encode(state_json.encode("utf-8")).decode("utf-8")
+        # コンパクトなデータを JSON 化
+        data_json = json.dumps(self.to_compact_data())
 
-        # テンプレート（f-stringを使わず結合することで安全性を最大化）
-        parts = [
+        # テンプレート
+        # f-string を避け、単純な連結で構築。波括弧のパースエラーを完全に防ぐ。
+        html_parts = [
             '<!DOCTYPE html><html><head><meta charset="utf-8"><style>',
-            css,
-            '</style></head><body style="margin:0;padding:0;overflow:hidden;">',
+            css.replace("\n", ""),
+            '</style></head><body style="margin:0;padding:0;overflow:hidden;background:#111;">',
             '<div id="m3d-container" style="width:100vw;height:100vh;"></div>',
-            '<script id="m3d-data-b64" type="text/plain">',
-            b64_data,
+            '<script id="m3d-data" type="application/json">',
+            data_json,
             "</script>",
             '<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>',
             '<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>',
             "<script>",
-            '(function(){window.Streamlit={setComponentValue:function(v){window.parent.postMessage({type:"streamlit:setComponentValue",value:v},"*");}};})();',
+            'window.Streamlit={setComponentValue:function(v){window.parent.postMessage({type:"streamlit:setComponentValue",value:v},"*");}};',
             js,
-            "try {",
-            'const b64 = document.getElementById("m3d-data-b64").textContent;',
-            "const data = JSON.parse(decodeURIComponent(escape(window.atob(b64))));",
-            "if(window.initMinesweeper3D) window.initMinesweeper3D(data);",
-            '} catch(e) { console.error("M3D Load Error:", e); }',
+            'try{const d=JSON.parse(document.getElementById("m3d-data").textContent);if(window.initMinesweeper3D)window.initMinesweeper3D(d);}catch(e){console.error(e);}',
             "</script></body></html>",
         ]
-        return "".join(parts)
+        return "".join(html_parts)
 
 
 def create_minesweeper_3d(width: int, height: int, depth: int, mines: int) -> Minesweeper3DState:

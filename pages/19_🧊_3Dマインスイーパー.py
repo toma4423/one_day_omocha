@@ -23,7 +23,7 @@ st.set_page_config(page_title="3Dマインスイーパー", page_icon="🧊", la
 render_page_header()
 
 storage = SafeStorage(LocalStorage())
-DATA_KEY = "m3d_data_v1"
+DATA_KEY = "m3d_data_v2"  # キーを更新
 
 # --- 初期化とデータ復元 ---
 if "m3d_state" not in st.session_state:
@@ -36,7 +36,6 @@ if "m3d_state" not in st.session_state:
     st.rerun()
     st.stop()
 
-# 二重の安全策
 if "m3d_state" not in st.session_state or st.session_state.m3d_state is None:
     st.stop()
 
@@ -48,11 +47,11 @@ st.caption("マウスで回転・スクロールでズーム。左クリック�
 # --- ゲーム状態の表示 ---
 col_info1, col_info2, col_info3 = st.columns(3)
 with col_info1:
-    st.metric("地雷数", state.total_mines)
+    st.metric("地雷数", int(state.total_mines))
 with col_info2:
     opened_count = sum(1 for c in state.cell_list if c.opened and not c.is_mine)
     safe_count = state.total_cells - state.total_mines
-    st.metric("進行度", f"{opened_count} / {safe_count}")
+    st.metric("進行度", f"{int(opened_count)} / {int(safe_count)}")
 with col_info3:
     if state.game_over:
         st.error("💥 GAME OVER!")
@@ -72,11 +71,12 @@ try:
 except Exception as e:
     st.error(f"アセットの読み込みに失敗しました: {e}")
 
-# コアロジック側で安全にHTMLを生成
-full_html = state.generate_safe_html(m3d_css, m3d_js)
+# コアロジック側で安全にHTMLを生成 (超軽量フラット配列方式)
+# 確実に str であることを保証
+full_html = str(state.generate_safe_html(m3d_css, m3d_js))
 
-# key は固定文字列を使用して安定させる
-st.components.v1.html(full_html, height=600, key="m3d_canvas_final")
+# key は一意かつシンプルな文字列。型エラーを防ぐため明示的に str キャスト
+st.components.v1.html(full_html, height=600, key="m3d_canvas_v2_stable")
 
 # --- 補助UI: 直接座標指定で開く ---
 with st.expander("🛠️ 手動操作・設定"):
@@ -110,7 +110,7 @@ with st.expander("🛠️ 手動操作・設定"):
         nm = st.number_input("地雷数", 1, 100, 10)
 
     if st.button("ゲームをリセットして開始", use_container_width=True, type="primary"):
-        st.session_state.m3d_state = create_minesweeper_3d(nw, nh, nd, nm)
+        st.session_state.m3d_state = create_minesweeper_3d(int(nw), int(nh), int(nd), int(nm))
         st.rerun()
 
 
