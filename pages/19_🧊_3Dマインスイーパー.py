@@ -6,6 +6,7 @@ from src.utils.minesweeper_3d import (
     create_minesweeper_3d,
     migrate_minesweeper_3d_data,
     open_cell_3d,
+    toggle_flag_3d,
 )
 from src.utils.storage import SafeStorage
 from src.utils.styles import (
@@ -32,7 +33,6 @@ if "m3d_state" not in st.session_state:
     else:
         st.session_state.m3d_state = create_minesweeper_3d(5, 5, 5, 10)
 
-    st.session_state.m3d_last_action_id = None
     st.rerun()
     st.stop()
 
@@ -62,6 +62,8 @@ with col_info3:
         st.info("🎮 プレイ中...")
 
 # --- 3D描画コンポーネント ---
+m3d_css = ""
+m3d_js = ""
 try:
     with open("src/assets/minesweeper_3d/style.css", encoding="utf-8") as f:
         m3d_css = f.read()
@@ -69,54 +71,12 @@ try:
         m3d_js = f.read()
 except Exception as e:
     st.error(f"アセットの読み込みに失敗しました: {e}")
-    m3d_css = ""
-    m3d_js = ""
 
-# JS側に渡すデータを準備
-state_json = state.model_dump_json()
-
-# f-string を使用すると CSS/JS 内の { } が Python の変数展開と衝突して TypeError になるため、
-# 通常の文字列として定義し replace で埋め込む。
-html_template = """
-<style> __M3D_CSS__ </style>
-<div id="m3d-container">
-    <div id="m3d-info">3D View: Orbit Enabled</div>
-</div>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
-<script>
-    __M3D_JS__
-    
-    // Streamlit 連携用
-    (function() {
-        const sendToStreamlit = (value) => {
-            const event = new CustomEvent("streamlit:setComponentValue", { detail: value });
-            window.parent.dispatchEvent(event);
-        };
-        
-        window.Streamlit = {
-            setComponentValue: function(value) {
-                const message = {
-                    type: "streamlit:setComponentValue",
-                    value: value
-                };
-                window.parent.postMessage(message, "*");
-            }
-        };
-    })();
-
-    if (window.initMinesweeper3D) {
-        window.initMinesweeper3D(__STATE_JSON__);
-    }
-</script>
-"""
-
-full_html = (
-    html_template.replace("__M3D_CSS__", m3d_css).replace("__M3D_JS__", m3d_js).replace("__STATE_JSON__", state_json)
-)
+# コアロジック側で安全にHTMLを生成
+full_html = state.generate_safe_html(m3d_css, m3d_js)
 
 # key は固定文字列を使用して安定させる
-st.components.v1.html(full_html, height=600, key="m3d_canvas_fixed")
+st.components.v1.html(full_html, height=600, key="m3d_canvas_final")
 
 # --- 補助UI: 直接座標指定で開く ---
 with st.expander("🛠️ 手動操作・設定"):
@@ -129,8 +89,12 @@ with st.expander("🛠️ 手動操作・設定"):
         iz = st.number_input("Z", 0, state.depth - 1, 0)
     with c4:
         st.write("")
-        if st.button("指定したマスを開く", use_container_width=True):
+        cc1, cc2 = st.columns(2)
+        if cc1.button("開く", use_container_width=True):
             st.session_state.m3d_state = open_cell_3d(state, ix, iy, iz)
+            st.rerun()
+        if cc2.button("フラグ", use_container_width=True):
+            st.session_state.m3d_state = toggle_flag_3d(state, ix, iy, iz)
             st.rerun()
 
     st.write("---")
@@ -150,7 +114,7 @@ with st.expander("🛠️ 手動操作・設定"):
         st.rerun()
 
 
-# --- データの管理 ---
+# --- データの保存 ---
 def on_save():
     pass
 

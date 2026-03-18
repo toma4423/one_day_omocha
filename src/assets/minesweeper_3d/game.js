@@ -3,22 +3,26 @@
  */
 
 window.initMinesweeper3D = function(config) {
+    console.log("Initializing 3D Minesweeper...");
     const container = document.getElementById('m3d-container');
-    if (!container) return;
+    if (!container) {
+        console.error("Container not found");
+        return;
+    }
 
-    // 前回のレンダラーがあれば削除
+    // 既存のコンテンツをクリア
     while (container.firstChild) {
         container.removeChild(container.firstChild);
     }
 
-    const width = container.clientWidth;
-    const height = container.clientHeight;
+    const width = container.clientWidth || 800;
+    const height = container.clientHeight || 600;
 
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x111111);
 
     const camera = new THREE.PerspectiveCamera(75, width / height, 0.1, 1000);
-    camera.position.set(config.width, config.height, config.depth * 2);
+    camera.position.set(config.width, config.height, config.depth * 1.5);
 
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(width, height);
@@ -35,7 +39,7 @@ window.initMinesweeper3D = function(config) {
     scene.add(directionalLight);
 
     const cubes = [];
-    const geometry = new THREE.BoxGeometry(0.9, 0.9, 0.9);
+    const geometry = new THREE.BoxGeometry(0.85, 0.85, 0.85);
 
     // グリッド生成
     Object.values(config.cells).forEach(cell => {
@@ -50,7 +54,7 @@ window.initMinesweeper3D = function(config) {
             material = new THREE.MeshPhongMaterial({
                 color: cell.flagged ? 0xffff00 : 0xcccccc,
                 transparent: true,
-                opacity: 0.8
+                opacity: 0.7
             });
         } else if (cell.is_mine) {
             // 地雷
@@ -60,12 +64,11 @@ window.initMinesweeper3D = function(config) {
             material = new THREE.MeshPhongMaterial({
                 color: 0x444444,
                 transparent: true,
-                opacity: 0.3
+                opacity: 0.2
             });
         }
 
         const cube = new THREE.Mesh(geometry, material);
-        // 中心を (0,0,0) に持ってくるためのオフセット
         cube.position.set(
             cell.x - (config.width - 1) / 2,
             cell.y - (config.height - 1) / 2,
@@ -76,16 +79,17 @@ window.initMinesweeper3D = function(config) {
         scene.add(cube);
         cubes.push(cube);
 
-        // 数字の表示 (Spriteを使用)
+        // 数字の表示
         if (cell.opened && !cell.is_mine && cell.neighbor_mines > 0) {
             const canvas = document.createElement('canvas');
             const ctx = canvas.getContext('2d');
-            canvas.width = 64;
-            canvas.height = 64;
+            canvas.width = 128;
+            canvas.height = 128;
             ctx.fillStyle = 'white';
-            ctx.font = 'Bold 48px Arial';
+            ctx.font = 'Bold 80px Arial';
             ctx.textAlign = 'center';
-            ctx.fillText(cell.neighbor_mines, 32, 48);
+            ctx.textBaseline = 'middle';
+            ctx.fillText(cell.neighbor_mines, 64, 64);
             
             const texture = new THREE.CanvasTexture(canvas);
             const spriteMaterial = new THREE.SpriteMaterial({ map: texture });
@@ -96,11 +100,12 @@ window.initMinesweeper3D = function(config) {
         }
     });
 
-    // クリック判定 (Raycaster)
+    // クリック判定
     const raycaster = new THREE.Raycaster();
     const mouse = new THREE.Vector2();
 
     const onMouseClick = (event) => {
+        event.preventDefault();
         const rect = renderer.domElement.getBoundingClientRect();
         mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
         mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
@@ -110,12 +115,9 @@ window.initMinesweeper3D = function(config) {
 
         if (intersects.length > 0) {
             const target = intersects[0].object.userData;
-            // Python側に通知するためのカスタムイベント
-            const action = event.button === 2 || event.ctrlKey ? 'flag' : 'open';
+            const action = (event.button === 2 || event.ctrlKey) ? 'flag' : 'open';
             
-            // Streamlit 連携用に hidden input や query params を使う代わりに、
-            // Streamlit コンポーネントの返り値として機能させるための仕組みが必要。
-            // ここでは簡易的に、window オブジェクト経由で値を渡す。
+            console.log("Action selected:", action, target);
             if (window.Streamlit) {
                 window.Streamlit.setComponentValue({
                     action: action,
@@ -129,7 +131,6 @@ window.initMinesweeper3D = function(config) {
     };
 
     renderer.domElement.addEventListener('mousedown', onMouseClick);
-    // 右クリックメニューを禁止
     renderer.domElement.addEventListener('contextmenu', (e) => e.preventDefault());
 
     function animate() {
@@ -139,7 +140,6 @@ window.initMinesweeper3D = function(config) {
     }
     animate();
 
-    // リサイズ対応
     window.addEventListener('resize', () => {
         const w = container.clientWidth;
         const h = container.clientHeight;

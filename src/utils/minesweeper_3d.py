@@ -37,6 +37,65 @@ class Minesweeper3DState(BaseModel):
     def get_cell(self, x: int, y: int, z: int) -> Minesweeper3DCell | None:
         return self.cells.get(self.get_cell_key(x, y, z))
 
+    def generate_safe_html(self, css: str, js: str) -> str:
+        """
+        Streamlit の TypeError を回避するための堅牢な HTML 生成。
+        JSON データを Script タグに隔離し、テンプレート置換による波括弧の衝突を防ぎます。
+        """
+        state_json = self.model_dump_json()
+
+        # テンプレート
+        template = """
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style> __CSS__ </style>
+</head>
+<body style="margin: 0; padding: 0;">
+    <div id="m3d-container">
+        <div id="m3d-info">3D View: Orbit Enabled</div>
+    </div>
+    
+    <!-- データを Script タグに隔離してエスケープ問題を回避 -->
+    <script id="m3d-data" type="application/json">
+        __JSON_DATA__
+    </script>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script>
+        // Streamlit 連携用
+        (function() {
+            window.Streamlit = {
+                setComponentValue: function(value) {
+                    const message = {
+                        type: "streamlit:setComponentValue",
+                        value: value
+                    };
+                    window.parent.postMessage(message, "*");
+                }
+            };
+        })();
+
+        // メインロジック
+        __JS__
+
+        try {
+            const dataElement = document.getElementById('m3d-data');
+            if (dataElement && window.initMinesweeper3D) {
+                const config = JSON.parse(dataElement.textContent);
+                window.initMinesweeper3D(config);
+            }
+        } catch (e) {
+            console.error("Initialization Error:", e);
+        }
+    </script>
+</body>
+</html>
+"""
+        return template.replace("__CSS__", css).replace("__JS__", js).replace("__JSON_DATA__", state_json)
+
 
 def create_minesweeper_3d(width: int, height: int, depth: int, mines: int) -> Minesweeper3DState:
     """3Dマインスイーパーの初期状態を生成します。"""
