@@ -33,6 +33,14 @@ if "m3d_state" not in st.session_state:
     else:
         st.session_state.m3d_state = create_minesweeper_3d(5, 5, 5, 10)
 
+    # ウィジェットのキーを事前に初期化 (AttributeError防止)
+    if "op_x" not in st.session_state:
+        st.session_state.op_x = 0
+    if "op_y" not in st.session_state:
+        st.session_state.op_y = 0
+    if "op_z" not in st.session_state:
+        st.session_state.op_z = 0
+
     st.session_state.m3d_z_range = (0, 4)
     st.rerun()
     st.stop()
