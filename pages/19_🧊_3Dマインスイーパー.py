@@ -50,7 +50,7 @@ col_info1, col_info2, col_info3 = st.columns(3)
 with col_info1:
     st.metric("地雷数", state.total_mines)
 with col_info2:
-    opened_count = sum(1 for c in state.cells.values() if c.opened and not c.is_mine)
+    opened_count = sum(1 for c in state.cell_list if c.opened and not c.is_mine)
     safe_count = state.total_cells - state.total_mines
     st.metric("進行度", f"{opened_count} / {safe_count}")
 with col_info3:

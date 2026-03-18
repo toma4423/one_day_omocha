@@ -46,6 +46,26 @@ def test_recursive_open_with_list():
     assert all(c.opened for c in state.cell_list)
 
 
+def test_opened_count_logic():
+    """AttributeErrorを防ぐためのフィールド参照チェック"""
+    state = create_minesweeper_3d(3, 3, 3, 5)
+    # フィールドが存在することを確認
+    assert hasattr(state, "cell_list")
+
+    # UI層で行っていた集計ロジックの検証
+    opened_count = sum(1 for c in state.cell_list if c.opened and not c.is_mine)
+    assert opened_count == 0
+
+    # 1つ開ける
+    safe_cell = next(c for c in state.cell_list if not c.is_mine)
+    from src.utils.minesweeper_3d import open_cell_3d
+
+    state = open_cell_3d(state, safe_cell.x, safe_cell.y, safe_cell.z)
+
+    opened_count = sum(1 for c in state.cell_list if c.opened and not c.is_mine)
+    assert opened_count >= 1
+
+
 def test_large_grid_safety():
     """巨大なグリッドでもシリアライズが安全に行えるか検証"""
     # 10x10x10 = 1000マス
