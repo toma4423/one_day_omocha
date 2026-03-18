@@ -1,9 +1,9 @@
 /**
- * 3D Minesweeper Engine using Three.js (Dynamic Range Mode)
+ * 3D Minesweeper Engine using Three.js (Highlight Mode)
  */
 
 window.initMinesweeper3D = function(config) {
-    console.log("M3D: Initializing Dynamic Range Mode...");
+    console.log("M3D: Initializing with Highlight Mode...");
     const container = document.getElementById('m3d-container');
     if (!container) return;
 
@@ -34,10 +34,11 @@ window.initMinesweeper3D = function(config) {
     scene.add(directionalLight);
 
     const cubes = [];
-    const geometry = new THREE.BoxGeometry(0.8, 0.8, 0.8);
+    const geometry = new THREE.BoxGeometry(0.85, 0.85, 0.85);
 
-    // フラット配列からの復元ロジック
-    // config.c = [x, y, z, status, neighbor_mines, ...]
+    // 選択中の座標を取得
+    const sel = config.sel; // [x, y, z] or null
+
     const cellArray = config.c || [];
     for (let i = 0; i < cellArray.length; i += 5) {
         const x = cellArray[i];
@@ -47,11 +48,20 @@ window.initMinesweeper3D = function(config) {
         const neighbors = cellArray[i + 4];
 
         // 状態: 0=未開封, 1=開封済, 2=フラグ, 3=地雷(開封)
-        // 開封済みかつ空(0)の場合は描画をスキップ
-        if (status === 1 && neighbors === 0) continue;
+        // 開封済みかつ空(0)の場合は描画をスキップ（選択中以外）
+        const isSelected = sel && x === sel[0] && y === sel[1] && z === sel[2];
+        if (status === 1 && neighbors === 0 && !isSelected) continue;
 
         let material;
-        if (status === 0 || status === 2) {
+        if (isSelected) {
+            // 選択中のセルを赤く強調
+            material = new THREE.MeshPhongMaterial({
+                color: 0xff0000,
+                emissive: 0x330000,
+                transparent: true,
+                opacity: 0.9
+            });
+        } else if (status === 0 || status === 2) {
             material = new THREE.MeshPhongMaterial({
                 color: status === 2 ? 0xffff00 : 0xcccccc,
                 transparent: true,
@@ -78,12 +88,13 @@ window.initMinesweeper3D = function(config) {
         scene.add(cube);
         cubes.push(cube);
 
+        // 数字の表示
         if (status === 1 && neighbors > 0) {
             const canvas = document.createElement('canvas');
             const ctx = canvas.getContext('2d');
             canvas.width = 128;
             canvas.height = 128;
-            ctx.fillStyle = 'white';
+            ctx.fillStyle = isSelected ? 'yellow' : 'white';
             ctx.font = 'Bold 80px Arial';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
@@ -113,9 +124,6 @@ window.initMinesweeper3D = function(config) {
         if (intersects.length > 0) {
             const target = intersects[0].object.userData;
             const action = (event.button === 2 || event.ctrlKey) ? 'flag' : 'open';
-            
-            // 視覚的フィードバック（一時的に色を変える）
-            intersects[0].object.material.emissive.setHex(0x444444);
             
             if (window.Streamlit) {
                 window.Streamlit.setComponentValue({

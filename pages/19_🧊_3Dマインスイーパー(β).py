@@ -79,8 +79,16 @@ try:
 except Exception as e:
     st.error(f"アセットの読み込みに失敗しました: {e}")
 
-# Base64 Data URI を生成 (Z軸フィルタリング適用)
-b64_uri = state.generate_base64_html(m3d_css, m3d_js, z_min=z_min, z_max=z_max)
+# Base64 Data URI を生成 (Z軸フィルタリング適用 + 選択座標ハイライト)
+b64_uri = state.generate_base64_html(
+    m3d_css,
+    m3d_js,
+    z_min=z_min,
+    z_max=z_max,
+    ix=st.session_state.op_x,
+    iy=st.session_state.op_y,
+    iz=st.session_state.op_z,
+)
 st.components.v1.iframe(src=b64_uri, height=600, scrolling=False)
 
 # --- 操作パネル ---

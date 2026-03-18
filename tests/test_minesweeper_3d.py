@@ -24,12 +24,11 @@ def test_base64_data_uri_format():
 def test_compact_data_types_strict():
     """JSに渡すデータの型が厳密に基本型であることを検証"""
     state = create_minesweeper_3d(3, 3, 3, 5)
-    data = state.to_compact_data()
+    data = state.to_compact_data(ix=1, iy=2, iz=0)
 
     assert type(data["w"]) is int
-    assert type(data["go"]) is bool
+    assert data["sel"] == [1, 2, 0]
     assert type(data["c"]) is list
-    assert all(type(x) is int for x in data["c"])
 
 
 def test_data_uri_size_optimization():

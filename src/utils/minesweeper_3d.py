@@ -41,13 +41,19 @@ class Minesweeper3DState(BaseModel):
             return self.cell_list[idx]
         return None
 
-    def to_compact_data(self, z_min: int = 0, z_max: int | None = None) -> dict[str, Any]:
-        """JS側に渡すデータを極限まで軽量化した辞書形式。表示範囲の制限に対応。"""
+    def to_compact_data(
+        self,
+        z_min: int = 0,
+        z_max: int | None = None,
+        ix: int | None = None,
+        iy: int | None = None,
+        iz: int | None = None,
+    ) -> dict[str, Any]:
+        """JS側に渡すデータを極限まで軽量化した辞書形式。表示範囲と選択ハイライトに対応。"""
         if z_max is None:
             z_max = self.depth - 1
 
         flat_cells = []
-        # 指定された Z 範囲のセルのみを抽出
         for c in self.cell_list:
             if z_min <= c.z <= z_max:
                 status = 0
@@ -63,16 +69,26 @@ class Minesweeper3DState(BaseModel):
             "d": int(self.depth),
             "z_min": int(z_min),
             "z_max": int(z_max),
+            "sel": [ix, iy, iz] if ix is not None else None,  # 選択中の座標
             "go": bool(self.game_over),
             "wn": bool(self.won),
-            "c": flat_cells,  # [x, y, z, status, neighbors, ...] の形式に変更
+            "c": flat_cells,
         }
 
-    def generate_base64_html(self, css: str, js: str, z_min: int = 0, z_max: int | None = None) -> str:
+    def generate_base64_html(
+        self,
+        css: str,
+        js: str,
+        z_min: int = 0,
+        z_max: int | None = None,
+        ix: int | None = None,
+        iy: int | None = None,
+        iz: int | None = None,
+    ) -> str:
         """
         TypeError を完全に排除するための、Base64 データ URI 方式の HTML 生成。
         """
-        data_json = json.dumps(self.to_compact_data(z_min, z_max))
+        data_json = json.dumps(self.to_compact_data(z_min, z_max, ix, iy, iz))
 
         # テンプレート（iframe内で完結する完全なHTML）
         # 波括弧によるパースエラーを防ぐため、単純な連結で構築
