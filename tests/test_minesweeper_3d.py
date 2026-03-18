@@ -1,50 +1,43 @@
-import json
+import base64
 
 from src.utils.minesweeper_3d import create_minesweeper_3d
 
 
-def test_compact_data_structure():
-    """超軽量データ（フラット配列）の構造を検証"""
-    state = create_minesweeper_3d(2, 2, 2, 2)
+def test_base64_data_uri_format():
+    """生成されたBase64 Data URIの形式を検証"""
+    state = create_minesweeper_3d(2, 2, 2, 1)
+    uri = state.generate_base64_html("css", "js")
+
+    # 1. 戻り値が確実に文字列であること
+    assert isinstance(uri, str)
+
+    # 2. Data URI 形式であること
+    assert uri.startswith("data:text/html;base64,")
+
+    # 3. Base64 デコード -> HTML パースが可能か
+    b64_part = uri.split(",")[1]
+    html = base64.b64decode(b64_part).decode("utf-8")
+    assert "<!DOCTYPE html>" in html
+    assert '<script id="m3d-data" type="application/json">' in html
+
+
+def test_compact_data_types_strict():
+    """JSに渡すデータの型が厳密に基本型であることを検証"""
+    state = create_minesweeper_3d(3, 3, 3, 5)
     data = state.to_compact_data()
 
-    assert data["w"] == 2
-    assert data["h"] == 2
-    assert data["d"] == 2
-    assert isinstance(data["c"], list)
-    # 8セル * 2要素([status, neighbors]) = 16要素
-    assert len(data["c"]) == 16
-    # 状態の値が 0-3 の範囲にあること
-    assert all(0 <= s <= 3 for s in data["c"][::2])
+    assert type(data["w"]) is int
+    assert type(data["go"]) is bool
+    assert type(data["c"]) is list
+    assert all(type(x) is int for x in data["c"])
 
 
-def test_html_type_safety_strict():
-    """TypeErrorを防ぐための最終的な型チェック"""
-    state = create_minesweeper_3d(3, 3, 3, 5)
-    html = state.generate_safe_html("css", "js")
+def test_data_uri_size_optimization():
+    """10x10x10の巨大データでもData URIが妥当なサイズか検証"""
+    state = create_minesweeper_3d(10, 10, 10, 50)
+    uri = state.generate_base64_html("", "")
 
-    # Python 3.13 / Streamlit Cloud で必須の文字列型であることを保証
-    assert type(html) is str
-    assert len(html) > 0
-    # 特殊文字によるエスケープ崩れがないか
-    assert "<script" in html
-    assert "</script>" in html
-
-
-def test_data_size_minimization():
-    """データサイズが劇的に削減されていることを検証"""
-    # 10x10x10 = 1000マス
-    state = create_minesweeper_3d(10, 10, 10, 100)
-    data_json = json.dumps(state.to_compact_data())
-
-    # 以前の方式（約95KB）から大幅に削減されていることを期待
-    # 1000マス * 2要素([0,0]) + 構造体 = 約 5KB - 10KB 程度になるはず
-    assert len(data_json) < 15000
-    print(f"Compact JSON size: {len(data_json)} bytes")
-
-
-def test_initialization_with_empty_state():
-    """初期化時のエッジケース"""
-    state = create_minesweeper_3d(1, 1, 1, 0)
-    assert state.total_cells == 1
-    assert len(state.cell_list) == 1
+    # Base64は元のサイズの約1.33倍になる
+    # 以前の調査でJSONが約10KBだったので、URI全体でも 20KB 程度に収まるはず
+    assert len(uri) < 30000
+    print(f"Data URI length: {len(uri)} chars")

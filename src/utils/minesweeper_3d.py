@@ -1,3 +1,4 @@
+import base64
 import json
 import random
 from typing import Any
@@ -41,10 +42,7 @@ class Minesweeper3DState(BaseModel):
         return None
 
     def to_compact_data(self) -> dict[str, Any]:
-        """
-        JS側に渡すデータを極限まで軽量化した辞書形式。
-        """
-        # セルデータを [状態, 周囲の地雷数] のペアのフラットリストに変換
+        """JS側に渡すデータを極限まで軽量化した辞書形式"""
         # 状態: 0=未開封, 1=開封済, 2=フラグ, 3=地雷(開封)
         flat_cells = []
         for c in self.cell_list:
@@ -56,28 +54,28 @@ class Minesweeper3DState(BaseModel):
             flat_cells.extend([status, c.neighbor_mines])
 
         return {
-            "w": self.width,
-            "h": self.height,
-            "d": self.depth,
-            "m": self.total_mines,
-            "go": self.game_over,
-            "wn": self.won,
+            "w": int(self.width),
+            "h": int(self.height),
+            "d": int(self.depth),
+            "go": bool(self.game_over),
+            "wn": bool(self.won),
             "c": flat_cells,
         }
 
-    def generate_safe_html(self, css: str, js: str) -> str:
+    def generate_base64_html(self, css: str, js: str) -> str:
         """
-        TypeError を完全に排除するための最終安定版 HTML 生成。
+        TypeError を完全に排除するための、Base64 データ URI 方式の HTML 生成。
         """
-        # コンパクトなデータを JSON 化
         data_json = json.dumps(self.to_compact_data())
 
-        # テンプレート
-        # f-string を避け、単純な連結で構築。波括弧のパースエラーを完全に防ぐ。
+        # テンプレート（iframe内で完結する完全なHTML）
+        # 波括弧によるパースエラーを防ぐため、単純な連結で構築
         html_parts = [
-            '<!DOCTYPE html><html><head><meta charset="utf-8"><style>',
-            css.replace("\n", ""),
-            '</style></head><body style="margin:0;padding:0;overflow:hidden;background:#111;">',
+            '<!DOCTYPE html><html><head><meta charset="utf-8">',
+            "<style>",
+            css.replace("\n", " "),
+            "</style>",
+            '</head><body style="margin:0;padding:0;overflow:hidden;background:#111;">',
             '<div id="m3d-container" style="width:100vw;height:100vh;"></div>',
             '<script id="m3d-data" type="application/json">',
             data_json,
@@ -90,7 +88,11 @@ class Minesweeper3DState(BaseModel):
             'try{const d=JSON.parse(document.getElementById("m3d-data").textContent);if(window.initMinesweeper3D)window.initMinesweeper3D(d);}catch(e){console.error(e);}',
             "</script></body></html>",
         ]
-        return "".join(html_parts)
+        full_html = "".join(html_parts)
+
+        # Base64 エンコードしてデータ URI を作成
+        b64_content = base64.b64encode(full_html.encode("utf-8")).decode("utf-8")
+        return f"data:text/html;base64,{b64_content}"
 
 
 def create_minesweeper_3d(width: int, height: int, depth: int, mines: int) -> Minesweeper3DState:

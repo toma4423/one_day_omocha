@@ -23,7 +23,7 @@ st.set_page_config(page_title="3Dマインスイーパー", page_icon="🧊", la
 render_page_header()
 
 storage = SafeStorage(LocalStorage())
-DATA_KEY = "m3d_data_v2"  # キーを更新
+DATA_KEY = "m3d_data_v3"  # キャッシュを完全にクリアするためにキーを更新
 
 # --- 初期化とデータ復元 ---
 if "m3d_state" not in st.session_state:
@@ -71,12 +71,13 @@ try:
 except Exception as e:
     st.error(f"アセットの読み込みに失敗しました: {e}")
 
-# コアロジック側で安全にHTMLを生成 (超軽量フラット配列方式)
-# 確実に str であることを保証
-full_html = str(state.generate_safe_html(m3d_css, m3d_js))
+# Base64 Data URI を生成 (TypeError 回避の最終手段)
+# 文字列としての処理を Python 側で完結させ、iframe に直接流し込む
+b64_uri = state.generate_base64_html(m3d_css, m3d_js)
 
-# key は一意かつシンプルな文字列。型エラーを防ぐため明示的に str キャスト
-st.components.v1.html(full_html, height=600, key="m3d_canvas_v2_stable")
+# components.v1.iframe を使用し、src に Data URI を指定
+# これにより Streamlit のシリアライズ制限を回避する
+st.components.v1.iframe(src=b64_uri, height=600, scrolling=False)
 
 # --- 補助UI: 直接座標指定で開く ---
 with st.expander("🛠️ 手動操作・設定"):
