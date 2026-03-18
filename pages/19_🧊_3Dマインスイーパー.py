@@ -75,50 +75,50 @@ except Exception as e:
 # JS側に渡すデータを準備
 state_json = state.model_dump_json()
 
-html_content = f"""
-<style>{m3d_css}</style>
+# f-string を使用すると CSS/JS 内の { } が Python の変数展開と衝突して TypeError になるため、
+# 通常の文字列として定義し replace で埋め込む。
+html_template = """
+<style> __M3D_CSS__ </style>
 <div id="m3d-container">
     <div id="m3d-info">3D View: Orbit Enabled</div>
 </div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
 <script>
-    {m3d_js}
+    __M3D_JS__
     
     // Streamlit 連携用
-    (function() {{
-        const sendToStreamlit = (value) => {{
-            const event = new CustomEvent("streamlit:setComponentValue", {{ detail: value }});
+    (function() {
+        const sendToStreamlit = (value) => {
+            const event = new CustomEvent("streamlit:setComponentValue", { detail: value });
             window.parent.dispatchEvent(event);
-        }};
+        };
         
-        // window.Streamlit の代わりを実装
-        window.Streamlit = {{
-            setComponentValue: function(value) {{
-                // 実際には Streamlit.setComponentValue は iframe 内で定義されている必要がある
-                // ここでは iframe 通信をシミュレート、または標準的な挙動に合わせる
-                const message = {{
+        window.Streamlit = {
+            setComponentValue: function(value) {
+                const message = {
                     type: "streamlit:setComponentValue",
                     value: value
-                }};
+                };
                 window.parent.postMessage(message, "*");
-            }}
-        }};
-    }})();
+            }
+        };
+    })();
 
-    initMinesweeper3D({state_json});
+    if (window.initMinesweeper3D) {
+        window.initMinesweeper3D(__STATE_JSON__);
+    }
 </script>
 """
 
-# HTMLコンポーネントからの戻り値（クリックイベント）を取得
-# 注意: st.components.v1.html 自体は戻り値を持たないため、
-# 実際にはカスタムコンポーネントとして実装するか、
-# query_params 等を介したトリッキーな方法が必要。
-# ここでは一旦、描画に専念し、操作はボタンで行う補助UIも用意する。
+full_html = (
+    html_template.replace("__M3D_CSS__", m3d_css).replace("__M3D_JS__", m3d_js).replace("__STATE_JSON__", state_json)
+)
 
-res = st.components.v1.html(html_content, height=600, key="m3d_canvas")
+# key は固定文字列を使用して安定させる
+st.components.v1.html(full_html, height=600, key="m3d_canvas_fixed")
 
-# --- 補助UI: 直接座標指定で開く（JS連携が不安定な場合のバックアップ） ---
+# --- 補助UI: 直接座標指定で開く ---
 with st.expander("🛠️ 手動操作・設定"):
     c1, c2, c3, c4 = st.columns([1, 1, 1, 2])
     with c1:
@@ -150,7 +150,7 @@ with st.expander("🛠️ 手動操作・設定"):
         st.rerun()
 
 
-# --- データの保存 ---
+# --- データの管理 ---
 def on_save():
     pass
 
