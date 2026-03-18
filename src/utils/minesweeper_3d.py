@@ -1,3 +1,4 @@
+import base64
 import random
 from typing import Any
 
@@ -23,7 +24,6 @@ class Minesweeper3DState(BaseModel):
     height: int
     depth: int
     total_mines: int
-    # 辞書形式はJSON化すると非常に巨大になるため、内部的にはリストで保持
     cell_list: list[Minesweeper3DCell] = Field(default_factory=list)
     game_over: bool = False
     won: bool = False
@@ -45,65 +45,49 @@ class Minesweeper3DState(BaseModel):
 
     def generate_safe_html(self, css: str, js: str) -> str:
         """
-        Streamlit の通信エラーを物理的に回避するための超軽量 HTML 生成。
+        TypeError を物理的に回避するための Base64 方式 HTML 生成。
+        JSON データを Base64 化することで、Streamlit の通信レイヤーでの干渉を完全に防ぎます。
         """
-        # JSに渡すデータを極限まで絞り込む (opened, flagged, mines だけにする等も検討可能だがまずは全体)
-        # model_dump_json は非常に高速
+        # JSON化してから Base64 エンコード
         state_json = self.model_dump_json()
+        b64_data = base64.b64encode(state_json.encode("utf-8")).decode("utf-8")
 
-        # 波括弧によるパースエラーを防ぐため、HTMLを単純な連結で作成
-        return f"""
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="utf-8">
-    <style>{css}</style>
-</head>
-<body style="margin: 0; padding: 0; overflow: hidden;">
-    <div id="m3d-container" style="width: 100vw; height: 100vh;"></div>
-    <script id="m3d-data" type="application/json">{state_json}</script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
-    <script>
-        (function() {{
-            window.Streamlit = {{
-                setComponentValue: function(value) {{
-                    window.parent.postMessage({{
-                        type: "streamlit:setComponentValue",
-                        value: value
-                    }}, "*");
-                }}
-            }};
-        }})();
-        {js}
-        try {{
-            const data = JSON.parse(document.getElementById('m3d-data').textContent);
-            if (window.initMinesweeper3D) window.initMinesweeper3D(data);
-        }} catch (e) {{ console.error(e); }}
-    </script>
-</body>
-</html>
-"""
+        # テンプレート（f-stringを使わず結合することで安全性を最大化）
+        parts = [
+            '<!DOCTYPE html><html><head><meta charset="utf-8"><style>',
+            css,
+            '</style></head><body style="margin:0;padding:0;overflow:hidden;">',
+            '<div id="m3d-container" style="width:100vw;height:100vh;"></div>',
+            '<script id="m3d-data-b64" type="text/plain">',
+            b64_data,
+            "</script>",
+            '<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>',
+            '<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>',
+            "<script>",
+            '(function(){window.Streamlit={setComponentValue:function(v){window.parent.postMessage({type:"streamlit:setComponentValue",value:v},"*");}};})();',
+            js,
+            "try {",
+            'const b64 = document.getElementById("m3d-data-b64").textContent;',
+            "const data = JSON.parse(decodeURIComponent(escape(window.atob(b64))));",
+            "if(window.initMinesweeper3D) window.initMinesweeper3D(data);",
+            '} catch(e) { console.error("M3D Load Error:", e); }',
+            "</script></body></html>",
+        ]
+        return "".join(parts)
 
 
 def create_minesweeper_3d(width: int, height: int, depth: int, mines: int) -> Minesweeper3DState:
     state = Minesweeper3DState(width=width, height=height, depth=depth, total_mines=mines)
-
-    # 連続したリストとしてセルを生成
     cells = []
     for z in range(depth):
         for y in range(height):
             for x in range(width):
                 cells.append(Minesweeper3DCell(x=x, y=y, z=z))
     state.cell_list = cells
-
-    # 地雷の配置
     all_indices = list(range(len(state.cell_list)))
     mine_indices = random.sample(all_indices, min(mines, len(all_indices)))
     for idx in mine_indices:
         state.cell_list[idx].is_mine = True
-
-    # 26近傍の計算
     for cell in state.cell_list:
         if cell.is_mine:
             continue
@@ -117,18 +101,15 @@ def create_minesweeper_3d(width: int, height: int, depth: int, mines: int) -> Mi
                     if neighbor and neighbor.is_mine:
                         count += 1
         cell.neighbor_mines = count
-
     return state
 
 
 def open_cell_3d(state: Minesweeper3DState, x: int, y: int, z: int) -> Minesweeper3DState:
     if state.game_over or state.won:
         return state
-
     cell = state.get_cell(x, y, z)
     if not cell or cell.opened or cell.flagged:
         return state
-
     cell.opened = True
     if cell.is_mine:
         state.game_over = True
@@ -136,13 +117,10 @@ def open_cell_3d(state: Minesweeper3DState, x: int, y: int, z: int) -> Minesweep
             if c.is_mine:
                 c.opened = True
         return state
-
-    # 勝利判定
     safe_unopened = [c for c in state.cell_list if not c.is_mine and not c.opened]
     if not safe_unopened:
         state.won = True
         return state
-
     if cell.neighbor_mines == 0:
         for dx in [-1, 0, 1]:
             for dy in [-1, 0, 1]:
@@ -164,7 +142,6 @@ def migrate_minesweeper_3d_data(data: Any) -> Minesweeper3DState | None:
     if not data:
         return None
     try:
-        # 古い辞書形式 (cells) からの移行をサポート
         if isinstance(data, dict):
             if "cells" in data and "cell_list" not in data:
                 data["cell_list"] = list(data["cells"].values())

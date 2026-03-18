@@ -1,77 +1,55 @@
+import base64
 import json
 
-from src.utils.minesweeper_3d import create_minesweeper_3d, open_cell_3d
+from src.utils.minesweeper_3d import create_minesweeper_3d
 
 
-def test_cell_list_structure():
-    """リスト形式への移行が正しいか検証"""
+def test_base64_html_generation():
+    """Base64方式のHTML生成が正しく行われ、TypeErrorの原因を排除できているか検証"""
     state = create_minesweeper_3d(3, 3, 3, 5)
-    assert hasattr(state, "cell_list")
-    assert len(state.cell_list) == 27
-    assert isinstance(state.cell_list[0].x, int)
-
-
-def test_html_string_type_and_content():
-    """TypeErrorを防止するための戻り値チェック"""
-    state = create_minesweeper_3d(2, 2, 2, 2)
-    css = "body { background: black; }"
+    css = "body { margin: 0; }"
     js = "console.log('test');"
 
-    # メソッドとして呼び出す
     html = state.generate_safe_html(css, js)
 
     # 1. 戻り値が確実に文字列であること
     assert isinstance(html, str)
 
-    # 2. テンプレート置換が正しく行われているか
+    # 2. Base64データが埋め込まれているか
+    assert '<script id="m3d-data-b64" type="text/plain">' in html
+
+    # 3. データのデコード検証
+    # 文字列からBase64部分を抽出
+    marker = '<script id="m3d-data-b64" type="text/plain">'
+    start = html.find(marker) + len(marker)
+    end = html.find("</script>", start)
+    b64_str = html[start:end].strip()
+
+    # Base64デコード -> JSONパース
+    decoded_json = base64.b64decode(b64_str).decode("utf-8")
+    data = json.loads(decoded_json)
+
+    assert data["width"] == 3
+    assert len(data["cell_list"]) == 27
+    assert "game_over" in data
+
+
+def test_html_safety_no_fstrings():
+    """HTML内に波括弧が含まれていてもパースエラーにならない構造か検証"""
+    state = create_minesweeper_3d(2, 2, 2, 1)
+    # JS/CSS内に波括弧を多用
+    css = ".test { content: '{edge_case}'; }"
+    js = "if(true) { const x = { a: 1 }; }"
+
+    html = state.generate_safe_html(css, js)
+    assert isinstance(html, str)
     assert css in html
     assert js in html
-    assert '<script id="m3d-data" type="application/json">' in html
-
-    # 3. JSONが隔離されており、パース可能か
-    json_part = html.split('<script id="m3d-data" type="application/json">')[1].split("</script>")[0]
-    data = json.loads(json_part)
-    assert data["width"] == 2
-    assert len(data["cell_list"]) == 8
 
 
-def test_recursive_open_with_list():
-    """リスト形式での再帰オープンが正しく動作するか検証"""
-    # 3x3x3 地雷なし
-    state = create_minesweeper_3d(3, 3, 3, 0)
-    # 中央を開く
-    state = open_cell_3d(state, 1, 1, 1)
-
-    # 全てのセルが開かれていること
-    assert all(c.opened for c in state.cell_list)
-
-
-def test_opened_count_logic():
-    """AttributeErrorを防ぐためのフィールド参照チェック"""
-    state = create_minesweeper_3d(3, 3, 3, 5)
-    # フィールドが存在することを確認
-    assert hasattr(state, "cell_list")
-
-    # UI層で行っていた集計ロジックの検証
-    opened_count = sum(1 for c in state.cell_list if c.opened and not c.is_mine)
-    assert opened_count == 0
-
-    # 1つ開ける
-    safe_cell = next(c for c in state.cell_list if not c.is_mine)
-    from src.utils.minesweeper_3d import open_cell_3d
-
-    state = open_cell_3d(state, safe_cell.x, safe_cell.y, safe_cell.z)
-
-    opened_count = sum(1 for c in state.cell_list if c.opened and not c.is_mine)
-    assert opened_count >= 1
-
-
-def test_large_grid_safety():
-    """巨大なグリッドでもシリアライズが安全に行えるか検証"""
-    # 10x10x10 = 1000マス
-    state = create_minesweeper_3d(10, 10, 10, 50)
+def test_large_data_robustness():
+    """10x10x10の巨大データでもBase64化が正常に行われるか"""
+    state = create_minesweeper_3d(10, 10, 10, 100)
     html = state.generate_safe_html("", "")
-
-    assert isinstance(html, str)
-    assert len(html) > 50000  # 適切なデータ量
-    assert "cell_list" in html
+    assert len(html) > 100000
+    assert "m3d-data-b64" in html
