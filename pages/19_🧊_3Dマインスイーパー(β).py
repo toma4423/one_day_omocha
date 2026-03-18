@@ -41,7 +41,8 @@ if "m3d_state" not in st.session_state or st.session_state.m3d_state is None:
 
 state: Minesweeper3DState = st.session_state.m3d_state
 
-st.title("🧊 3Dマインスイーパー")
+st.title("🧊 3Dマインスイーパー (β)")
+st.warning("⚠️ **技術検証中**: この機能は現在、3D描画および通信の安定性を検証するためのプロトタイプです。")
 st.caption("マウスで回転・スクロールでズーム。左クリックで開封、右クリック（またはCtrl+クリック）でフラグ。")
 
 # --- ゲーム状態の表示 ---
@@ -113,6 +114,11 @@ with st.expander("🛠️ 手動操作・設定"):
     if st.button("ゲームをリセットして開始", use_container_width=True, type="primary"):
         st.session_state.m3d_state = create_minesweeper_3d(int(nw), int(nh), int(nd), int(nm))
         st.rerun()
+
+st.write("---")
+st.info(
+    "💡 **お知らせ**: このページは3次元空間でのマインスイーパーの挙動を検証するためのものであり、現時点ではゲームとしてのバランス調整や完全な機能実装は行われていません。あらかじめご了承ください。"
+)
 
 
 # --- データの保存 ---
