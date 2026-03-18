@@ -1,22 +1,18 @@
 /**
- * 3D Minesweeper Engine using Three.js
+ * 3D Minesweeper Engine using Three.js (Optimized for List Data)
  */
 
 window.initMinesweeper3D = function(config) {
-    console.log("Initializing 3D Minesweeper...");
+    console.log("Initializing 3D Minesweeper (List Mode)...");
     const container = document.getElementById('m3d-container');
-    if (!container) {
-        console.error("Container not found");
-        return;
-    }
+    if (!container) return;
 
-    // 既存のコンテンツをクリア
     while (container.firstChild) {
         container.removeChild(container.firstChild);
     }
 
-    const width = container.clientWidth || 800;
-    const height = container.clientHeight || 600;
+    const width = container.clientWidth || window.innerWidth;
+    const height = container.clientHeight || window.innerHeight;
 
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x111111);
@@ -31,7 +27,6 @@ window.initMinesweeper3D = function(config) {
     const controls = new THREE.OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
 
-    // 照明
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
     scene.add(ambientLight);
     const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
@@ -41,26 +36,23 @@ window.initMinesweeper3D = function(config) {
     const cubes = [];
     const geometry = new THREE.BoxGeometry(0.85, 0.85, 0.85);
 
-    // グリッド生成
-    Object.values(config.cells).forEach(cell => {
-        // 開封済みかつ地雷なし(0)の場合は表示しない（透過性向上のため）
+    // リスト形式のデータを処理
+    const cellList = config.cell_list || [];
+    cellList.forEach(cell => {
         if (cell.opened && !cell.is_mine && cell.neighbor_mines === 0) {
             return;
         }
 
         let material;
         if (!cell.opened) {
-            // 未開封
             material = new THREE.MeshPhongMaterial({
                 color: cell.flagged ? 0xffff00 : 0xcccccc,
                 transparent: true,
                 opacity: 0.7
             });
         } else if (cell.is_mine) {
-            // 地雷
             material = new THREE.MeshPhongMaterial({ color: 0xff0000 });
         } else {
-            // 数字あり
             material = new THREE.MeshPhongMaterial({
                 color: 0x444444,
                 transparent: true,
@@ -79,7 +71,6 @@ window.initMinesweeper3D = function(config) {
         scene.add(cube);
         cubes.push(cube);
 
-        // 数字の表示
         if (cell.opened && !cell.is_mine && cell.neighbor_mines > 0) {
             const canvas = document.createElement('canvas');
             const ctx = canvas.getContext('2d');
@@ -100,7 +91,6 @@ window.initMinesweeper3D = function(config) {
         }
     });
 
-    // クリック判定
     const raycaster = new THREE.Raycaster();
     const mouse = new THREE.Vector2();
 
@@ -117,7 +107,6 @@ window.initMinesweeper3D = function(config) {
             const target = intersects[0].object.userData;
             const action = (event.button === 2 || event.ctrlKey) ? 'flag' : 'open';
             
-            console.log("Action selected:", action, target);
             if (window.Streamlit) {
                 window.Streamlit.setComponentValue({
                     action: action,
