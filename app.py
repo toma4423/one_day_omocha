@@ -1,61 +1,103 @@
 import streamlit as st
 
-from src.utils.styles import render_donation_box, render_page_header
-
 # ページの設定
-st.set_page_config(page_title="今日のおもちゃ箱", layout="wide", page_icon="🎁")
+st.set_page_config(
+    page_title="🎁 今日のおもちゃ箱",
+    page_icon="🎁",
+    layout="centered",
+    initial_sidebar_state="collapsed",
+)
 
-# グローバルスタイルの適用
-render_page_header()
-
-# メインページ（ホーム）
+# スタイルの定義
 st.markdown(
-    "<h1 style='text-align: center; font-weight: 900; margin-top: 2vh; color: #333;'>🎁 今日のおもちゃ箱</h1>",
+    """
+    <style>
+    /* メインコンテナの背景とレイアウト */
+    .stApp {
+        background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+    }
+    
+    .portal-container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        height: 80vh;
+        text-align: center;
+    }
+    
+    .logo {
+        font-size: 80px;
+        margin-bottom: 20px;
+        animation: bounce 2s infinite;
+    }
+    
+    @keyframes bounce {
+        0%, 20%, 50%, 80%, 100% {transform: translateY(0);}
+        40% {transform: translateY(-30px);}
+        60% {transform: translateY(-15px);}
+    }
+    
+    .title {
+        font-weight: 900;
+        font-size: 3rem;
+        color: #2c3e50;
+        margin-bottom: 1rem;
+        text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    .subtitle {
+        font-size: 1.2rem;
+        color: #5e6d7e;
+        margin-bottom: 3rem;
+    }
+    
+    .redirect-button {
+        display: inline-block;
+        background-color: #ff4b4b;
+        color: white !important;
+        padding: 1.2rem 3rem;
+        border-radius: 50px;
+        font-size: 24px;
+        font-weight: bold;
+        text-decoration: none;
+        box-shadow: 0 10px 20px rgba(255,75,75,0.3);
+        transition: all 0.3s ease;
+        border: none;
+    }
+    
+    .redirect-button:hover {
+        transform: translateY(-5px) scale(1.05);
+        box-shadow: 0 15px 30px rgba(255,75,75,0.4);
+        background-color: #ff3333;
+    }
+
+    /* サイドバーを非表示にする（Streamlitのデフォルトメニューは残るが、ナビゲーションは空） */
+    section[data-testid="stSidebar"] {
+        display: none;
+    }
+    </style>
+    
+    <div class="portal-container">
+        <div class="logo">🎁</div>
+        <div class="title">今日のおもちゃ箱</div>
+        <p class="subtitle">新しい「今日のおもちゃ箱」へようこそ！<br>より快適に、もっと楽しく遊べるようになりました。</p>
+        
+        <a href="https://omocha-frontend-599665978822.asia-northeast1.run.app/" target="_self" class="redirect-button">
+            🚀 おもちゃ箱を開いて遊ぶ 🚀
+        </a>
+    </div>
+    """,
     unsafe_allow_html=True,
 )
+
+# 自動リダイレクトの補助（必要であれば）
 st.markdown(
-    "<p style='text-align: center; font-size: 20px; color: #666;'>サイドバーからおもちゃを選んで遊んでね！</p>",
+    """
+    <script>
+    // ユーザーがクリックしなくても自動的にリダイレクトさせたい場合は以下を有効にできます
+    // window.location.href = "https://omocha-frontend-599665978822.asia-northeast1.run.app/";
+    </script>
+    """,
     unsafe_allow_html=True,
 )
-st.write("")
-
-# 各おもちゃの説明エリア
-st.subheader("📦 おもちゃの紹介")
-
-col1, col2 = st.columns(2)
-
-with col1:
-    with st.container(border=True):
-        st.markdown("""
-        ### 🎮 ゲーム・エンタメ系
-        - **サイコロ**: 最大100個を一度に！**出目履歴の自動保存**にも対応。
-        - **双六メーカー**: 自由にマスを作れる。**自動コマ移動とループ機能**で本格プレイ。
-        - **黒ひげ危機一発**: 番号表示で分かりやすい。**中断しても続きから**遊べます。
-        - **マインスイーパー**: 定番の頭脳パズル。地雷の位置も自動で保持。
-        - **チンチロリン**: アニメーションと役判定。**対戦履歴を自動記録**します。
-        - **スロット [β]**: 演出付きスロット。**自分好みの設定**で遊べます。
-        - **ルーレット**: 自由に確率を設定。**物理回転とカチカチ音**で本格抽選。
-        """)
-
-with col2:
-    with st.container(border=True):
-        st.markdown("""
-        ### 🛠 サポート・ツール系
-        - **カウントサポート**: X, Y, Z を倍率計算。**JSONでの保存・復元**が可能。
-        - **カウントサポートビンゴ**: 最大 15×15 の多機能カウンタ。**自動保存とJSON入出力**を完備。
-        - **並列カウンター**: 項目を自由に増やせる**シンプルかつ多機能**なカウンター。
-        - **スロット作成**: 役や確率を**自由にカスタマイズ**して保存可能。
-        - **Palmu予定表 (週間/月間)**: ランク計算と画像生成。**配信者のスケジュール管理**を強力サポート。
-        """)
-
-st.info(
-    "💡 **すべてのツールは「自動保存」に対応しています。** ブラウザをリロードしたり閉じたりしても、あなたのデータは手元のデバイスに安全に保持されます。"
-)
-
-st.write("---")
-
-# 開発支援エリアを最後に配置
-col_l, col_m, col_r = st.columns([1, 2, 1])
-with col_m:
-    PAYPAY_URL = "https://qr.paypay.ne.jp/p2p01_jsHjvMAenqfvI10s"
-    render_donation_box(PAYPAY_URL)
